@@ -1,18 +1,35 @@
 use std::collections::BTreeSet;
 
-use crate::model::{
-    AnalysisIssue, BoundaryViolation, ObservedDependencyGraph, PolicyEvaluation,
-    ValidationDecision, ValidationReport,
+use serde_json::{Map, Value, json};
+
+use crate::boundary_validation::{
+    AnalysisContext, AnalysisIssue, BoundaryViolation, Dependency, LogicalModule,
+    ModuleDeclaration, PolicyEvaluation, ValidationDecision, ValidationResult,
 };
 
-pub fn build(
-    mut graph: ObservedDependencyGraph,
-    mut violations: Vec<BoundaryViolation>,
-    policy_evaluation: PolicyEvaluation,
-    mut analysis_issues: Vec<AnalysisIssue>,
-    decision: ValidationDecision,
-    serialization: &str,
-) -> ValidationReport {
+pub struct ValidationReport {
+    pub schema_version: String,
+    pub serialization: String,
+    pub ordering: String,
+    pub analysis_context: AnalysisContext,
+    pub modules: Vec<LogicalModule>,
+    pub module_declarations: Vec<ModuleDeclaration>,
+    pub dependencies: Vec<Dependency>,
+    pub excluded_scopes: Vec<String>,
+    pub violations: Vec<BoundaryViolation>,
+    pub policy_evaluation: PolicyEvaluation,
+    pub analysis_issues: Vec<AnalysisIssue>,
+    pub decision: ValidationDecision,
+}
+
+pub fn build(result: ValidationResult, serialization: &str) -> ValidationReport {
+    let ValidationResult {
+        mut graph,
+        mut violations,
+        policy_evaluation,
+        mut analysis_issues,
+        decision,
+    } = result;
     graph.analysis_context.features.sort();
     graph.analysis_context.features.dedup();
     graph.analysis_context.cfg.sort();
@@ -90,7 +107,99 @@ fn dedup_preserving_order(values: &mut Vec<String>) {
 }
 
 pub fn to_json(report: &ValidationReport) -> Result<String, serde_json::Error> {
-    serde_json::to_string_pretty(report)
+    serde_json::to_string_pretty(&report_value(report))
+}
+
+fn report_value(report: &ValidationReport) -> Value {
+    json!({
+        "schema_version": report.schema_version,
+        "serialization": report.serialization,
+        "ordering": report.ordering,
+        "analysis_context": analysis_context_value(&report.analysis_context),
+        "modules": report.modules.iter().map(|module| json!({"id": module.id})).collect::<Vec<_>>(),
+        "module_declarations": report.module_declarations.iter().map(module_declaration_value).collect::<Vec<_>>(),
+        "dependencies": report.dependencies.iter().map(dependency_value).collect::<Vec<_>>(),
+        "excluded_scopes": report.excluded_scopes,
+        "violations": report.violations.iter().map(violation_value).collect::<Vec<_>>(),
+        "policy_evaluation": {
+            "dependency_outcome": report.policy_evaluation.dependency_outcome,
+            "cycle_outcome": report.policy_evaluation.cycle_outcome,
+            "forbidden_match_handling": report.policy_evaluation.forbidden_match_handling,
+            "allowed_match_handling": report.policy_evaluation.allowed_match_handling,
+            "cycle_handling": report.policy_evaluation.cycle_handling,
+        },
+        "analysis_issues": report.analysis_issues.iter().map(|issue| json!({
+            "code": issue.code,
+            "reason": issue.reason,
+            "affected_scope": issue.affected_scope,
+        })).collect::<Vec<_>>(),
+        "decision": decision_name(report.decision),
+    })
+}
+
+fn analysis_context_value(context: &AnalysisContext) -> Value {
+    json!({
+        "analysis_profile": context.analysis_profile.as_str(),
+        "package": context.package,
+        "compilation_target": context.compilation_target,
+        "features": context.features,
+        "cfg": context.cfg,
+        "target_triple": context.target_triple,
+        "include": context.include,
+        "exclude": context.exclude,
+    })
+}
+
+fn source_evidence_value(evidence: &crate::boundary_validation::SourceEvidence) -> Value {
+    json!({
+        "path": evidence.path,
+        "line": evidence.line,
+        "column": evidence.column,
+    })
+}
+
+fn module_declaration_value(declaration: &ModuleDeclaration) -> Value {
+    json!({
+        "declaration_id": declaration.declaration_id,
+        "parent": declaration.parent,
+        "child": declaration.child,
+        "evidence": source_evidence_value(&declaration.evidence),
+    })
+}
+
+fn dependency_value(dependency: &Dependency) -> Value {
+    json!({
+        "candidate_id": dependency.candidate_id,
+        "source": dependency.source,
+        "target": dependency.target,
+        "kind": dependency.kind.as_str(),
+        "target_scope": target_scope_name(dependency.target_scope),
+        "evidence": source_evidence_value(&dependency.evidence),
+    })
+}
+
+fn violation_value(violation: &BoundaryViolation) -> Value {
+    let mut value = Map::new();
+    value.insert("kind".to_owned(), json!(rule_name(violation.kind)));
+    value.insert("rule_id".to_owned(), json!(violation.rule_id));
+    value.insert(
+        "severity".to_owned(),
+        json!(severity_name(violation.severity)),
+    );
+    value.insert("source".to_owned(), json!(violation.source));
+    value.insert("target".to_owned(), json!(violation.target));
+    value.insert(
+        "dependency_kind".to_owned(),
+        json!(violation.dependency_kind.as_str()),
+    );
+    value.insert(
+        "evidence".to_owned(),
+        source_evidence_value(&violation.evidence),
+    );
+    if let Some(cycle_path) = &violation.cycle_path {
+        value.insert("cycle_path".to_owned(), json!(cycle_path));
+    }
+    Value::Object(value)
 }
 
 pub fn to_text(report: &ValidationReport) -> String {
@@ -99,6 +208,10 @@ pub fn to_text(report: &ValidationReport) -> String {
     output.push_str(&format!("serialization: {}\n", report.serialization));
     output.push_str(&format!("ordering: {}\n", report.ordering));
     output.push_str(&format!("decision: {}\n", decision_name(report.decision)));
+    output.push_str(&format!(
+        "analysis_profile: {}\n",
+        report.analysis_context.analysis_profile.as_str()
+    ));
     output.push_str(&format!("package: {}\n", report.analysis_context.package));
     output.push_str(&format!(
         "compilation_target: {}\n",
@@ -200,32 +313,35 @@ fn decision_name(decision: ValidationDecision) -> &'static str {
     }
 }
 
-fn rule_name(kind: crate::model::ViolationKind) -> &'static str {
+fn rule_name(kind: crate::boundary_validation::ViolationKind) -> &'static str {
     match kind {
-        crate::model::ViolationKind::Forbidden => "forbidden",
-        crate::model::ViolationKind::NotAllowed => "not-allowed",
-        crate::model::ViolationKind::Circular => "circular",
+        crate::boundary_validation::ViolationKind::Forbidden => "forbidden",
+        crate::boundary_validation::ViolationKind::NotAllowed => "not-allowed",
+        crate::boundary_validation::ViolationKind::Circular => "circular",
     }
 }
 
-fn target_scope_name(scope: crate::model::TargetScope) -> &'static str {
+fn target_scope_name(scope: crate::boundary_validation::TargetScope) -> &'static str {
     match scope {
-        crate::model::TargetScope::InternalModule => "internal-module",
-        crate::model::TargetScope::ExternalCrate => "external-crate",
+        crate::boundary_validation::TargetScope::InternalModule => "internal-module",
+        crate::boundary_validation::TargetScope::ExternalCrate => "external-crate",
     }
 }
 
-fn severity_name(severity: crate::model::Severity) -> &'static str {
+fn severity_name(severity: crate::boundary_validation::Severity) -> &'static str {
     match severity {
-        crate::model::Severity::Error => "error",
-        crate::model::Severity::Warning => "warning",
+        crate::boundary_validation::Severity::Error => "error",
+        crate::boundary_validation::Severity::Warning => "warning",
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::ValidationReport;
     use super::to_text;
-    use crate::model::{AnalysisContext, PolicyEvaluation, ValidationDecision, ValidationReport};
+    use crate::boundary_validation::{
+        AnalysisContext, AnalysisProfile, PolicyEvaluation, ValidationDecision,
+    };
 
     #[test]
     fn text_report_contains_the_decision() {
@@ -235,6 +351,7 @@ mod tests {
             serialization: "text".to_owned(),
             ordering: "canonical".to_owned(),
             analysis_context: AnalysisContext {
+                analysis_profile: AnalysisProfile::Compilation,
                 package: "fixture".to_owned(),
                 compilation_target: "bin:fixture".to_owned(),
                 features: Vec::new(),

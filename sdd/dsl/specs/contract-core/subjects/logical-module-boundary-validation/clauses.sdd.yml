@@ -4,8 +4,10 @@ subject_ref: subject.logical-module-boundary.validation
 contracts:
   - id: contract.logical-module-boundary.dependency-graph
     summary: >-
-      1回の解析は一意なAnalysisContextを使い、ModuleDeclarationを利用依存から分離し、
+      1回の解析はcompilationまたはsource-unionを持つ一意なAnalysisContextを使い、ModuleDeclarationを利用依存から分離し、
       import、re-export、解決済みpath-referenceだけをDependencyEdgeとして観測する。
+      compilationは選択したcompile条件を観測範囲とし、未対応のmacro展開、cfg評価、名前解決が境界判定へ影響し得る場合は解析未完了とする。
+      source-unionはsourceに記述された全cfg分岐を和集合として観測し、macroまたはattribute展開だけが生成する依存を観測範囲外とするが、明示的な内部参照を解決できない場合は解析未完了とする。
       includeとexcludeはBoundaryPolicyと同じLogicalModule ID patternを使い、include省略時は全moduleを候補とし、excludeを優先する。
       選択済みmoduleを依存元とし、内部依存先も選択済みの辺だけを保持するが、外部crate依存先は依存元が選択済みなら保持する。
       内部論理モジュールと外部crateを区別し、同一入力の集合と順序を決定的にする。
@@ -20,6 +22,11 @@ contracts:
           kind: input
           term: input.analysis_request
           op: present
+      - id: source-union-request-present
+        input_predicate:
+          kind: input
+          term: input.analysis_request.source_union
+          op: present
     guarantees:
       - id: analysis-context-present
         when: analysis-request-present
@@ -30,6 +37,35 @@ contracts:
           target:
             kind: observation_field
             value: result.analysis_context
+      - id: analysis-profile-supported
+        when: analysis-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.analysis_context.analysis_profile
+            right:
+              kind: value_set
+              values:
+                - compilation
+                - source-union
+      - id: source-union-profile-selected
+        when: source-union-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.analysis_context.analysis_profile
+            right:
+              kind: value_set
+              values:
+                - source-union
       - id: logical-modules-present
         when: analysis-request-present
         observation_ref: observation.validation.result
@@ -102,12 +138,20 @@ contracts:
         goal: 解析条件、宣言包含、型付き依存辺、外部crate分類、除外範囲を決定的に観測できることを確認する
         guarantee_refs:
           - analysis-context-present
+          - analysis-profile-supported
           - logical-modules-present
           - module-declarations-separated
           - dependency-edges-present
           - dependency-kind-supported
           - dependency-target-scope-supported
           - excluded-scopes-present
+      - id: source-union-observation
+        goal: source-unionがsourceに記述されたcfg分岐の依存を観測し、選択profileを結果へ明示することを確認する
+        guarantee_refs:
+          - analysis-context-present
+          - analysis-profile-supported
+          - source-union-profile-selected
+          - dependency-edges-present
 
   - id: contract.logical-module-boundary.policy-evaluation
     summary: >-

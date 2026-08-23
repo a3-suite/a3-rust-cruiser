@@ -14,12 +14,15 @@ verifications:
             features: []
             cfg: []
             target_triple: x86_64-unknown-linux-gnu
+            analysis_profile: compilation
             include:
               - crate
             exclude: []
         checks:
           - id: check-analysis-context
             guarantee_ref: analysis-context-present
+          - id: check-analysis-profile
+            guarantee_ref: analysis-profile-supported
           - id: check-logical-modules
             guarantee_ref: logical-modules-present
           - id: check-module-declarations
@@ -32,6 +35,28 @@ verifications:
             guarantee_ref: dependency-target-scope-supported
           - id: check-excluded-scopes
             guarantee_ref: excluded-scopes-present
+      - id: source-union-source-authored-dependencies
+        intent_id: source-union-observation
+        input:
+          analysis_request:
+            source_union: true
+            analysis_profile: source-union
+            cfg_branches: union
+            same_module_cfg_variants: union
+            same_alias_cfg_variants: candidate-union
+            conditional_runtime_dependencies: union
+            development_dependencies: dev-target-only
+            build_dependencies: out-of-scope
+            macro_generated_dependencies: out-of-scope
+        checks:
+          - id: check-analysis-context
+            guarantee_ref: analysis-context-present
+          - id: check-analysis-profile
+            guarantee_ref: analysis-profile-supported
+          - id: check-source-union-profile
+            guarantee_ref: source-union-profile-selected
+          - id: check-dependency-edges
+            guarantee_ref: dependency-edges-present
 
   - id: verification.logical-module-boundary.policy-evaluation
     contract_id: contract.logical-module-boundary.policy-evaluation
@@ -327,6 +352,26 @@ verifications:
       - id: unresolved-reference-is-indeterminate
         intent_id: incomplete-analysis-classification
         input:
+          incomplete_analysis: true
+          report_request:
+            format: json
+          analysis_issue:
+            code: analysis.unresolved-reference
+        checks:
+          - id: check-indeterminate
+            guarantee_ref: indeterminate-decision
+          - id: check-analysis-issues
+            guarantee_ref: analysis-issues-present
+          - id: check-analysis-issue-code
+            guarantee_ref: analysis-issue-code-supported
+          - id: check-analysis-issue-reason
+            guarantee_ref: analysis-issue-reason-present
+          - id: check-analysis-issue-affected-scope
+            guarantee_ref: analysis-issue-affected-scope-present
+      - id: source-union-unresolved-reference-is-indeterminate
+        intent_id: incomplete-analysis-classification
+        input:
+          analysis_profile: source-union
           incomplete_analysis: true
           report_request:
             format: json

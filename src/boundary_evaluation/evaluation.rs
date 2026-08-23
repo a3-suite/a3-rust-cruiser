@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::model::{
+use super::model::{
     BoundaryPolicy, BoundaryRule, BoundaryViolation, Dependency, DependencyKind,
     ObservedDependencyGraph, PolicyEvaluation, RuleKind, ValidationDecision, ViolationKind,
 };
@@ -101,93 +101,6 @@ pub fn decide(issue_count: usize, violation_count: usize) -> ValidationDecision 
     } else {
         ValidationDecision::Conformant
     }
-}
-
-pub fn validate_policy(policy: &BoundaryPolicy) -> crate::error::Result<()> {
-    let mut ids = BTreeSet::new();
-    for rule in &policy.rules {
-        if !is_kebab_case(&rule.id) || !ids.insert(rule.id.as_str()) {
-            return Err(crate::error::CruiserError::InvalidInput(format!(
-                "invalid or duplicate boundary policy rule id: {}",
-                rule.id
-            )));
-        }
-        if rule.from.is_empty() && rule.kind != RuleKind::Circular {
-            return Err(crate::error::CruiserError::InvalidInput(format!(
-                "rule {} requires at least one from pattern",
-                rule.id
-            )));
-        }
-        if rule.to.is_empty() && rule.kind != RuleKind::Circular {
-            return Err(crate::error::CruiserError::InvalidInput(format!(
-                "rule {} requires at least one to pattern",
-                rule.id
-            )));
-        }
-        if rule.modules.is_empty() && rule.kind == RuleKind::Circular {
-            return Err(crate::error::CruiserError::InvalidInput(format!(
-                "circular rule {} requires at least one modules pattern",
-                rule.id
-            )));
-        }
-        if rule.kind == RuleKind::Circular && (!rule.from.is_empty() || !rule.to.is_empty()) {
-            return Err(crate::error::CruiserError::InvalidInput(format!(
-                "circular rule {} cannot define from or to patterns",
-                rule.id
-            )));
-        }
-        if rule.kind != RuleKind::Circular && !rule.modules.is_empty() {
-            return Err(crate::error::CruiserError::InvalidInput(format!(
-                "non-circular rule {} cannot define modules patterns",
-                rule.id
-            )));
-        }
-        for pattern in rule
-            .from
-            .iter()
-            .chain(rule.to.iter())
-            .chain(rule.modules.iter())
-        {
-            if !is_valid_pattern(pattern) {
-                return Err(crate::error::CruiserError::InvalidInput(format!(
-                    "invalid logical module pattern in rule {}: {pattern}",
-                    rule.id
-                )));
-            }
-        }
-    }
-    Ok(())
-}
-
-pub fn validate_module_patterns(patterns: &[String]) -> crate::error::Result<()> {
-    for pattern in patterns {
-        if !is_valid_pattern(pattern) {
-            return Err(crate::error::CruiserError::InvalidInput(format!(
-                "invalid logical module pattern: {pattern}"
-            )));
-        }
-    }
-    Ok(())
-}
-
-fn is_kebab_case(value: &str) -> bool {
-    !value.is_empty()
-        && value.chars().all(|character| {
-            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
-        })
-        && !value.starts_with('-')
-        && !value.ends_with('-')
-        && !value.contains("--")
-}
-
-fn is_valid_pattern(pattern: &str) -> bool {
-    !pattern.is_empty()
-        && pattern.split("::").all(|segment| {
-            !segment.is_empty()
-                && (segment == "*"
-                    || segment == "**"
-                    || (!segment.contains('*') && !segment.contains('?')))
-        })
 }
 
 fn violation(
@@ -324,12 +237,12 @@ fn canonical_cycle(cycle: &[String]) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{decide, evaluate, matches_pattern};
-    use crate::model::{
-        AnalysisContext, BoundaryPolicy, BoundaryRule, Dependency, DependencyKind, LogicalModule,
-        ObservedDependencyGraph, RuleKind, Severity, SourceEvidence, TargetScope,
+    use super::super::model::{
+        AnalysisContext, AnalysisProfile, BoundaryPolicy, BoundaryRule, Dependency, DependencyKind,
+        LogicalModule, ObservedDependencyGraph, RuleKind, Severity, SourceEvidence, TargetScope,
         ValidationDecision, ViolationKind,
     };
+    use super::{decide, evaluate, matches_pattern};
 
     #[test]
     fn pattern_uses_single_and_multi_segment_wildcards() {
@@ -507,6 +420,7 @@ mod tests {
     fn graph_with_dependency(source: &str, target: &str) -> ObservedDependencyGraph {
         ObservedDependencyGraph {
             analysis_context: AnalysisContext {
+                analysis_profile: AnalysisProfile::Compilation,
                 package: "fixture".to_owned(),
                 compilation_target: "bin:fixture".to_owned(),
                 features: Vec::new(),

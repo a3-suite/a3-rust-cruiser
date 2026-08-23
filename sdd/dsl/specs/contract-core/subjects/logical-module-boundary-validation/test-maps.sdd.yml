@@ -9,12 +9,44 @@ test_maps:
         symbol: typed_dependencies_and_declarations_are_reported
         check_refs:
           - check-analysis-context
+          - check-analysis-profile
           - check-logical-modules
           - check-module-declarations
           - check-dependency-edges
           - check-dependency-kind
           - check-dependency-target-scope
           - check-excluded-scopes
+  - verification_id: verification.logical-module-boundary.dependency-graph
+    case_id: source-union-source-authored-dependencies
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: source_union_observes_source_authored_dependencies_without_expansion_issues
+        check_refs:
+          - check-analysis-context
+          - check-analysis-profile
+          - check-source-union-profile
+          - check-dependency-edges
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: source_union_unions_cfg_gated_alias_candidates
+        check_refs:
+          - check-analysis-context
+          - check-analysis-profile
+          - check-source-union-profile
+          - check-dependency-edges
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: source_union_includes_conditional_external_dependencies
+        check_refs:
+          - check-analysis-context
+          - check-analysis-profile
+          - check-source-union-profile
+          - check-dependency-edges
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: source_union_preserves_conditional_dependency_kind_boundaries
+        check_refs:
+          - check-analysis-context
+          - check-analysis-profile
+          - check-source-union-profile
+          - check-dependency-edges
   - verification_id: verification.logical-module-boundary.policy-evaluation
     case_id: forbidden-overrides-matching-allowed-rule
     tests:
@@ -135,6 +167,17 @@ test_maps:
     tests:
       - path: tests/contracts/logical_module_boundary_validation.rs
         symbol: unresolved_reference_is_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: source-union-unresolved-reference-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: source_union_keeps_unresolved_internal_references_indeterminate
         check_refs:
           - check-indeterminate
           - check-analysis-issues

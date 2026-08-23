@@ -1,11 +1,11 @@
 use std::{ffi::OsString, io::Write, path::PathBuf, process::ExitCode};
 
-use crate::{
-    boundary_validation,
-    error::{CruiserError, Result},
-    model::AnalysisContext,
-    report,
+use crate::boundary_validation::{
+    self, AnalysisContext, AnalysisProfile, BoundaryPolicyLoader, CruiserError, DependencyObserver,
+    Result, ValidationDecision,
 };
+
+use super::report;
 
 #[derive(Debug)]
 struct CheckArgs {
@@ -14,6 +14,7 @@ struct CheckArgs {
     package: String,
     target: String,
     target_triple: String,
+    analysis_profile: AnalysisProfile,
     features: Vec<String>,
     cfg: Vec<String>,
     include: Vec<String>,
@@ -36,11 +37,13 @@ impl OutputFormat {
     }
 }
 
-pub fn run<I>(args: I) -> ExitCode
+pub fn run<I, O, L>(args: I, observer: &O, policy_loader: &L) -> ExitCode
 where
     I: IntoIterator<Item = OsString>,
+    O: DependencyObserver,
+    L: BoundaryPolicyLoader,
 {
-    match execute(args) {
+    match execute(args, observer, policy_loader) {
         Ok((payload, exit_code)) => {
             let mut stdout = std::io::stdout().lock();
             if let Err(error) = writeln!(stdout, "{payload}") {
@@ -56,9 +59,11 @@ where
     }
 }
 
-fn execute<I>(args: I) -> Result<(String, u8)>
+fn execute<I, O, L>(args: I, observer: &O, policy_loader: &L) -> Result<(String, u8)>
 where
     I: IntoIterator<Item = OsString>,
+    O: DependencyObserver,
+    L: BoundaryPolicyLoader,
 {
     let args: Vec<String> = args
         .into_iter()
@@ -66,6 +71,7 @@ where
         .collect();
     let check = parse_check_args(&args)?;
     let context = AnalysisContext {
+        analysis_profile: check.analysis_profile,
         package: check.package,
         compilation_target: check.target,
         features: sorted_unique(check.features),
@@ -74,19 +80,29 @@ where
         include: check.include,
         exclude: check.exclude,
     };
-    let report = boundary_validation::validate(
+    let result = boundary_validation::validate(
+        observer,
+        policy_loader,
         &check.project_root,
         context,
         &check.policy,
-        check.format.as_str(),
     )?;
+    let report = report::build(result, check.format.as_str());
     let payload = match check.format {
         OutputFormat::Text => report::to_text(&report),
         OutputFormat::Json => report::to_json(&report).map_err(|error| {
             CruiserError::Parse(format!("failed to encode JSON report: {error}"))
         })?,
     };
-    Ok((payload, report.decision.exit_code()))
+    Ok((payload, decision_exit_code(report.decision)))
+}
+
+fn decision_exit_code(decision: ValidationDecision) -> u8 {
+    match decision {
+        ValidationDecision::Conformant => 0,
+        ValidationDecision::NonConformant => 1,
+        ValidationDecision::Indeterminate => 2,
+    }
 }
 
 fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
@@ -100,6 +116,7 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
     let mut package = None;
     let mut target = None;
     let mut target_triple = None;
+    let mut analysis_profile = AnalysisProfile::Compilation;
     let mut features = Vec::new();
     let mut cfg = Vec::new();
     let mut include = Vec::new();
@@ -119,6 +136,17 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
             "--package" => package = Some(takes_value(option, &mut index)?),
             "--target" => target = Some(takes_value(option, &mut index)?),
             "--target-triple" => target_triple = Some(takes_value(option, &mut index)?),
+            "--analysis-profile" => {
+                analysis_profile = match takes_value(option, &mut index)?.as_str() {
+                    "compilation" => AnalysisProfile::Compilation,
+                    "source-union" => AnalysisProfile::SourceUnion,
+                    value => {
+                        return Err(CruiserError::InvalidInput(format!(
+                            "unsupported analysis profile: {value}"
+                        )));
+                    }
+                };
+            }
             "--feature" => features.push(takes_value(option, &mut index)?),
             "--cfg" => cfg.push(takes_value(option, &mut index)?),
             "--include" => include.push(takes_value(option, &mut index)?),
@@ -152,6 +180,7 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
             .ok_or_else(|| CruiserError::InvalidInput("--target is required".to_owned()))?,
         target_triple: target_triple
             .ok_or_else(|| CruiserError::InvalidInput("--target-triple is required".to_owned()))?,
+        analysis_profile,
         features,
         cfg,
         include,
@@ -167,17 +196,94 @@ fn sorted_unique(mut values: Vec<String>) -> Vec<String> {
 }
 
 fn usage() -> &'static str {
-    "usage: a3-rust-cruiser check <PROJECT_ROOT> --policy <BOUNDARY_POLICY_PATH> --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]"
+    "usage: a3-rust-cruiser check <PROJECT_ROOT> --policy <BOUNDARY_POLICY_PATH> --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]"
 }
 
 #[cfg(test)]
 mod tests {
-    use super::parse_check_args;
+    use super::{decision_exit_code, parse_check_args};
+    use crate::boundary_validation::{AnalysisProfile, ValidationDecision};
 
     #[test]
     fn check_requires_a_project_root() {
         // Arrange
         let arguments = vec!["check".to_owned()];
+
+        // Act
+        let result = parse_check_args(&arguments);
+
+        // Assert
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn decision_exit_codes_are_stable() {
+        // Arrange
+        let decisions = [
+            (ValidationDecision::Conformant, 0),
+            (ValidationDecision::NonConformant, 1),
+            (ValidationDecision::Indeterminate, 2),
+        ];
+
+        // Act
+        let exit_codes: Vec<u8> = decisions
+            .iter()
+            .map(|(decision, _)| decision_exit_code(*decision))
+            .collect();
+
+        // Assert
+        assert_eq!(
+            exit_codes,
+            decisions.iter().map(|(_, code)| *code).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn should_default_analysis_profile_to_compilation() {
+        // Arrange
+        let arguments = vec![
+            "check",
+            ".",
+            "--policy",
+            "policy.yaml",
+            "--package",
+            "fixture",
+            "--target",
+            "bin:fixture",
+            "--target-triple",
+            "x86_64-unknown-linux-gnu",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+
+        // Act
+        let result = parse_check_args(&arguments).expect("arguments should be valid");
+
+        // Assert
+        assert_eq!(result.analysis_profile, AnalysisProfile::Compilation);
+    }
+
+    #[test]
+    fn should_reject_an_unsupported_analysis_profile() {
+        // Arrange
+        let arguments = vec![
+            "check",
+            ".",
+            "--policy",
+            "policy.yaml",
+            "--package",
+            "fixture",
+            "--target",
+            "bin:fixture",
+            "--target-triple",
+            "x86_64-unknown-linux-gnu",
+            "--analysis-profile",
+            "unknown",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
 
         // Act
         let result = parse_check_args(&arguments);

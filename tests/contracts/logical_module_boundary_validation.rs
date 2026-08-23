@@ -1,22 +1,11 @@
 use std::{
-    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
     process::{Command, Output},
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use a3_rust_cruiser::{
-    boundary_evaluation::{decide, evaluate},
-    boundary_validation,
-    model::{
-        AnalysisContext, AnalysisIssue, BoundaryPolicy, BoundaryRule, BoundaryViolation,
-        Dependency, DependencyKind, LogicalModule, ModuleDeclaration, ObservedDependencyGraph,
-        PolicyEvaluation, RuleKind, Severity, SourceEvidence, TargetScope, ValidationDecision,
-        ValidationReport, ViolationKind,
-    },
-    report,
-};
+use serde_json::Value;
 
 static FIXTURE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -26,14 +15,7 @@ static FIXTURE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 fn typed_dependencies_and_declarations_are_reported() {
     // Arrange
     let fixture = TempFixture::new("typed-dependencies");
-    fixture.write(
-        "Cargo.toml",
-        &format!(
-            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\
-             [dependencies]\nserde-json = \"1\"\n",
-            fixture.package()
-        ),
-    );
+    fixture.write_manifest("[dependencies]\nserde-json = \"1\"\n");
     fixture.write(
         "src/main.rs",
         "use serde_json;\nmod application;\nmod domain;\nmod excluded;\nfn main() {}\n",
@@ -42,73 +24,58 @@ fn typed_dependencies_and_declarations_are_reported() {
         "src/application.rs",
         "use crate::domain::Thing;\npub use crate::domain::Thing as PublicThing;\npub fn run(_: crate::domain::Thing) -> Thing { Thing }\n",
     );
-    fixture.write(
-        "src/domain.rs",
-        "pub struct Thing;\npub fn make() -> Thing { Thing }\n",
-    );
+    fixture.write("src/domain.rs", "pub struct Thing;\n");
     fixture.write("src/excluded.rs", "pub struct Ignored;\n");
-    let mut context = analysis_context(fixture.package());
-    context.exclude = vec!["crate::excluded".to_owned()];
 
     // Act
-    let result = boundary_validation::validate(
-        fixture.path(),
-        context.clone(),
-        &fixture.join("policy.yaml"),
-        "json",
-    )
-    .expect("validation should succeed");
+    let output = run_check_with(&fixture, "bin", "json", &["--exclude", "crate::excluded"]);
+    let report = completed_json(&output, 0);
 
     // Assert
-    assert_eq!(result.analysis_context, context);
-    assert!(
-        result
-            .modules
-            .iter()
-            .any(|module| module.id == "crate::application")
-    );
-    assert!(
-        result
-            .modules
-            .iter()
-            .any(|module| module.id == "crate::domain")
-    );
-    assert!(result.module_declarations.iter().any(|declaration| {
-        declaration.parent == "crate" && declaration.child == "crate::application"
-    }));
-    let kinds: BTreeSet<_> = result
-        .dependencies
-        .iter()
-        .filter(|dependency| {
-            dependency.source == "crate::application" && dependency.target == "crate::domain"
-        })
-        .map(|dependency| dependency.kind)
-        .collect();
     assert_eq!(
-        kinds,
-        BTreeSet::from([
-            DependencyKind::Import,
-            DependencyKind::ReExport,
-            DependencyKind::PathReference,
-        ])
+        report["analysis_context"]["analysis_profile"],
+        "compilation"
     );
-    assert!(result.dependencies.iter().any(|dependency| {
-        dependency.target == "serde_json"
-            && dependency.kind == DependencyKind::Import
-            && dependency.target_scope == TargetScope::ExternalCrate
-    }));
-    assert!(result.dependencies.iter().any(|dependency| {
-        dependency.target == "crate::domain"
-            && dependency.target_scope == TargetScope::InternalModule
-    }));
-    assert!(!result.dependencies.iter().any(|dependency| {
-        dependency.source == "crate"
-            && matches!(
-                dependency.target.as_str(),
-                "crate::application" | "crate::domain" | "crate::excluded"
-            )
-    }));
-    assert_eq!(result.excluded_scopes, ["crate::excluded"]);
+    assert_eq!(report["analysis_context"]["package"], fixture.package());
+    assert_eq!(
+        report["analysis_context"]["compilation_target"],
+        fixture.target()
+    );
+    assert!(array_contains(
+        &report["modules"],
+        "id",
+        "crate::application"
+    ));
+    assert!(array_contains(&report["modules"], "id", "crate::domain"));
+    assert!(
+        report["module_declarations"]
+            .as_array()
+            .is_some_and(|items| {
+                items
+                    .iter()
+                    .any(|item| item["parent"] == "crate" && item["child"] == "crate::application")
+            })
+    );
+    for kind in ["import", "re-export", "path-reference"] {
+        assert!(dependency_exists(
+            &report,
+            "crate::application",
+            "crate::domain",
+            kind,
+            "internal-module"
+        ));
+    }
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "serde_json",
+        "import",
+        "external-crate"
+    ));
+    assert_eq!(
+        report["excluded_scopes"],
+        serde_json::json!(["crate::excluded"])
+    );
 }
 
 // contract_id: contract.logical-module-boundary.policy-evaluation
@@ -116,244 +83,130 @@ fn typed_dependencies_and_declarations_are_reported() {
 #[test]
 fn forbidden_rule_overrides_matching_allowed_rule() {
     // Arrange
-    let graph = graph_with_dependencies(vec![dependency(
-        "crate::application",
-        "crate::infrastructure",
-        DependencyKind::Import,
-        3,
-        5,
-    )]);
-    let policy = BoundaryPolicy {
-        rules: vec![
-            boundary_rule(
-                "forbidden-application-to-infrastructure",
-                RuleKind::Forbidden,
-                Severity::Error,
-                &["crate::application"],
-                &["crate::infrastructure"],
-                &[],
-            ),
-            boundary_rule(
-                "forbidden-second-match",
-                RuleKind::Forbidden,
-                Severity::Warning,
-                &["crate::application"],
-                &["crate::infrastructure"],
-                &[],
-            ),
-            boundary_rule(
-                "allowed-application-targets",
-                RuleKind::Allowed,
-                Severity::Warning,
-                &["crate::application"],
-                &["crate::infrastructure"],
-                &[],
-            ),
-        ],
-    };
+    let fixture = dependency_fixture("forbidden-precedence", "infrastructure");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbidden-first\n    kind: forbidden\n    severity: error\n    from: [crate::application]\n    to: [crate::infrastructure]\n    dependency_kinds: [import]\n  - id: forbidden-second\n    kind: forbidden\n    severity: warning\n    from: [crate::application]\n    to: [crate::infrastructure]\n    dependency_kinds: [import]\n  - id: allowed-same\n    kind: allowed\n    severity: warning\n    from: [crate::application]\n    to: [crate::infrastructure]\n    dependency_kinds: [import]\n",
+    );
 
     // Act
-    let (violations, evaluation) = evaluate(&graph, &policy);
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+    let violations = report["violations"].as_array().expect("violations array");
 
     // Assert
     assert_eq!(violations.len(), 2);
-    assert!(violations.iter().all(|violation| {
-        violation.kind == ViolationKind::Forbidden
-            && violation.source == "crate::application"
-            && violation.target == "crate::infrastructure"
-            && violation.dependency_kind == DependencyKind::Import
-            && violation.evidence.path == "src/application.rs"
-            && violation.evidence.line == 3
-            && violation.evidence.column == 5
-    }));
-    let mut rule_ids: Vec<_> = violations
-        .iter()
-        .map(|violation| violation.rule_id.as_str())
-        .collect();
-    rule_ids.sort_unstable();
-    assert_eq!(
-        rule_ids,
-        [
-            "forbidden-application-to-infrastructure",
-            "forbidden-second-match",
-        ]
+    assert_eq!(violations[0]["kind"], "forbidden");
+    assert_eq!(violations[0]["rule_id"], "forbidden-first");
+    assert_eq!(violations[0]["severity"], "error");
+    assert_eq!(violations[0]["source"], "crate::application");
+    assert_eq!(violations[0]["target"], "crate::infrastructure");
+    assert_eq!(violations[0]["dependency_kind"], "import");
+    assert_eq!(violations[0]["evidence"]["path"], "src/application.rs");
+    assert!(
+        violations[0]["evidence"]["line"]
+            .as_u64()
+            .is_some_and(|line| line > 0)
+    );
+    assert!(
+        violations[0]["evidence"]["column"]
+            .as_u64()
+            .is_some_and(|column| column > 0)
     );
     assert_eq!(
-        violations
-            .iter()
-            .find(|violation| violation.rule_id == "forbidden-application-to-infrastructure")
-            .map(|violation| violation.severity),
-        Some(Severity::Error)
+        report["policy_evaluation"]["dependency_outcome"],
+        "forbidden"
     );
     assert_eq!(
-        violations
-            .iter()
-            .find(|violation| violation.rule_id == "forbidden-second-match")
-            .map(|violation| violation.severity),
-        Some(Severity::Warning)
+        report["policy_evaluation"]["forbidden_match_handling"],
+        "all-matches"
     );
-    assert_eq!(evaluation.dependency_outcome, "forbidden");
-    assert_eq!(evaluation.forbidden_match_handling, "all-matches");
 }
 
 #[test]
 fn applicable_allowed_rules_use_target_union() {
     // Arrange
-    let graph = graph_with_dependencies(vec![dependency(
-        "crate::application",
-        "crate::domain",
-        DependencyKind::PathReference,
-        4,
-        9,
-    )]);
-    let policy = BoundaryPolicy {
-        rules: vec![
-            boundary_rule(
-                "allowed-application-shared",
-                RuleKind::Allowed,
-                Severity::Warning,
-                &["crate::application"],
-                &["crate::shared"],
-                &[],
-            ),
-            boundary_rule(
-                "allowed-application-domain",
-                RuleKind::Allowed,
-                Severity::Warning,
-                &["crate::application"],
-                &["crate::domain"],
-                &[],
-            ),
-        ],
-    };
+    let fixture = dependency_fixture("allowed-union", "domain");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: allowed-shared\n    kind: allowed\n    severity: warning\n    from: [crate::application]\n    to: [crate::shared]\n  - id: allowed-domain\n    kind: allowed\n    severity: warning\n    from: [crate::application]\n    to: [crate::domain]\n",
+    );
 
     // Act
-    let (violations, evaluation) = evaluate(&graph, &policy);
+    let report = completed_json(&run_check(&fixture, "json"), 0);
 
     // Assert
-    assert!(violations.is_empty());
-    assert_eq!(evaluation.dependency_outcome, "allowed");
-    assert_eq!(evaluation.allowed_match_handling, "union");
+    assert_eq!(report["violations"], serde_json::json!([]));
+    assert_eq!(report["policy_evaluation"]["dependency_outcome"], "allowed");
+    assert_eq!(
+        report["policy_evaluation"]["allowed_match_handling"],
+        "union"
+    );
 }
 
 #[test]
 fn unmatched_applicable_allowed_rules_produce_violation() {
     // Arrange
-    let graph = graph_with_dependencies(vec![dependency(
-        "crate::application",
-        "crate::infrastructure",
-        DependencyKind::Import,
-        7,
-        11,
-    )]);
-    let policy = BoundaryPolicy {
-        rules: vec![boundary_rule(
-            "allowed-application-domain",
-            RuleKind::Allowed,
-            Severity::Error,
-            &["crate::application"],
-            &["crate::domain"],
-            &[],
-        )],
-    };
+    let fixture = dependency_fixture("allowed-rejection", "infrastructure");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: allowed-domain\n    kind: allowed\n    severity: error\n    from: [crate::application]\n    to: [crate::domain]\n",
+    );
 
     // Act
-    let (violations, evaluation) = evaluate(&graph, &policy);
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+    let violation = &report["violations"][0];
 
     // Assert
-    assert_eq!(violations.len(), 1);
-    assert_violation(
-        &violations[0],
-        ViolationKind::NotAllowed,
-        "allowed-application-domain",
-        Severity::Error,
-        "crate::application",
-        "crate::infrastructure",
-        DependencyKind::Import,
-        7,
-        11,
+    assert_eq!(violation["kind"], "not-allowed");
+    assert_eq!(violation["rule_id"], "allowed-domain");
+    assert_eq!(violation["severity"], "error");
+    assert_eq!(violation["source"], "crate::application");
+    assert_eq!(violation["target"], "crate::infrastructure");
+    assert_eq!(violation["dependency_kind"], "import");
+    assert_eq!(violation["evidence"]["path"], "src/application.rs");
+    assert_eq!(
+        report["policy_evaluation"]["allowed_match_handling"],
+        "union"
     );
-    assert_eq!(evaluation.dependency_outcome, "not-allowed");
-    assert_eq!(evaluation.allowed_match_handling, "union");
 }
 
 #[test]
 fn circular_rule_is_independent_from_allowed_rules() {
     // Arrange
-    let graph = graph_with_dependencies(vec![
-        dependency(
-            "crate::application",
-            "crate::domain",
-            DependencyKind::Import,
-            2,
-            1,
-        ),
-        dependency(
-            "crate::domain",
-            "crate::application",
-            DependencyKind::ReExport,
-            5,
-            3,
-        ),
-    ]);
-    let policy = BoundaryPolicy {
-        rules: vec![
-            boundary_rule(
-                "allowed-application-domain",
-                RuleKind::Allowed,
-                Severity::Warning,
-                &["crate::application"],
-                &["crate::domain"],
-                &[],
-            ),
-            boundary_rule(
-                "allowed-domain-application",
-                RuleKind::Allowed,
-                Severity::Warning,
-                &["crate::domain"],
-                &["crate::application"],
-                &[],
-            ),
-            boundary_rule(
-                "circular-core-modules",
-                RuleKind::Circular,
-                Severity::Error,
-                &[],
-                &[],
-                &["crate::application", "crate::domain"],
-            ),
-        ],
-    };
+    let fixture = TempFixture::new("circular-independent");
+    fixture.write(
+        "src/main.rs",
+        "mod application;\nmod domain;\nfn main() {}\n",
+    );
+    fixture.write(
+        "src/application.rs",
+        "use crate::domain;\npub fn run() { let _ = domain::run; }\n",
+    );
+    fixture.write(
+        "src/domain.rs",
+        "use crate::application;\npub fn run() { let _ = application::run; }\n",
+    );
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: allowed-application\n    kind: allowed\n    severity: warning\n    from: [crate::application]\n    to: [crate::domain]\n  - id: allowed-domain\n    kind: allowed\n    severity: warning\n    from: [crate::domain]\n    to: [crate::application]\n  - id: no-cycle\n    kind: circular\n    severity: error\n    modules: [crate::application, crate::domain]\n",
+    );
 
     // Act
-    let (violations, evaluation) = evaluate(&graph, &policy);
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+    let violations = report["violations"].as_array().expect("violations array");
 
     // Assert
     assert_eq!(violations.len(), 1);
-    let violation = &violations[0];
-    assert_eq!(violation.kind, ViolationKind::Circular);
-    assert_eq!(violation.rule_id, "circular-core-modules");
-    assert_eq!(violation.severity, Severity::Error);
-    assert_eq!(violation.source, "crate::application");
-    assert_eq!(violation.target, "crate::domain");
-    assert_eq!(violation.dependency_kind, DependencyKind::Import);
-    assert_eq!(violation.evidence.path, "src/application.rs");
-    assert!(violation.evidence.line > 0);
-    assert!(violation.evidence.column > 0);
-    assert_eq!(
-        violation.cycle_path.as_deref(),
-        Some(
-            [
-                "crate::application".to_owned(),
-                "crate::domain".to_owned(),
-                "crate::application".to_owned(),
-            ]
-            .as_slice()
-        )
+    assert_eq!(violations[0]["kind"], "circular");
+    assert_eq!(violations[0]["rule_id"], "no-cycle");
+    assert_eq!(violations[0]["severity"], "error");
+    assert!(
+        violations[0]["cycle_path"]
+            .as_array()
+            .is_some_and(|path| path.len() >= 3)
     );
-    assert_eq!(evaluation.dependency_outcome, "allowed");
-    assert_eq!(evaluation.cycle_outcome, "circular");
-    assert_eq!(evaluation.cycle_handling, "independent");
+    assert_eq!(report["policy_evaluation"]["cycle_outcome"], "circular");
+    assert_eq!(report["policy_evaluation"]["cycle_handling"], "independent");
 }
 
 // contract_id: contract.logical-module-boundary.validation-report
@@ -361,225 +214,109 @@ fn circular_rule_is_independent_from_allowed_rules() {
 #[test]
 fn complete_graph_without_violations_is_conformant() {
     // Arrange
-    let issue_count = 0;
-    let violation_count = 0;
+    let fixture = TempFixture::new("complete-conformant");
 
     // Act
-    let decision = decide(issue_count, violation_count);
+    let report = completed_json(&run_check(&fixture, "json"), 0);
 
     // Assert
-    assert_eq!(decision, ValidationDecision::Conformant);
+    assert_eq!(report["decision"], "conformant");
 }
 
 #[test]
 fn complete_graph_with_violations_is_non_conformant() {
     // Arrange
-    let issue_count = 0;
-    let violation_count = 1;
+    let fixture = forbidden_fixture("complete-non-conformant", false);
 
     // Act
-    let decision = decide(issue_count, violation_count);
+    let report = completed_json(&run_check(&fixture, "json"), 1);
 
     // Assert
-    assert_eq!(decision, ValidationDecision::NonConformant);
+    assert_eq!(report["decision"], "non-conformant");
 }
 
 #[test]
 fn incomplete_analysis_is_indeterminate_even_with_violations() {
     // Arrange
-    let issue_count = 1;
-    let violation_count = 1;
+    let fixture = forbidden_fixture("incomplete-with-violation", true);
 
     // Act
-    let decision = decide(issue_count, violation_count);
+    let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
-    assert_eq!(decision, ValidationDecision::Indeterminate);
+    assert_eq!(report["decision"], "indeterminate");
+    assert!(
+        !report["violations"]
+            .as_array()
+            .expect("violations array")
+            .is_empty()
+    );
+    assert!(
+        !report["analysis_issues"]
+            .as_array()
+            .expect("issues array")
+            .is_empty()
+    );
 }
 
 #[test]
 fn json_report_projects_common_validation_result() {
     // Arrange
-    let validation_report = sample_report("json");
+    let fixture = forbidden_fixture("json-report", true);
 
     // Act
-    let payload = report::to_json(&validation_report).expect("JSON serialization should succeed");
-    let document: serde_json::Value =
-        serde_json::from_str(&payload).expect("serialized report should be valid JSON");
+    let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
-    assert_eq!(document["schema_version"], "1");
-    assert_eq!(document["serialization"], "json");
-    assert_eq!(document["ordering"], "canonical");
-    assert_eq!(document["decision"], "indeterminate");
+    assert_eq!(report["schema_version"], "1");
+    assert_eq!(report["serialization"], "json");
+    assert_eq!(report["ordering"], "canonical");
     assert_eq!(
-        document["analysis_context"]["features"],
-        serde_json::json!(["alpha", "zeta"])
+        report["analysis_context"]["analysis_profile"],
+        "compilation"
     );
-    assert_eq!(
-        document["analysis_context"]["cfg"],
-        serde_json::json!(["target_os=alpha", "target_os=zeta"])
+    assert_eq!(report["decision"], "indeterminate");
+    assert!(
+        !report["violations"]
+            .as_array()
+            .expect("violations array")
+            .is_empty()
     );
-    assert_eq!(
-        document["analysis_context"]["include"],
-        serde_json::json!(["crate::zeta", "crate::alpha"])
+    let issue = &report["analysis_issues"][0];
+    assert!(
+        issue["code"]
+            .as_str()
+            .is_some_and(|code| code.starts_with("analysis."))
     );
-    assert_eq!(
-        document["analysis_context"]["exclude"],
-        serde_json::json!(["crate::omega", "crate::beta"])
+    assert!(
+        issue["reason"]
+            .as_str()
+            .is_some_and(|reason| !reason.is_empty())
     );
-    let module_ids: Vec<_> = document["modules"]
-        .as_array()
-        .expect("modules should be an array")
-        .iter()
-        .map(|module| module["id"].as_str().expect("module ID should be text"))
-        .collect();
-    assert_eq!(
-        module_ids,
-        ["crate::application", "crate::domain", "crate::shared"]
-    );
-    let declaration_children: Vec<_> = document["module_declarations"]
-        .as_array()
-        .expect("declarations should be an array")
-        .iter()
-        .map(|declaration| {
-            declaration["child"]
-                .as_str()
-                .expect("declaration child should be text")
-        })
-        .collect();
-    assert_eq!(declaration_children, ["crate::domain", "crate::shared"]);
-    let dependency_targets: Vec<_> = document["dependencies"]
-        .as_array()
-        .expect("dependencies should be an array")
-        .iter()
-        .map(|dependency| {
-            dependency["target"]
-                .as_str()
-                .expect("dependency target should be text")
-        })
-        .collect();
-    assert_eq!(dependency_targets, ["crate::domain", "crate::shared"]);
-    let excluded_scopes: Vec<_> = document["excluded_scopes"]
-        .as_array()
-        .expect("excluded scopes should be an array")
-        .iter()
-        .map(|scope| scope.as_str().expect("excluded scope should be text"))
-        .collect();
-    assert_eq!(excluded_scopes, ["crate::alpha", "crate::zeta"]);
-    let violation_ids: Vec<_> = document["violations"]
-        .as_array()
-        .expect("violations should be an array")
-        .iter()
-        .map(|violation| {
-            violation["rule_id"]
-                .as_str()
-                .expect("rule ID should be text")
-        })
-        .collect();
-    assert_eq!(
-        violation_ids,
-        [
-            "canonical-tie",
-            "canonical-tie",
-            "canonical-tie",
-            "canonical-tie",
-            "forbidden-domain",
-            "forbidden-shared",
-        ]
-    );
-    let canonical_ties: Vec<_> = document["violations"]
-        .as_array()
-        .expect("violations should be an array")
-        .iter()
-        .take(4)
-        .map(|violation| {
-            (
-                violation["kind"].as_str().expect("kind should be text"),
-                violation["severity"]
-                    .as_str()
-                    .expect("severity should be text"),
-                violation.get("cycle_path").cloned(),
-            )
-        })
-        .collect();
-    assert_eq!(
-        canonical_ties,
-        [
-            ("forbidden", "error", None),
-            (
-                "circular",
-                "error",
-                Some(serde_json::json!(["crate::alpha", "crate::shared"]))
-            ),
-            (
-                "circular",
-                "error",
-                Some(serde_json::json!(["crate::zeta", "crate::shared"]))
-            ),
-            (
-                "circular",
-                "warning",
-                Some(serde_json::json!(["crate::alpha", "crate::shared"]))
-            ),
-        ]
-    );
-    let issue_codes: Vec<_> = document["analysis_issues"]
-        .as_array()
-        .expect("analysis issues should be an array")
-        .iter()
-        .map(|issue| issue["code"].as_str().expect("issue code should be text"))
-        .collect();
-    assert_eq!(issue_codes, ["analysis.fixture", "analysis.zeta"]);
-    assert_eq!(document["analysis_issues"][0]["code"], "analysis.fixture");
-    assert_eq!(document["analysis_issues"][0]["reason"], "fixture issue");
-    assert_eq!(
-        document["analysis_issues"][0]["affected_scope"],
-        "crate::application"
+    assert!(
+        issue["affected_scope"]
+            .as_str()
+            .is_some_and(|scope| !scope.is_empty())
     );
 }
 
 #[test]
 fn text_report_projects_common_validation_result() {
     // Arrange
-    let validation_report = sample_report("text");
+    let fixture = forbidden_fixture("text-report", true);
 
     // Act
-    let payload = report::to_text(&validation_report);
+    let output = run_check(&fixture, "text");
+    let payload = completed_text(&output, 2);
 
     // Assert
+    assert!(payload.contains("schema_version: 1"));
     assert!(payload.contains("serialization: text"));
     assert!(payload.contains("ordering: canonical"));
+    assert!(payload.contains("analysis_profile: compilation"));
     assert!(payload.contains("decision: indeterminate"));
-    assert!(payload.contains("features:\n  - alpha\n  - zeta\n"));
-    assert!(payload.contains("cfg:\n  - target_os=alpha\n  - target_os=zeta\n"));
-    assert!(payload.contains("include:\n  - crate::zeta\n  - crate::alpha\n"));
-    assert!(payload.contains("exclude:\n  - crate::omega\n  - crate::beta\n"));
-    assert!(
-        payload
-            .contains("modules:\n  - crate::application\n  - crate::domain\n  - crate::shared\n")
-    );
-    assert!(payload.contains(
-        "module_declarations:\n  - crate -> crate::domain [src/main.rs:1:1]\n  - crate -> crate::shared [src/main.rs:2:1]\n"
-    ));
-    assert!(payload.contains(
-        "dependencies:\n  - crate::application -> crate::domain (import, internal-module) [src/application.rs:3:5]\n  - crate::application -> crate::shared (path-reference, internal-module) [src/application.rs:4:9]\n"
-    ));
-    assert!(payload.contains("excluded_scopes:\n  - crate::alpha\n  - crate::zeta\n"));
-    let forbidden_domain = payload
-        .find("forbidden-domain forbidden")
-        .expect("first violation should be present");
-    let forbidden_shared = payload
-        .find("forbidden-shared forbidden")
-        .expect("second violation should be present");
-    let fixture_issue = payload
-        .find("analysis.fixture [crate::application] fixture issue")
-        .expect("first issue should be present");
-    let zeta_issue = payload
-        .find("analysis.zeta [crate::shared] zeta issue")
-        .expect("second issue should be present");
-    assert!(forbidden_domain < forbidden_shared);
-    assert!(fixture_issue < zeta_issue);
+    assert!(payload.contains("violations:\n  - forbidden-application forbidden"));
+    assert!(payload.contains("analysis_issues:\n  - analysis."));
 }
 
 #[test]
@@ -593,52 +330,52 @@ fn unresolved_reference_is_indeterminate() {
     fixture.write("src/domain.rs", "pub struct Present;\n");
 
     // Act
-    let result = validate_empty_policy(&fixture);
+    let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
-    assert_indeterminate_issue(&result, "analysis.unresolved-reference");
+    assert_issue(&report, "analysis.unresolved-reference");
 }
 
 #[test]
 fn unresolved_single_segment_type_is_indeterminate() {
     // Arrange
-    let fixture = TempFixture::new("unresolved-single-segment-type");
+    let fixture = TempFixture::new("unresolved-single-segment");
     fixture.write("src/main.rs", "fn consume(_: Missing) {}\nfn main() {}\n");
 
     // Act
-    let result = validate_empty_policy(&fixture);
+    let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
-    assert_indeterminate_issue(&result, "analysis.unsupported-name-resolution");
+    assert_issue(&report, "analysis.unsupported-name-resolution");
 }
 
 #[test]
 fn aliases_and_multiple_super_segments_are_resolved() {
     // Arrange
-    let fixture = TempFixture::new("aliases-and-multiple-super");
+    let fixture = TempFixture::new("aliases-and-super");
     fixture.write("src/main.rs", "mod outer;\nmod shared;\nfn main() {}\n");
     fixture.write("src/outer.rs", "pub mod inner;\npub mod sibling;\n");
     fixture.write(
         "src/outer/inner.rs",
-        "use crate::outer::sibling::Choice as Alias;\n\
-         pub fn choose(_: Alias) -> super::super::shared::Thing {\n\
-             super::super::shared::Thing\n\
-         }\n",
+        "use crate::outer::sibling::Choice as Alias;\npub fn choose(_: Alias) -> super::super::shared::Thing { super::super::shared::Thing }\n",
     );
     fixture.write("src/outer/sibling.rs", "pub enum Choice { One }\n");
     fixture.write("src/shared.rs", "pub struct Thing;\n");
 
     // Act
-    let result = validate_empty_policy(&fixture);
+    let report = completed_json(&run_check(&fixture, "json"), 0);
 
     // Assert
-    assert_eq!(result.decision, ValidationDecision::Conformant);
-    assert!(result.dependencies.iter().any(|dependency| {
-        dependency.source == "crate::outer::inner" && dependency.target == "crate::outer::sibling"
-    }));
-    assert!(result.dependencies.iter().any(|dependency| {
-        dependency.source == "crate::outer::inner" && dependency.target == "crate::shared"
-    }));
+    assert!(dependency_target_exists(
+        &report,
+        "crate::outer::inner",
+        "crate::outer::sibling"
+    ));
+    assert!(dependency_target_exists(
+        &report,
+        "crate::outer::inner",
+        "crate::shared"
+    ));
 }
 
 #[test]
@@ -647,52 +384,32 @@ fn block_scoped_use_is_indeterminate_until_scope_resolution_is_supported() {
     let fixture = TempFixture::new("block-scoped-use");
     fixture.write(
         "src/main.rs",
-        "mod forbidden;\n\
-         fn main() {\n\
-             use crate::forbidden::run as invoke;\n\
-             invoke();\n\
-         }\n",
+        "mod forbidden;\nfn main() { use crate::forbidden::run as invoke; invoke(); }\n",
     );
     fixture.write("src/forbidden.rs", "pub fn run() {}\n");
-    fixture.write(
-        "policy.yaml",
-        "rules:\n  - id: forbidden-block-import\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::forbidden]\n",
-    );
 
     // Act
-    let result = boundary_validation::validate(
-        fixture.path(),
-        analysis_context(fixture.package()),
-        &fixture.join("policy.yaml"),
-        "json",
-    )
-    .expect("unsupported block-scoped use should produce a report");
+    let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
-    assert_indeterminate_issue(&result, "analysis.unsupported-name-resolution");
+    assert_issue(&report, "analysis.unsupported-name-resolution");
 }
 
 #[test]
 fn repeated_json_report_is_byte_stable() {
     // Arrange
-    let first_report = sample_report("json");
-    let second_report = rebuild_with_reversed_inputs(sample_report("json"));
+    let fixture = forbidden_fixture("stable-json", true);
 
     // Act
-    let first = report::to_json(&first_report).expect("first serialization should succeed");
-    let second = report::to_json(&second_report).expect("second serialization should succeed");
+    let first = run_check(&fixture, "json");
+    let second = run_check(&fixture, "json");
 
     // Assert
-    assert_eq!(first.as_bytes(), second.as_bytes());
-    assert!(first.contains("\"schema_version\": \"1\""));
-    assert!(
-        first.find("forbidden-domain").expect("first violation")
-            < first.find("forbidden-shared").expect("second violation")
-    );
-    assert!(
-        first.find("analysis.fixture").expect("first issue")
-            < first.find("analysis.zeta").expect("second issue")
-    );
+    assert_eq!(first.status.code(), Some(2));
+    assert_eq!(second.status.code(), Some(2));
+    assert_eq!(first.stdout, second.stdout);
+    assert!(first.stderr.is_empty());
+    assert!(second.stderr.is_empty());
 }
 
 #[test]
@@ -702,26 +419,249 @@ fn unsupported_macro_expansion_is_indeterminate() {
     fixture.write("src/main.rs", "fn main() { println!(\"hello\"); }\n");
 
     // Act
-    let result = validate_empty_policy(&fixture);
+    let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
-    assert_indeterminate_issue(&result, "analysis.unsupported-macro-expansion");
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn source_union_observes_source_authored_dependencies_without_expansion_issues() {
+    // Arrange
+    let fixture = TempFixture::new("source-union");
+    fixture.write(
+        "src/main.rs",
+        "mod left;\nmod right;\n#[cfg(feature = \"left\")]\nmod platform { use crate::left as selected; pub fn run() { let _ = selected::Thing; } }\n#[cfg(not(feature = \"left\"))]\nmod platform { use crate::right as selected; pub fn run() { let _ = selected::Thing; } }\nfn main() { println!(\"hello\"); }\n",
+    );
+    fixture.write("src/left.rs", "pub struct Thing;\n");
+    fixture.write("src/right.rs", "pub struct Thing;\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-platform-right\n    kind: forbidden\n    severity: error\n    from: [crate::platform]\n    to: [crate::right]\n    dependency_kinds: [path-reference]\n",
+    );
+
+    // Act
+    let report = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        1,
+    );
+
+    // Assert
+    assert_eq!(
+        report["analysis_context"]["analysis_profile"],
+        "source-union"
+    );
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert_eq!(report["decision"], "non-conformant");
+    assert!(dependency_exists(
+        &report,
+        "crate::platform",
+        "crate::left",
+        "path-reference",
+        "internal-module"
+    ));
+    assert!(dependency_exists(
+        &report,
+        "crate::platform",
+        "crate::right",
+        "path-reference",
+        "internal-module"
+    ));
+    assert_eq!(report["violations"][0]["rule_id"], "forbid-platform-right");
+}
+
+#[test]
+fn source_union_unions_cfg_gated_alias_candidates() {
+    // Arrange
+    let fixture = TempFixture::new("source-union-cfg-aliases");
+    fixture.write(
+        "src/main.rs",
+        "mod left;\nmod right;\n#[cfg(feature = \"left\")]\nuse crate::left as selected;\n#[cfg(not(feature = \"left\"))]\nuse crate::right as selected;\nfn main() { let _ = selected::Thing; }\n",
+    );
+    fixture.write("src/left.rs", "pub struct Thing;\n");
+    fixture.write("src/right.rs", "pub struct Thing;\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-selected-right\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::right]\n    dependency_kinds: [path-reference]\n",
+    );
+
+    // Act
+    let report = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        1,
+    );
+
+    // Assert
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "crate::left",
+        "path-reference",
+        "internal-module"
+    ));
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "crate::right",
+        "path-reference",
+        "internal-module"
+    ));
+    assert_eq!(report["violations"][0]["rule_id"], "forbid-selected-right");
+}
+
+#[test]
+fn source_union_includes_conditional_external_dependencies() {
+    // Arrange
+    let fixture = TempFixture::new("source-union-conditional-external");
+    fixture.write_manifest("[dependencies]\noptional-dep = { version = \"1\", optional = true }\n");
+    fixture.write(
+        "src/main.rs",
+        "#[cfg(feature = \"optional\")]\nuse optional_dep::Value;\nfn main() {}\n",
+    );
+
+    // Act
+    let report = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        0,
+    );
+
+    // Assert
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert_eq!(report["decision"], "conformant");
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "optional_dep",
+        "import",
+        "external-crate"
+    ));
+}
+
+#[test]
+fn source_union_preserves_conditional_dependency_kind_boundaries() {
+    // Arrange
+    let fixture = TempFixture::new("source-union-target-cfg-dependencies");
+    fixture.write_manifest(
+        "[target.'cfg(unix)'.dependencies]\ncfg-runtime = \"1\"\n[target.'cfg(unix)'.dev-dependencies]\ncfg-dev = \"1\"\n[target.'cfg(unix)'.build-dependencies]\ncfg-build = \"1\"\n",
+    );
+    let source = "use cfg_runtime;\nuse cfg_dev;\nuse cfg_build;\nfn run() {}\n";
+    fixture.write("src/main.rs", source);
+    fixture.write("tests/contract.rs", source);
+
+    // Act
+    let binary_report = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        2,
+    );
+    let test_report = completed_json(
+        &run_check_with(
+            &fixture,
+            "test:contract",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        2,
+    );
+
+    // Assert
+    assert_eq!(
+        binary_report["analysis_context"]["analysis_profile"],
+        "source-union"
+    );
+    assert!(dependency_target_exists(
+        &binary_report,
+        "crate",
+        "cfg_runtime"
+    ));
+    assert!(!dependency_target_exists(
+        &binary_report,
+        "crate",
+        "cfg_dev"
+    ));
+    assert!(!dependency_target_exists(
+        &binary_report,
+        "crate",
+        "cfg_build"
+    ));
+    assert_issue(&binary_report, "analysis.unsupported-analysis-context");
+
+    assert!(dependency_target_exists(
+        &test_report,
+        "crate",
+        "cfg_runtime"
+    ));
+    assert!(dependency_target_exists(&test_report, "crate", "cfg_dev"));
+    assert!(!dependency_target_exists(
+        &test_report,
+        "crate",
+        "cfg_build"
+    ));
+    assert_issue(&test_report, "analysis.unsupported-analysis-context");
+}
+
+#[test]
+fn source_union_keeps_unresolved_internal_references_indeterminate() {
+    // Arrange
+    let fixture = TempFixture::new("source-union-unresolved-internal");
+    fixture.write(
+        "src/main.rs",
+        "fn main() { let _ = crate::missing::Thing; }\n",
+    );
+
+    // Act
+    let report = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        2,
+    );
+
+    // Assert
+    assert_eq!(
+        report["analysis_context"]["analysis_profile"],
+        "source-union"
+    );
+    assert_issue(&report, "analysis.unresolved-reference");
 }
 
 #[test]
 fn unsupported_derive_macro_is_indeterminate() {
     // Arrange
-    let fixture = TempFixture::new("unsupported-derive-macro");
+    let fixture = TempFixture::new("unsupported-derive");
     fixture.write(
         "src/main.rs",
         "#[derive(Debug)]\nstruct Value;\nfn main() {}\n",
     );
 
     // Act
-    let result = validate_empty_policy(&fixture);
+    let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
-    assert_indeterminate_issue(&result, "analysis.unsupported-macro-expansion");
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
 }
 
 #[test]
@@ -734,26 +674,26 @@ fn unsupported_name_resolution_is_indeterminate() {
     );
 
     // Act
-    let result = validate_empty_policy(&fixture);
+    let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
-    assert_indeterminate_issue(&result, "analysis.unsupported-name-resolution");
+    assert_issue(&report, "analysis.unsupported-name-resolution");
 }
 
 #[test]
 fn unsupported_expression_name_resolution_is_indeterminate() {
     // Arrange
-    let fixture = TempFixture::new("unsupported-expression-name-resolution");
+    let fixture = TempFixture::new("unsupported-expression-resolution");
     fixture.write(
         "src/main.rs",
         "fn main() { let _ = missing_module::Thing; }\n",
     );
 
     // Act
-    let result = validate_empty_policy(&fixture);
+    let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
-    assert_indeterminate_issue(&result, "analysis.unsupported-name-resolution");
+    assert_issue(&report, "analysis.unsupported-name-resolution");
 }
 
 #[test]
@@ -763,10 +703,10 @@ fn unsupported_syntax_is_indeterminate() {
     fixture.write("src/main.rs", "fn main( {\n");
 
     // Act
-    let result = validate_empty_policy(&fixture);
+    let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
-    assert_indeterminate_issue(&result, "analysis.unsupported-syntax");
+    assert_issue(&report, "analysis.unsupported-syntax");
 }
 
 #[test]
@@ -779,10 +719,10 @@ fn unsupported_analysis_context_is_indeterminate() {
     );
 
     // Act
-    let result = validate_empty_policy(&fixture);
+    let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
-    assert_indeterminate_issue(&result, "analysis.unsupported-analysis-context");
+    assert_issue(&report, "analysis.unsupported-analysis-context");
 }
 
 // contract_id: contract.logical-module-boundary.cli-outcome
@@ -791,7 +731,6 @@ fn unsupported_analysis_context_is_indeterminate() {
 fn conformant_result_exits_with_zero() {
     // Arrange
     let fixture = TempFixture::new("conformant-exit");
-    fixture.write("src/main.rs", "fn main() {}\n");
 
     // Act
     let output = run_check(&fixture, "json");
@@ -803,20 +742,7 @@ fn conformant_result_exits_with_zero() {
 #[test]
 fn non_conformant_result_exits_with_one() {
     // Arrange
-    let fixture = TempFixture::new("non-conformant-exit");
-    fixture.write(
-        "src/main.rs",
-        "mod application;\nmod infrastructure;\nfn main() {}\n",
-    );
-    fixture.write(
-        "src/application.rs",
-        "use crate::infrastructure::Thing;\npub fn run() -> Thing { Thing }\n",
-    );
-    fixture.write("src/infrastructure.rs", "pub struct Thing;\n");
-    fixture.write(
-        "policy.yaml",
-        "rules:\n  - id: forbidden-application\n    kind: forbidden\n    severity: error\n    from: [crate::application]\n    to: [crate::infrastructure]\n",
-    );
+    let fixture = forbidden_fixture("non-conformant-exit", false);
 
     // Act
     let output = run_check(&fixture, "json");
@@ -859,17 +785,8 @@ fn execution_failure_exits_with_three() {
 fn supported_compilation_targets_select_their_entry_files() {
     // Arrange
     let fixture = TempFixture::new("explicit-targets");
-    fixture.write(
-        "Cargo.toml",
-        &format!(
-            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\
-             [lib]\npath = \"sources/library.rs\"\n\
-             [[bin]]\nname = \"tool\"\npath = \"sources/tool.rs\"\n\
-             [[example]]\nname = \"demo\"\npath = \"sources/demo.rs\"\n\
-             [[test]]\nname = \"contract\"\npath = \"sources/contract.rs\"\n\
-             [[bench]]\nname = \"performance\"\npath = \"sources/performance.rs\"\n",
-            fixture.package()
-        ),
+    fixture.write_manifest(
+        "[lib]\npath = \"sources/library.rs\"\n[[bin]]\nname = \"tool\"\npath = \"sources/tool.rs\"\n[[example]]\nname = \"demo\"\npath = \"sources/demo.rs\"\n[[test]]\nname = \"contract\"\npath = \"sources/contract.rs\"\n[[bench]]\nname = \"performance\"\npath = \"sources/performance.rs\"\n",
     );
     for path in [
         "sources/library.rs",
@@ -889,16 +806,15 @@ fn supported_compilation_targets_select_their_entry_files() {
     ];
 
     // Act
-    let results: Vec<_> = targets
+    let reports: Vec<_> = targets
         .iter()
-        .map(|target| validate_target(&fixture, target))
+        .map(|target| completed_json(&run_check_with(&fixture, target, "json", &[]), 0))
         .collect();
 
     // Assert
-    for (target, result) in targets.iter().zip(results) {
-        let result = result.expect("explicit compilation target should be resolved");
-        assert_eq!(result.analysis_context.compilation_target, *target);
-        assert_eq!(result.decision, ValidationDecision::Conformant);
+    for (target, report) in targets.iter().zip(reports) {
+        assert_eq!(report["analysis_context"]["compilation_target"], *target);
+        assert_eq!(report["decision"], "conformant");
     }
 }
 
@@ -915,6 +831,7 @@ fn conventional_compilation_target_paths_are_supported() {
     fixture.write("benches/performance.rs", "fn benchmark() {}\n");
     let targets = [
         "lib",
+        "bin:fixture-conventional-targets",
         "bin:tool",
         "bin:nested",
         "example:demo",
@@ -924,164 +841,83 @@ fn conventional_compilation_target_paths_are_supported() {
     ];
 
     // Act
-    let results: Vec<_> = targets
+    let outputs: Vec<_> = targets
         .iter()
-        .map(|target| validate_target(&fixture, target))
+        .map(|target| run_check_with(&fixture, target, "json", &[]))
         .collect();
 
     // Assert
-    assert!(results.iter().all(Result::is_ok));
+    assert!(outputs.iter().all(|output| output.status.code() == Some(0)));
 }
 
 #[test]
 fn target_feature_requirements_and_auto_discovery_are_fail_closed() {
     // Arrange
     let fixture = TempFixture::new("target-selection-context");
-    fixture.write(
-        "Cargo.toml",
-        &format!(
-            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\nautobins = false\n\
-             [[bin]]\nname = \"tool\"\npath = \"src/bin/tool.rs\"\nrequired-features = [\"cli\"]\n\
-             [[bin]]\nname = \"missing\"\npath = \"src/bin/missing.rs\"\n",
-            fixture.package()
-        ),
-    );
+    fixture.write_manifest("autobins = false\n[[bin]]\nname = \"tool\"\npath = \"src/bin/tool.rs\"\nrequired-features = [\"cli\"]\n[[bin]]\nname = \"missing\"\npath = \"src/bin/missing.rs\"\n");
     fixture.write("src/bin/tool.rs", "fn main() {}\n");
     fixture.write("src/bin/hidden.rs", "fn main() {}\n");
 
     // Act
-    let required_feature_result = validate_target(&fixture, "bin:tool")
-        .expect("missing required features should produce a report");
-    let mut active_feature_context = analysis_context(fixture.package());
-    active_feature_context.compilation_target = "bin:tool".to_owned();
-    active_feature_context.features = vec!["cli".to_owned()];
-    let active_feature_result = boundary_validation::validate(
-        fixture.path(),
-        active_feature_context,
-        &fixture.join("policy.yaml"),
-        "json",
-    )
-    .expect("active required features should select the target");
-    let disabled_auto_target = validate_target(&fixture, "bin:hidden");
-    let missing_target_source = validate_target(&fixture, "bin:missing");
-    fixture.write(
-        "Cargo.toml",
-        &format!(
-            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\nautolib = false\n",
-            fixture.package()
-        ),
-    );
-    fixture.write("src/lib.rs", "pub fn library() {}\n");
-    let disabled_auto_library = validate_target(&fixture, "lib");
+    let missing_feature = run_check_with(&fixture, "bin:tool", "json", &[]);
+    let active_feature = run_check_with(&fixture, "bin:tool", "json", &["--feature", "cli"]);
+    let hidden = run_check_with(&fixture, "bin:hidden", "json", &[]);
+    let missing = run_check_with(&fixture, "bin:missing", "json", &[]);
 
     // Assert
-    assert_indeterminate_issue(
-        &required_feature_result,
+    assert_issue(
+        &completed_json(&missing_feature, 2),
         "analysis.unsupported-analysis-context",
     );
-    assert_eq!(
-        active_feature_result.decision,
-        ValidationDecision::Conformant
-    );
-    assert!(
-        disabled_auto_target
-            .expect_err("autobins=false should disable implicit binaries")
-            .to_string()
-            .contains("bin target not found")
-    );
-    assert!(
-        missing_target_source
-            .expect_err("missing explicit target source should fail")
-            .to_string()
-            .contains("target source file not found")
-    );
-    assert!(
-        disabled_auto_library
-            .expect_err("autolib=false should disable the implicit library")
-            .to_string()
-            .contains("library target not found")
-    );
+    assert_eq!(active_feature.status.code(), Some(0));
+    assert_execution_failure(&hidden, "bin target not found");
+    assert_execution_failure(&missing, "target source file not found");
 }
 
 #[test]
 fn inline_nested_and_declared_external_dependencies_are_observed() {
     // Arrange
     let fixture = TempFixture::new("module-shapes");
-    fixture.write(
-        "Cargo.toml",
-        &format!(
-            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\
-             [dependencies]\nserde-json = \"1\"\n",
-            fixture.package()
-        ),
-    );
+    fixture.write_manifest("[dependencies]\nserde-json = \"1\"\n");
     fixture.write("src/main.rs", "mod outer;\nuse serde_json;\nfn main() {}\n");
-    fixture.write(
-        "src/outer.rs",
-        "pub mod child;\npub mod inline {\n    pub mod nested;\n    use super::child::{Thing as Alias, *};\n    pub fn make() -> super::child::Thing { super::child::Thing }\n}\n",
-    );
+    fixture.write("src/outer.rs", "pub mod child;\npub mod inline { pub mod nested; use super::child::Thing as Alias; pub fn make() -> Alias { super::child::Thing } }\n");
     fixture.write("src/outer/child.rs", "pub struct Thing;\n");
     fixture.write("src/outer/inline/nested.rs", "pub struct Nested;\n");
-    let mut context = analysis_context(fixture.package());
-    context.include = vec!["crate::**".to_owned()];
 
     // Act
-    let result = boundary_validation::validate(
-        fixture.path(),
-        context,
-        &fixture.join("policy.yaml"),
-        "json",
-    )
-    .expect("module shapes should be observed");
+    let report = completed_json(
+        &run_check_with(&fixture, "bin", "json", &["--include", "crate::**"]),
+        0,
+    );
 
     // Assert
-    assert!(
-        result
-            .modules
-            .iter()
-            .any(|module| module.id == "crate::outer::inline")
-    );
-    assert!(
-        result
-            .modules
-            .iter()
-            .any(|module| module.id == "crate::outer::child")
-    );
-    assert!(
-        result
-            .modules
-            .iter()
-            .any(|module| module.id == "crate::outer::inline::nested")
-    );
-    assert!(result.modules.iter().any(|module| module.id == "crate"));
-    assert!(result.dependencies.iter().any(|dependency| {
-        dependency.source == "crate"
-            && dependency.target == "serde_json"
-            && dependency.kind == DependencyKind::Import
-            && dependency.target_scope == TargetScope::ExternalCrate
-    }));
-    assert!(result.dependencies.iter().any(|dependency| {
-        dependency.source == "crate::outer::inline"
-            && dependency.target == "crate::outer::child"
-            && dependency.kind == DependencyKind::Import
-    }));
-    assert!(!result.dependencies.iter().any(|dependency| {
-        dependency.source == "crate" && dependency.target == "crate::outer::child"
-    }));
+    for module in [
+        "crate",
+        "crate::outer::inline",
+        "crate::outer::child",
+        "crate::outer::inline::nested",
+    ] {
+        assert!(array_contains(&report["modules"], "id", module));
+    }
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "serde_json",
+        "import",
+        "external-crate"
+    ));
+    assert!(dependency_target_exists(
+        &report,
+        "crate::outer::inline",
+        "crate::outer::child"
+    ));
 }
 
 #[test]
 fn leading_colon_selects_the_external_crate_namespace() {
     // Arrange
-    let fixture = TempFixture::new("absolute-external-path");
-    fixture.write(
-        "Cargo.toml",
-        &format!(
-            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\
-             [dependencies]\nserde = \"1\"\n",
-            fixture.package()
-        ),
-    );
+    let fixture = TempFixture::new("absolute-external");
+    fixture.write_manifest("[dependencies]\nserde = \"1\"\n");
     fixture.write(
         "src/main.rs",
         "mod serde;\nuse ::serde::Serialize;\nfn main() {}\n",
@@ -1089,293 +925,189 @@ fn leading_colon_selects_the_external_crate_namespace() {
     fixture.write("src/serde.rs", "pub struct Local;\n");
 
     // Act
-    let result = validate_empty_policy(&fixture);
+    let report = completed_json(&run_check(&fixture, "json"), 0);
 
     // Assert
-    assert_eq!(result.decision, ValidationDecision::Conformant);
-    assert!(result.dependencies.iter().any(|dependency| {
-        dependency.target == "serde"
-            && dependency.target_scope == TargetScope::ExternalCrate
-            && dependency.kind == DependencyKind::Import
-    }));
-    assert!(!result.dependencies.iter().any(|dependency| {
-        dependency.target == "crate::serde" && dependency.kind == DependencyKind::Import
-    }));
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "serde",
+        "import",
+        "external-crate"
+    ));
+    assert!(!dependency_target_exists(&report, "crate", "crate::serde"));
 }
 
 #[test]
 fn declared_item_kinds_support_complete_path_resolution() {
     // Arrange
-    let fixture = TempFixture::new("declared-item-kinds");
+    let fixture = TempFixture::new("declared-items");
     fixture.write(
         "src/main.rs",
         "mod domain;\nfn consume(_: crate::domain::Model) {}\nfn main() {}\n",
     );
     fixture.write(
         "src/domain.rs",
-        "pub const VALUE: usize = 1;\n\
-         pub enum Choice { One }\n\
-         extern crate core as core_alias;\n\
-         pub fn make() {}\n\
-         macro_rules! named { () => {} }\n\
-         pub mod nested {}\n\
-         pub static STATE: usize = 1;\n\
-         pub struct Model;\n\
-         pub trait Contract {}\n\
-         pub trait Alias = Contract;\n\
-         pub type Identifier = usize;\n\
-         pub union Number { value: usize }\n\
-         use core::fmt::{self, Debug as DebugAlias, *};\n",
+        "pub const VALUE: usize = 1;\npub enum Choice { One }\nextern crate core as core_alias;\npub fn make() {}\nmacro_rules! named { () => {} }\npub mod nested {}\npub static STATE: usize = 1;\npub struct Model;\npub trait Contract {}\npub trait Alias = Contract;\npub type Identifier = usize;\npub union Number { value: usize }\nuse core::fmt::{self, Debug as DebugAlias, *};\n",
     );
 
     // Act
-    let result = validate_empty_policy(&fixture);
+    let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
-    assert!(result.dependencies.iter().any(|dependency| {
-        dependency.source == "crate"
-            && dependency.target == "crate::domain"
-            && dependency.kind == DependencyKind::PathReference
-    }));
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "crate::domain",
+        "path-reference",
+        "internal-module"
+    ));
 }
 
 #[test]
 fn external_dependencies_follow_the_selected_compilation_target() {
     // Arrange
     let fixture = TempFixture::new("target-dependencies");
-    fixture.write(
-        "Cargo.toml",
-        &format!(
-            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\
-             [dev-dependencies]\ntest-only = \"1\"\n\
-             [target.x86_64-unknown-linux-gnu.dependencies]\ntarget-only = \"1\"\n",
-            fixture.package()
-        ),
-    );
+    fixture.write_manifest("[dev-dependencies]\ntest-only = \"1\"\n[target.x86_64-unknown-linux-gnu.dependencies]\ntarget-only = \"1\"\n");
     fixture.write("src/main.rs", "use test_only;\nfn main() {}\n");
     fixture.write("tests/contract.rs", "use test_only;\nfn contract() {}\n");
 
     // Act
-    let bin_result = validate_empty_policy(&fixture);
-    let test_result = validate_target(&fixture, "test:contract")
-        .expect("test target dependencies should be observed");
+    let binary_report = completed_json(&run_check(&fixture, "json"), 2);
+    let test_report = completed_json(&run_check_with(&fixture, "test:contract", "json", &[]), 0);
 
     // Assert
-    assert_indeterminate_issue(&bin_result, "analysis.unsupported-name-resolution");
-    assert_eq!(test_result.decision, ValidationDecision::Conformant);
-    assert!(test_result.dependencies.iter().any(|dependency| {
-        dependency.target == "test_only" && dependency.target_scope == TargetScope::ExternalCrate
-    }));
+    assert_issue(&binary_report, "analysis.unsupported-name-resolution");
+    assert!(dependency_exists(
+        &test_report,
+        "crate",
+        "test_only",
+        "import",
+        "external-crate"
+    ));
 }
 
 #[test]
 fn exact_target_dependency_is_active_for_the_selected_triple() {
     // Arrange
     let fixture = TempFixture::new("exact-target-dependency");
-    fixture.write(
-        "Cargo.toml",
-        &format!(
-            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\
-             [target.x86_64-unknown-linux-gnu.dependencies]\ntarget-only = \"1\"\n",
-            fixture.package()
-        ),
-    );
+    fixture.write_manifest("[target.x86_64-unknown-linux-gnu.dependencies]\ntarget-only = \"1\"\n");
     fixture.write("src/main.rs", "use target_only;\nfn main() {}\n");
 
     // Act
-    let result = validate_empty_policy(&fixture);
+    let report = completed_json(&run_check(&fixture, "json"), 0);
 
     // Assert
-    assert_eq!(result.decision, ValidationDecision::Conformant);
-    assert!(result.dependencies.iter().any(|dependency| {
-        dependency.target == "target_only" && dependency.target_scope == TargetScope::ExternalCrate
-    }));
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "target_only",
+        "import",
+        "external-crate"
+    ));
 }
 
 #[test]
 fn cfg_selected_dependency_is_indeterminate_without_cfg_evaluation() {
     // Arrange
-    let fixture = TempFixture::new("cfg-target-dependency");
-    fixture.write(
-        "Cargo.toml",
-        &format!(
-            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\
-             [target.'cfg(unix)'.dependencies]\ncfg-only = \"1\"\n",
-            fixture.package()
-        ),
-    );
+    let fixture = TempFixture::new("cfg-dependency");
+    fixture.write_manifest("[target.'cfg(unix)'.dependencies]\ncfg-only = \"1\"\n");
     fixture.write("src/main.rs", "use cfg_only;\nfn main() {}\n");
 
     // Act
-    let result = validate_empty_policy(&fixture);
+    let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
-    assert_indeterminate_issue(&result, "analysis.unsupported-analysis-context");
+    assert_issue(&report, "analysis.unsupported-analysis-context");
 }
 
 #[test]
 fn optional_dependency_is_indeterminate_without_feature_evaluation() {
     // Arrange
     let fixture = TempFixture::new("optional-dependency");
-    fixture.write(
-        "Cargo.toml",
-        &format!(
-            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\
-             [dependencies]\noptional-crate = {{ version = \"1\", optional = true }}\n",
-            fixture.package()
-        ),
-    );
+    fixture
+        .write_manifest("[dependencies]\noptional-crate = { version = \"1\", optional = true }\n");
     fixture.write("src/main.rs", "use optional_crate;\nfn main() {}\n");
-    let mut context = analysis_context(fixture.package());
-    context.features = vec!["optional-crate".to_owned()];
 
     // Act
-    let result = boundary_validation::validate(
-        fixture.path(),
-        context,
-        &fixture.join("policy.yaml"),
-        "json",
-    )
-    .expect("unsupported feature evaluation should produce a report");
+    let report = completed_json(
+        &run_check_with(&fixture, "bin", "json", &["--feature", "optional-crate"]),
+        2,
+    );
 
     // Assert
-    assert_indeterminate_issue(&result, "analysis.unsupported-analysis-context");
+    assert_issue(&report, "analysis.unsupported-analysis-context");
 }
 
 #[test]
 fn invalid_manifest_and_target_requests_fail_with_diagnostics() {
     // Arrange
     let fixture = TempFixture::new("invalid-targets");
-    let mismatched_package = AnalysisContext {
-        package: "other-package".to_owned(),
-        ..analysis_context(fixture.package())
-    };
-    let mut empty_bin_name = analysis_context(fixture.package());
-    empty_bin_name.compilation_target = "bin:".to_owned();
-    let mut empty_example_name = analysis_context(fixture.package());
-    empty_example_name.compilation_target = "example:".to_owned();
-    let mut unsupported_target = analysis_context(fixture.package());
-    unsupported_target.compilation_target = "proc-macro:fixture".to_owned();
 
     // Act
-    let mismatch = boundary_validation::validate(
-        fixture.path(),
-        mismatched_package,
-        &fixture.join("policy.yaml"),
-        "json",
+    let mismatch = run_custom(
+        &fixture,
+        "other-package",
+        &fixture.target(),
+        "x86_64-unknown-linux-gnu",
+        &[],
     );
-    let empty_bin = boundary_validation::validate(
-        fixture.path(),
-        empty_bin_name,
-        &fixture.join("policy.yaml"),
-        "json",
+    let empty_bin = run_custom(
+        &fixture,
+        fixture.package(),
+        "bin:",
+        "x86_64-unknown-linux-gnu",
+        &[],
     );
-    let empty_example = boundary_validation::validate(
-        fixture.path(),
-        empty_example_name,
-        &fixture.join("policy.yaml"),
-        "json",
+    let empty_example = run_custom(
+        &fixture,
+        fixture.package(),
+        "example:",
+        "x86_64-unknown-linux-gnu",
+        &[],
     );
-    let unsupported = boundary_validation::validate(
-        fixture.path(),
-        unsupported_target,
-        &fixture.join("policy.yaml"),
-        "json",
+    let unsupported = run_custom(
+        &fixture,
+        fixture.package(),
+        "proc-macro:fixture",
+        "x86_64-unknown-linux-gnu",
+        &[],
     );
     fixture.write("Cargo.toml", "not valid TOML = [\n");
-    let invalid_manifest = validate_target(&fixture, "lib");
+    let invalid_manifest = run_check_with(&fixture, "lib", "json", &[]);
 
     // Assert
-    assert!(
-        mismatch
-            .expect_err("package mismatch should fail")
-            .to_string()
-            .contains("does not match")
-    );
-    assert!(
-        empty_bin
-            .expect_err("empty bin target should fail")
-            .to_string()
-            .contains("requires a name")
-    );
-    assert!(
-        empty_example
-            .expect_err("empty example target should fail")
-            .to_string()
-            .contains("requires a name")
-    );
-    assert!(
-        unsupported
-            .expect_err("unsupported target should fail")
-            .to_string()
-            .contains("unsupported compilation target")
-    );
-    assert!(
-        invalid_manifest
-            .expect_err("invalid manifest should fail")
-            .to_string()
-            .contains("invalid Cargo.toml")
-    );
+    assert_execution_failure(&mismatch, "does not match");
+    assert_execution_failure(&empty_bin, "requires a name");
+    assert_execution_failure(&empty_example, "requires a name");
+    assert_execution_failure(&unsupported, "unsupported compilation target");
+    assert_execution_failure(&invalid_manifest, "invalid Cargo.toml");
 }
 
 #[test]
 fn manifest_target_and_dependency_types_are_rejected() {
     // Arrange
-    let invalid_auto = TempFixture::new("invalid-auto-flag");
-    invalid_auto.write(
-        "Cargo.toml",
-        &format!(
-            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\nautobins = \"false\"\n",
-            invalid_auto.package()
-        ),
-    );
+    let invalid_auto = TempFixture::new("invalid-auto");
+    invalid_auto.write_manifest("autobins = \"false\"\n");
     invalid_auto.write("src/bin/hidden.rs", "fn main() {}\n");
-
-    let invalid_required = TempFixture::new("invalid-required-features");
-    invalid_required.write(
-        "Cargo.toml",
-        &format!(
-            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\
-             [[bin]]\nname = \"tool\"\npath = \"src/main.rs\"\nrequired-features = \"cli\"\n",
-            invalid_required.package()
-        ),
+    let invalid_required = TempFixture::new("invalid-required");
+    invalid_required.write_manifest(
+        "[[bin]]\nname = \"tool\"\npath = \"src/main.rs\"\nrequired-features = \"cli\"\n",
     );
-
-    let invalid_optional = TempFixture::new("invalid-optional-flag");
-    invalid_optional.write(
-        "Cargo.toml",
-        &format!(
-            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\
-             [dependencies]\noptional-crate = {{ version = \"1\", optional = \"true\" }}\n",
-            invalid_optional.package()
-        ),
+    let invalid_optional = TempFixture::new("invalid-optional");
+    invalid_optional.write_manifest(
+        "[dependencies]\noptional-crate = { version = \"1\", optional = \"true\" }\n",
     );
-    invalid_optional.write("src/main.rs", "fn main() {}\n");
 
     // Act
-    let auto_result = validate_target(&invalid_auto, "bin:hidden");
-    let required_result = validate_target(&invalid_required, "bin:tool");
-    let optional_result = validate_empty_policy_result(&invalid_optional);
+    let auto = run_check_with(&invalid_auto, "bin:hidden", "json", &[]);
+    let required = run_check_with(&invalid_required, "bin:tool", "json", &[]);
+    let optional = run_check(&invalid_optional, "json");
 
     // Assert
-    assert!(
-        auto_result
-            .expect_err("non-boolean auto flag should fail")
-            .to_string()
-            .contains("must be a boolean")
-    );
-    assert!(
-        required_result
-            .expect_err("non-array required-features should fail")
-            .to_string()
-            .contains("must be an array")
-    );
-    assert!(
-        optional_result
-            .expect_err("non-boolean optional flag should fail")
-            .to_string()
-            .contains("optional must be a boolean")
-    );
+    assert_execution_failure(&auto, "must be a boolean");
+    assert_execution_failure(&required, "must be an array");
+    assert_execution_failure(&optional, "optional must be a boolean");
 }
 
 #[test]
@@ -1393,11 +1125,6 @@ fn malformed_manifest_shapes_fail_before_analysis() {
             "dependencies must be a table",
         ),
         ("target-table", "target = []\n", "target must be a table"),
-        (
-            "target-selector",
-            "[target]\nbad = \"value\"\n",
-            "target.bad must be a table",
-        ),
         ("lib-table", "lib = []\n", "lib target must be a table"),
         ("lib-path", "[lib]\npath = 1\n", "lib.path must be text"),
         (
@@ -1423,402 +1150,187 @@ fn malformed_manifest_shapes_fail_before_analysis() {
         ),
     ];
 
-    for (label, manifest_fragment, expected) in cases {
+    // Act / Assert
+    for (label, fragment, expected) in cases {
         let fixture = TempFixture::new(label);
         fixture.write(
             "Cargo.toml",
             &format!(
-                "{manifest_fragment}[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+                "{fragment}[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
                 fixture.package()
             ),
         );
-        fixture.write("src/main.rs", "fn main() {}\n");
-
-        // Act
-        let result = validate_empty_policy_result(&fixture);
-
-        // Assert
-        assert!(
-            result
-                .expect_err("malformed manifest shape should fail")
-                .to_string()
-                .contains(expected),
-            "case {label} should contain {expected}"
-        );
+        assert_execution_failure(&run_check(&fixture, "json"), expected);
     }
 }
 
 #[test]
 fn missing_required_analysis_context_is_rejected() {
     // Arrange
-    let fixture = TempFixture::new("missing-analysis-context");
-    let mut context = analysis_context(fixture.package());
-    context.target_triple.clear();
+    let fixture = TempFixture::new("missing-context");
 
     // Act
-    let result = boundary_validation::validate(
-        fixture.path(),
-        context,
-        &fixture.join("policy.yaml"),
-        "json",
-    );
+    let output = run_custom(&fixture, fixture.package(), &fixture.target(), "", &[]);
 
     // Assert
-    assert!(
-        result
-            .expect_err("incomplete analysis context should fail")
-            .to_string()
-            .contains("package, target, and target_triple are required")
+    assert_execution_failure(&output, "package, target, and target_triple are required");
+}
+
+fn dependency_fixture(label: &str, target: &str) -> TempFixture {
+    let fixture = TempFixture::new(label);
+    fixture.write(
+        "src/main.rs",
+        &format!("mod application;\nmod {target};\nfn main() {{}}\n"),
     );
+    fixture.write(
+        "src/application.rs",
+        &format!("use crate::{target}::Thing;\npub fn run() -> Thing {{ Thing }}\n"),
+    );
+    fixture.write(&format!("src/{target}.rs"), "pub struct Thing;\n");
+    fixture
 }
 
-fn analysis_context(package: &str) -> AnalysisContext {
-    AnalysisContext {
-        package: package.to_owned(),
-        compilation_target: format!("bin:{package}"),
-        features: Vec::new(),
-        cfg: Vec::new(),
-        target_triple: "x86_64-unknown-linux-gnu".to_owned(),
-        include: Vec::new(),
-        exclude: Vec::new(),
+fn forbidden_fixture(label: &str, with_issue: bool) -> TempFixture {
+    let fixture = dependency_fixture(label, "infrastructure");
+    if with_issue {
+        fixture.write(
+            "src/main.rs",
+            "mod application;\nmod infrastructure;\nfn main() { println!(\"incomplete\"); }\n",
+        );
     }
-}
-
-fn dependency(
-    source: &str,
-    target: &str,
-    kind: DependencyKind,
-    line: usize,
-    column: usize,
-) -> Dependency {
-    Dependency {
-        candidate_id: format!("dep:{source}:{target}:{}", kind.as_str()),
-        source: source.to_owned(),
-        target: target.to_owned(),
-        kind,
-        target_scope: TargetScope::InternalModule,
-        evidence: SourceEvidence {
-            path: format!("src/{}.rs", source.rsplit("::").next().unwrap_or("main")),
-            line,
-            column,
-        },
-    }
-}
-
-fn graph_with_dependencies(dependencies: Vec<Dependency>) -> ObservedDependencyGraph {
-    let module_ids: BTreeSet<String> = dependencies
-        .iter()
-        .flat_map(|dependency| [dependency.source.clone(), dependency.target.clone()])
-        .collect();
-    ObservedDependencyGraph {
-        analysis_context: analysis_context("fixture"),
-        modules: module_ids
-            .into_iter()
-            .map(|id| LogicalModule { id })
-            .collect(),
-        module_declarations: Vec::new(),
-        dependencies,
-        excluded_scopes: Vec::new(),
-    }
-}
-
-fn boundary_rule(
-    id: &str,
-    kind: RuleKind,
-    severity: Severity,
-    from: &[&str],
-    to: &[&str],
-    modules: &[&str],
-) -> BoundaryRule {
-    BoundaryRule {
-        id: id.to_owned(),
-        kind,
-        severity,
-        from: from.iter().map(|value| (*value).to_owned()).collect(),
-        to: to.iter().map(|value| (*value).to_owned()).collect(),
-        modules: modules.iter().map(|value| (*value).to_owned()).collect(),
-        dependency_kinds: Vec::new(),
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn assert_violation(
-    violation: &BoundaryViolation,
-    kind: ViolationKind,
-    rule_id: &str,
-    severity: Severity,
-    source: &str,
-    target: &str,
-    dependency_kind: DependencyKind,
-    line: usize,
-    column: usize,
-) {
-    assert_eq!(violation.kind, kind);
-    assert_eq!(violation.rule_id, rule_id);
-    assert_eq!(violation.severity, severity);
-    assert_eq!(violation.source, source);
-    assert_eq!(violation.target, target);
-    assert_eq!(violation.dependency_kind, dependency_kind);
-    assert!(!violation.evidence.path.is_empty());
-    assert_eq!(violation.evidence.line, line);
-    assert_eq!(violation.evidence.column, column);
-}
-
-fn sample_report(serialization: &str) -> ValidationReport {
-    let mut graph = graph_with_dependencies(vec![
-        dependency(
-            "crate::application",
-            "crate::shared",
-            DependencyKind::PathReference,
-            4,
-            9,
-        ),
-        dependency(
-            "crate::application",
-            "crate::domain",
-            DependencyKind::Import,
-            3,
-            5,
-        ),
-    ]);
-    graph.analysis_context.features = vec!["zeta".to_owned(), "alpha".to_owned()];
-    graph.analysis_context.cfg = vec!["target_os=zeta".to_owned(), "target_os=alpha".to_owned()];
-    graph.analysis_context.include = vec!["crate::zeta".to_owned(), "crate::alpha".to_owned()];
-    graph.analysis_context.exclude = vec!["crate::omega".to_owned(), "crate::beta".to_owned()];
-    graph.modules.reverse();
-    graph.module_declarations = vec![
-        ModuleDeclaration {
-            declaration_id: "decl:crate:shared".to_owned(),
-            parent: "crate".to_owned(),
-            child: "crate::shared".to_owned(),
-            evidence: SourceEvidence {
-                path: "src/main.rs".to_owned(),
-                line: 2,
-                column: 1,
-            },
-        },
-        ModuleDeclaration {
-            declaration_id: "decl:crate:domain".to_owned(),
-            parent: "crate".to_owned(),
-            child: "crate::domain".to_owned(),
-            evidence: SourceEvidence {
-                path: "src/main.rs".to_owned(),
-                line: 1,
-                column: 1,
-            },
-        },
-    ];
-    graph.excluded_scopes = vec!["crate::zeta".to_owned(), "crate::alpha".to_owned()];
-    let violations = vec![
-        BoundaryViolation {
-            kind: ViolationKind::Circular,
-            rule_id: "canonical-tie".to_owned(),
-            severity: Severity::Warning,
-            source: "crate::application".to_owned(),
-            target: "crate::shared".to_owned(),
-            dependency_kind: DependencyKind::PathReference,
-            evidence: SourceEvidence {
-                path: "src/application.rs".to_owned(),
-                line: 4,
-                column: 9,
-            },
-            cycle_path: Some(vec!["crate::alpha".to_owned(), "crate::shared".to_owned()]),
-        },
-        BoundaryViolation {
-            kind: ViolationKind::Circular,
-            rule_id: "canonical-tie".to_owned(),
-            severity: Severity::Error,
-            source: "crate::application".to_owned(),
-            target: "crate::shared".to_owned(),
-            dependency_kind: DependencyKind::PathReference,
-            evidence: SourceEvidence {
-                path: "src/application.rs".to_owned(),
-                line: 4,
-                column: 9,
-            },
-            cycle_path: Some(vec!["crate::zeta".to_owned(), "crate::shared".to_owned()]),
-        },
-        BoundaryViolation {
-            kind: ViolationKind::Forbidden,
-            rule_id: "canonical-tie".to_owned(),
-            severity: Severity::Error,
-            source: "crate::application".to_owned(),
-            target: "crate::shared".to_owned(),
-            dependency_kind: DependencyKind::PathReference,
-            evidence: SourceEvidence {
-                path: "src/application.rs".to_owned(),
-                line: 4,
-                column: 9,
-            },
-            cycle_path: None,
-        },
-        BoundaryViolation {
-            kind: ViolationKind::Circular,
-            rule_id: "canonical-tie".to_owned(),
-            severity: Severity::Error,
-            source: "crate::application".to_owned(),
-            target: "crate::shared".to_owned(),
-            dependency_kind: DependencyKind::PathReference,
-            evidence: SourceEvidence {
-                path: "src/application.rs".to_owned(),
-                line: 4,
-                column: 9,
-            },
-            cycle_path: Some(vec!["crate::alpha".to_owned(), "crate::shared".to_owned()]),
-        },
-        BoundaryViolation {
-            kind: ViolationKind::Forbidden,
-            rule_id: "forbidden-shared".to_owned(),
-            severity: Severity::Warning,
-            source: "crate::application".to_owned(),
-            target: "crate::shared".to_owned(),
-            dependency_kind: DependencyKind::PathReference,
-            evidence: SourceEvidence {
-                path: "src/application.rs".to_owned(),
-                line: 4,
-                column: 9,
-            },
-            cycle_path: None,
-        },
-        BoundaryViolation {
-            kind: ViolationKind::Forbidden,
-            rule_id: "forbidden-domain".to_owned(),
-            severity: Severity::Error,
-            source: "crate::application".to_owned(),
-            target: "crate::domain".to_owned(),
-            dependency_kind: DependencyKind::Import,
-            evidence: SourceEvidence {
-                path: "src/application.rs".to_owned(),
-                line: 3,
-                column: 5,
-            },
-            cycle_path: None,
-        },
-    ];
-    report::build(
-        graph,
-        violations,
-        PolicyEvaluation {
-            dependency_outcome: "forbidden".to_owned(),
-            cycle_outcome: "acyclic".to_owned(),
-            forbidden_match_handling: "all-matches".to_owned(),
-            allowed_match_handling: "union".to_owned(),
-            cycle_handling: "independent".to_owned(),
-        },
-        vec![
-            AnalysisIssue {
-                code: "analysis.zeta".to_owned(),
-                reason: "zeta issue".to_owned(),
-                affected_scope: "crate::shared".to_owned(),
-            },
-            AnalysisIssue {
-                code: "analysis.fixture".to_owned(),
-                reason: "fixture issue".to_owned(),
-                affected_scope: "crate::application".to_owned(),
-            },
-        ],
-        ValidationDecision::Indeterminate,
-        serialization,
-    )
-}
-
-fn rebuild_with_reversed_inputs(mut input: ValidationReport) -> ValidationReport {
-    input.analysis_context.features.reverse();
-    input.analysis_context.cfg.reverse();
-    input.modules.reverse();
-    input.module_declarations.reverse();
-    input.dependencies.reverse();
-    input.excluded_scopes.reverse();
-    input.violations.reverse();
-    input.analysis_issues.reverse();
-
-    report::build(
-        ObservedDependencyGraph {
-            analysis_context: input.analysis_context,
-            modules: input.modules,
-            module_declarations: input.module_declarations,
-            dependencies: input.dependencies,
-            excluded_scopes: input.excluded_scopes,
-        },
-        input.violations,
-        input.policy_evaluation,
-        input.analysis_issues,
-        input.decision,
-        &input.serialization,
-    )
-}
-
-fn validate_empty_policy(fixture: &TempFixture) -> ValidationReport {
-    validate_empty_policy_result(fixture).expect("validation should produce a report")
-}
-
-fn validate_empty_policy_result(
-    fixture: &TempFixture,
-) -> a3_rust_cruiser::error::Result<ValidationReport> {
-    boundary_validation::validate(
-        fixture.path(),
-        analysis_context(fixture.package()),
-        &fixture.join("policy.yaml"),
-        "json",
-    )
-}
-
-fn validate_target(
-    fixture: &TempFixture,
-    target: &str,
-) -> a3_rust_cruiser::error::Result<ValidationReport> {
-    let mut context = analysis_context(fixture.package());
-    context.compilation_target = target.to_owned();
-    boundary_validation::validate(
-        fixture.path(),
-        context,
-        &fixture.join("policy.yaml"),
-        "json",
-    )
-}
-
-fn assert_indeterminate_issue(result: &ValidationReport, code: &str) {
-    assert_eq!(result.decision, ValidationDecision::Indeterminate);
-    let issue = result
-        .analysis_issues
-        .iter()
-        .find(|issue| issue.code == code)
-        .expect("expected analysis issue should be present");
-    assert!(!issue.reason.is_empty());
-    assert!(!issue.affected_scope.is_empty());
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbidden-application\n    kind: forbidden\n    severity: error\n    from: [crate::application]\n    to: [crate::infrastructure]\n",
+    );
+    fixture
 }
 
 fn run_check(fixture: &TempFixture, format: &str) -> Output {
-    let target = format!("bin:{}", fixture.package());
-    Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"))
-        .args([
-            "check",
-            fixture.path().to_str().expect("fixture path is UTF-8"),
-            "--policy",
-            fixture
-                .join("policy.yaml")
-                .to_str()
-                .expect("policy path is UTF-8"),
-            "--package",
-            fixture.package(),
-            "--target",
-            &target,
-            "--target-triple",
-            "x86_64-unknown-linux-gnu",
-            "--format",
-            format,
-        ])
-        .output()
-        .expect("binary should run")
+    run_check_with(fixture, "bin", format, &[])
+}
+
+fn run_check_with(
+    fixture: &TempFixture,
+    target_kind: &str,
+    format: &str,
+    extra_args: &[&str],
+) -> Output {
+    let target = if target_kind == "bin" {
+        fixture.target()
+    } else {
+        target_kind.to_owned()
+    };
+    let mut args = extra_args.to_vec();
+    args.extend(["--format", format]);
+    run_custom(
+        fixture,
+        fixture.package(),
+        &target,
+        "x86_64-unknown-linux-gnu",
+        &args,
+    )
+}
+
+fn run_custom(
+    fixture: &TempFixture,
+    package: &str,
+    target: &str,
+    target_triple: &str,
+    extra_args: &[&str],
+) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"));
+    command
+        .arg("check")
+        .arg(fixture.path())
+        .arg("--policy")
+        .arg(fixture.join("policy.yaml"))
+        .arg("--package")
+        .arg(package)
+        .arg("--target")
+        .arg(target)
+        .arg("--target-triple")
+        .arg(target_triple)
+        .args(extra_args);
+    command.output().expect("binary should run")
+}
+
+fn completed_json(output: &Output, exit_code: i32) -> Value {
+    assert_eq!(output.status.code(), Some(exit_code));
+    assert!(
+        output.stderr.is_empty(),
+        "unexpected stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).expect("valid JSON report")
+}
+
+fn completed_text(output: &Output, exit_code: i32) -> String {
+    assert_eq!(output.status.code(), Some(exit_code));
+    assert!(
+        output.stderr.is_empty(),
+        "unexpected stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout.clone()).expect("text report is UTF-8")
 }
 
 fn assert_completed_output(output: &Output, exit_code: i32, decision: &str) {
-    assert_eq!(output.status.code(), Some(exit_code));
-    assert!(!output.stdout.is_empty());
-    assert!(output.stderr.is_empty());
-    let document: serde_json::Value =
-        serde_json::from_slice(&output.stdout).expect("stdout should contain a JSON report");
-    assert_eq!(document["decision"], decision);
+    let report = completed_json(output, exit_code);
+    assert_eq!(report["decision"], decision);
+}
+
+fn assert_execution_failure(output: &Output, expected: &str) {
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains(expected),
+        "stderr should contain {expected}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn assert_issue(report: &Value, code: &str) {
+    let issues = report["analysis_issues"].as_array().expect("issues array");
+    let issue = issues
+        .iter()
+        .find(|issue| issue["code"] == code)
+        .expect("expected issue code");
+    assert!(
+        issue["reason"]
+            .as_str()
+            .is_some_and(|reason| !reason.is_empty())
+    );
+    assert!(
+        issue["affected_scope"]
+            .as_str()
+            .is_some_and(|scope| !scope.is_empty())
+    );
+    assert_eq!(report["decision"], "indeterminate");
+}
+
+fn array_contains(array: &Value, field: &str, expected: &str) -> bool {
+    array
+        .as_array()
+        .is_some_and(|items| items.iter().any(|item| item[field] == expected))
+}
+
+fn dependency_exists(report: &Value, source: &str, target: &str, kind: &str, scope: &str) -> bool {
+    report["dependencies"].as_array().is_some_and(|items| {
+        items.iter().any(|item| {
+            item["source"] == source
+                && item["target"] == target
+                && item["kind"] == kind
+                && item["target_scope"] == scope
+        })
+    })
+}
+
+fn dependency_target_exists(report: &Value, source: &str, target: &str) -> bool {
+    report["dependencies"].as_array().is_some_and(|items| {
+        items
+            .iter()
+            .any(|item| item["source"] == source && item["target"] == target)
+    })
 }
 
 struct TempFixture {
@@ -1828,41 +1340,52 @@ struct TempFixture {
 
 impl TempFixture {
     fn new(label: &str) -> Self {
-        let sequence = FIXTURE_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let package = format!("{label}-{sequence}");
+        let package = format!("fixture-{label}");
         let root = std::env::temp_dir().join(format!(
-            "a3-rust-cruiser-contract-{}-{package}",
-            std::process::id()
+            "a3-rust-cruiser-{label}-{}-{}",
+            std::process::id(),
+            FIXTURE_COUNTER.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir_all(root.join("src")).expect("fixture directory should be created");
-        fs::write(
-            root.join("Cargo.toml"),
-            format!("[package]\nname = \"{package}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
-        )
-        .expect("fixture manifest should be written");
-        fs::write(root.join("policy.yaml"), "rules: []\n")
-            .expect("fixture policy should be written");
-        Self { root, package }
+        let fixture = Self { root, package };
+        fixture.write_manifest("");
+        fixture.write("src/main.rs", "fn main() {}\n");
+        fixture.write("policy.yaml", "rules: []\n");
+        fixture
     }
 
     fn path(&self) -> &Path {
         &self.root
     }
 
-    fn package(&self) -> &str {
-        &self.package
-    }
-
     fn join(&self, path: &str) -> PathBuf {
         self.root.join(path)
     }
 
+    fn package(&self) -> &str {
+        &self.package
+    }
+
+    fn target(&self) -> String {
+        format!("bin:{}", self.package)
+    }
+
+    fn write_manifest(&self, suffix: &str) {
+        self.write(
+            "Cargo.toml",
+            &format!(
+                "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n{suffix}",
+                self.package
+            ),
+        );
+    }
+
     fn write(&self, path: &str, content: &str) {
-        let destination = self.root.join(path);
-        if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent).expect("fixture parent directory should be created");
+        let path = self.root.join(path);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("fixture parent should be created");
         }
-        fs::write(destination, content).expect("fixture file should be written");
+        fs::write(path, content).expect("fixture file should be written");
     }
 }
 

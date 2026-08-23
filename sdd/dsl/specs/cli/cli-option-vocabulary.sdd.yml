@@ -22,6 +22,14 @@ options:
     kind: value
     value_name: TARGET_TRIPLE
     summary: 解析に使用するRust target triple
+  - id: analysis-profile
+    long: --analysis-profile
+    kind: value
+    value_name: ANALYSIS_PROFILE
+    summary: compilationまたはsource-unionで指定する依存観測範囲
+    detail_lines:
+      - 省略時はcompilationを使用する。
+      - source-unionはsourceに記述された全cfg分岐を和集合として観測し、macroまたはattribute展開だけが生成する依存を観測範囲外とする。
   - id: feature
     long: --feature
     kind: value

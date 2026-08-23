@@ -23,7 +23,10 @@ observations:
           meaning: 契約で定義した比較keyを用いるcanonical順序
         - selector: result.analysis_context
           kind: observation_field
-          meaning: package、compilation target、feature、cfg、target tripleを持つ解析条件
+          meaning: analysis profile、package、compilation target、feature、cfg、target tripleを持つ解析条件
+        - selector: result.analysis_context.analysis_profile
+          kind: observation_field
+          meaning: compilationまたはsource-unionで表す依存観測範囲
         - selector: result.analysis_context.package
           kind: observation_field
           meaning: 解析対象のCargo package名
