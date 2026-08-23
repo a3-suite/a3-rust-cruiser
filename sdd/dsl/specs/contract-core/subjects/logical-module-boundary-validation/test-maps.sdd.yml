@@ -1,0 +1,238 @@
+version: 1
+name: contract-test-maps
+subject_ref: subject.logical-module-boundary.validation
+test_maps:
+  - verification_id: verification.logical-module-boundary.dependency-graph
+    case_id: typed-dependencies-and-declarations
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: typed_dependencies_and_declarations_are_reported
+        check_refs:
+          - check-analysis-context
+          - check-logical-modules
+          - check-module-declarations
+          - check-dependency-edges
+          - check-dependency-kind
+          - check-dependency-target-scope
+          - check-excluded-scopes
+  - verification_id: verification.logical-module-boundary.policy-evaluation
+    case_id: forbidden-overrides-matching-allowed-rule
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: forbidden_rule_overrides_matching_allowed_rule
+        check_refs:
+          - check-policy-violations
+          - check-policy-violation-kind
+          - check-policy-rule-id
+          - check-policy-severity
+          - check-policy-source
+          - check-policy-target
+          - check-policy-dependency-kind
+          - check-policy-source-evidence
+          - check-policy-source-line
+          - check-policy-source-column
+          - check-all-forbidden-matches
+          - check-forbidden-precedence
+  - verification_id: verification.logical-module-boundary.policy-evaluation
+    case_id: applicable-allowed-rules-use-target-union
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: applicable_allowed_rules_use_target_union
+        check_refs:
+          - check-policy-violations
+          - check-allowed-target-union
+          - check-allowed-union-acceptance
+  - verification_id: verification.logical-module-boundary.policy-evaluation
+    case_id: unmatched-applicable-allowed-rules-produce-violation
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: unmatched_applicable_allowed_rules_produce_violation
+        check_refs:
+          - check-policy-violations
+          - check-policy-violation-kind
+          - check-policy-rule-id
+          - check-policy-severity
+          - check-policy-source
+          - check-policy-target
+          - check-policy-dependency-kind
+          - check-policy-source-evidence
+          - check-policy-source-line
+          - check-policy-source-column
+          - check-allowed-target-union
+          - check-allowed-union-rejection
+  - verification_id: verification.logical-module-boundary.policy-evaluation
+    case_id: circular-rule-is-independent-from-allowed-rules
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: circular_rule_is_independent_from_allowed_rules
+        check_refs:
+          - check-policy-violations
+          - check-policy-violation-kind
+          - check-policy-rule-id
+          - check-policy-severity
+          - check-policy-source
+          - check-policy-target
+          - check-policy-dependency-kind
+          - check-policy-source-evidence
+          - check-policy-source-line
+          - check-policy-source-column
+          - check-cycle-independent
+          - check-cycle-dependencies-allowed
+          - check-cycle-not-suppressed
+          - check-cycle-path
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: complete-without-violation
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: complete_graph_without_violations_is_conformant
+        check_refs:
+          - check-conformant-decision
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: complete-with-violation
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: complete_graph_with_violations_is_non_conformant
+        check_refs:
+          - check-non-conformant-decision
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: incomplete-with-observed-violation
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: incomplete_analysis_is_indeterminate_even_with_violations
+        check_refs:
+          - check-indeterminate-decision
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: json-report
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: json_report_projects_common_validation_result
+        check_refs:
+          - check-json-schema-version
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+          - check-report-serialization
+          - check-report-ordering
+          - check-report-decision
+          - check-report-violations
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: text-report
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: text_report_projects_common_validation_result
+        check_refs:
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+          - check-report-serialization
+          - check-report-ordering
+          - check-report-decision
+          - check-report-violations
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: unresolved-reference-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: unresolved_reference_is_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: repeated-json-report
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: repeated_json_report_is_byte_stable
+        check_refs:
+          - check-json-schema-version
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+          - check-report-serialization
+          - check-report-ordering
+          - check-report-decision
+          - check-report-violations
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: unsupported-macro-expansion-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: unsupported_macro_expansion_is_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: unsupported-name-resolution-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: unsupported_name_resolution_is_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: unsupported-syntax-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: unsupported_syntax_is_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: unsupported-analysis-context-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: unsupported_analysis_context_is_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+  - verification_id: verification.logical-module-boundary.cli-outcome
+    case_id: conformant-exit
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: conformant_result_exits_with_zero
+        check_refs:
+          - check-conformant-exit-code
+          - check-completed-stdout
+          - check-completed-stderr
+  - verification_id: verification.logical-module-boundary.cli-outcome
+    case_id: non-conformant-exit
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: non_conformant_result_exits_with_one
+        check_refs:
+          - check-non-conformant-exit-code
+          - check-completed-stdout
+          - check-completed-stderr
+  - verification_id: verification.logical-module-boundary.cli-outcome
+    case_id: indeterminate-exit
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: indeterminate_result_exits_with_two
+        check_refs:
+          - check-indeterminate-exit-code
+          - check-completed-stdout
+          - check-completed-stderr
+  - verification_id: verification.logical-module-boundary.cli-outcome
+    case_id: execution-failure-exit
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation.rs
+        symbol: execution_failure_exits_with_three
+        check_refs:
+          - check-execution-failure-exit-code
+          - check-execution-failure-stdout
+          - check-execution-failure-stderr

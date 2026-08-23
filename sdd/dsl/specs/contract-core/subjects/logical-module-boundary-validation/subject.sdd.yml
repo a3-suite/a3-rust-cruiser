@@ -1,0 +1,5 @@
+version: 1
+name: contract-subject
+subject:
+  id: subject.logical-module-boundary.validation
+  summary: Rust論理モジュールの依存を観測し、境界ポリシーへの適合性を判定するcapability

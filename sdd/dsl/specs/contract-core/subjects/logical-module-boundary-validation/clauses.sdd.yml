@@ -1,0 +1,813 @@
+version: 1
+name: contract-clauses
+subject_ref: subject.logical-module-boundary.validation
+contracts:
+  - id: contract.logical-module-boundary.dependency-graph
+    summary: >-
+      1回の解析は一意なAnalysisContextを使い、ModuleDeclarationを利用依存から分離し、
+      import、re-export、解決済みpath-referenceだけをDependencyEdgeとして観測する。
+      includeとexcludeはBoundaryPolicyと同じLogicalModule ID patternを使い、include省略時は全moduleを候補とし、excludeを優先する。
+      選択済みmoduleを依存元とし、内部依存先も選択済みの辺だけを保持するが、外部crate依存先は依存元が選択済みなら保持する。
+      内部論理モジュールと外部crateを区別し、同一入力の集合と順序を決定的にする。
+    external_document_refs:
+      - document_id: dependency-cruiser-readme
+        locator: What's this do?
+      - document_id: dependency-cruiser-output-format
+        locator: modules; dependencies
+    conditions:
+      - id: analysis-request-present
+        input_predicate:
+          kind: input
+          term: input.analysis_request
+          op: present
+    guarantees:
+      - id: analysis-context-present
+        when: analysis-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.analysis_context
+      - id: logical-modules-present
+        when: analysis-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.modules
+      - id: module-declarations-separated
+        when: analysis-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.module_declarations
+      - id: dependency-edges-present
+        when: analysis-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.dependencies
+      - id: dependency-kind-supported
+        when: analysis-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.dependencies.kind
+            right:
+              kind: value_set
+              values:
+                - import
+                - re-export
+                - path-reference
+      - id: dependency-target-scope-supported
+        when: analysis-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.dependencies.target_scope
+            right:
+              kind: value_set
+              values:
+                - internal-module
+                - external-crate
+      - id: excluded-scopes-present
+        when: analysis-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.excluded_scopes
+    verification_intents:
+      - id: graph-observation
+        goal: 解析条件、宣言包含、型付き依存辺、外部crate分類、除外範囲を決定的に観測できることを確認する
+        guarantee_refs:
+          - analysis-context-present
+          - logical-modules-present
+          - module-declarations-separated
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
+          - excluded-scopes-present
+
+  - id: contract.logical-module-boundary.policy-evaluation
+    summary: >-
+      BoundaryPolicyはrules集合を持ち、各ruleは一意なkebab-caseのid、errorまたはwarningのseverity、kindを持つ。
+      forbiddenとallowedはfrom、toのpattern集合、circularはmodulesのpattern集合を持ち、各ruleは任意のdependency_kindsを持つ。
+      patternはLogicalModule IDの::区切りsegmentへ一致し、*は1 segment、**は0以上のsegment、その他の文字はliteralとして扱う。
+      dependency_kinds省略時は全DependencyKindへ一致する。
+      同じ依存に一致するforbidden ruleはすべて違反を生成し、適用可能なallowed rule群は許可先の和集合として評価する。
+      forbiddenはallowedより優先し、circularは両者から独立して評価して、先に一致したruleだけで結果を隠さない。
+    external_document_refs:
+      - document_id: dependency-cruiser-rules-reference
+        locator: forbidden; allowed; conditions
+    conditions:
+      - id: graph-and-policy-present
+        input_predicate:
+          kind: input
+          term: input.graph_and_boundary_policy
+          op: present
+      - id: forbidden-and-allowed-match
+        input_predicate:
+          kind: input
+          term: input.forbidden_and_allowed_match
+          op: present
+      - id: allowed-union-matches
+        input_predicate:
+          kind: input
+          term: input.allowed_union_matches
+          op: present
+      - id: allowed-union-misses
+        input_predicate:
+          kind: input
+          term: input.allowed_union_misses
+          op: present
+      - id: allowed-cycle-present
+        input_predicate:
+          kind: input
+          term: input.allowed_cycle_present
+          op: present
+    guarantees:
+      - id: violations-present
+        when: graph-and-policy-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.violations
+      - id: violation-kind-supported
+        when: graph-and-policy-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.violations.kind
+            right:
+              kind: value_set
+              values:
+                - forbidden
+                - not-allowed
+                - circular
+      - id: violation-rule-id-present
+        when: graph-and-policy-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.violations.rule_id
+      - id: violation-severity-supported
+        when: graph-and-policy-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.violations.severity
+            right:
+              kind: value_set
+              values:
+                - error
+                - warning
+      - id: violation-source-present
+        when: graph-and-policy-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.violations.source
+      - id: violation-target-present
+        when: graph-and-policy-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.violations.target
+      - id: violation-dependency-kind-present
+        when: graph-and-policy-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.violations.dependency_kind
+      - id: violation-source-evidence-present
+        when: graph-and-policy-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.violations.evidence.path
+      - id: violation-source-line-present
+        when: graph-and-policy-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.violations.evidence.line
+      - id: violation-source-column-present
+        when: graph-and-policy-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.violations.evidence.column
+      - id: all-forbidden-matches-evaluated
+        when: graph-and-policy-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.policy_evaluation.forbidden_match_handling
+            right:
+              kind: value_set
+              values:
+                - all-matches
+      - id: allowed-targets-unioned
+        when: graph-and-policy-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.policy_evaluation.allowed_match_handling
+            right:
+              kind: value_set
+              values:
+                - union
+      - id: cycle-evaluated-independently
+        when: graph-and-policy-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.policy_evaluation.cycle_handling
+            right:
+              kind: value_set
+              values:
+                - independent
+      - id: forbidden-overrides-allowed
+        when: forbidden-and-allowed-match
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.policy_evaluation.dependency_outcome
+            right:
+              kind: value_set
+              values:
+                - forbidden
+      - id: allowed-union-allows-dependency
+        when: allowed-union-matches
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.policy_evaluation.dependency_outcome
+            right:
+              kind: value_set
+              values:
+                - allowed
+      - id: allowed-union-rejects-dependency
+        when: allowed-union-misses
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.policy_evaluation.dependency_outcome
+            right:
+              kind: value_set
+              values:
+                - not-allowed
+      - id: allowed-cycle-dependencies-remain-allowed
+        when: allowed-cycle-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.policy_evaluation.dependency_outcome
+            right:
+              kind: value_set
+              values:
+                - allowed
+      - id: allowed-rules-do-not-suppress-cycle
+        when: allowed-cycle-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.policy_evaluation.cycle_outcome
+            right:
+              kind: value_set
+              values:
+                - circular
+      - id: circular-violation-cycle-path-present
+        when: allowed-cycle-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.violations.cycle_path
+    verification_intents:
+      - id: forbidden-precedence
+        goal: 一致した全forbidden ruleを評価し、allowedより優先することを確認する
+        guarantee_refs:
+          - violations-present
+          - violation-kind-supported
+          - violation-rule-id-present
+          - violation-severity-supported
+          - violation-source-present
+          - violation-target-present
+          - violation-dependency-kind-present
+          - violation-source-evidence-present
+          - violation-source-line-present
+          - violation-source-column-present
+          - all-forbidden-matches-evaluated
+          - forbidden-overrides-allowed
+      - id: allowed-union-acceptance
+        goal: 適用可能なallowed ruleの許可先和集合が依存を許可することを確認する
+        guarantee_refs:
+          - violations-present
+          - allowed-targets-unioned
+          - allowed-union-allows-dependency
+      - id: allowed-union-rejection
+        goal: 許可先和集合に一致しない依存がnot-allowed違反になることを確認する
+        guarantee_refs:
+          - violations-present
+          - violation-kind-supported
+          - violation-rule-id-present
+          - violation-severity-supported
+          - violation-source-present
+          - violation-target-present
+          - violation-dependency-kind-present
+          - violation-source-evidence-present
+          - violation-source-line-present
+          - violation-source-column-present
+          - allowed-targets-unioned
+          - allowed-union-rejects-dependency
+      - id: circular-independent-evaluation
+        goal: allowed依存であっても循環を独立して違反にすることを確認する
+        guarantee_refs:
+          - violations-present
+          - violation-kind-supported
+          - violation-rule-id-present
+          - violation-severity-supported
+          - violation-source-present
+          - violation-target-present
+          - violation-dependency-kind-present
+          - violation-source-evidence-present
+          - violation-source-line-present
+          - violation-source-column-present
+          - cycle-evaluated-independently
+          - allowed-cycle-dependencies-remain-allowed
+          - allowed-rules-do-not-suppress-cycle
+          - circular-violation-cycle-path-present
+
+  - id: contract.logical-module-boundary.validation-report
+    summary: >-
+      解析完全性へ影響するAnalysisIssueが1件でもあればindeterminateを最優先し、
+      それ以外でBoundaryViolationが1件でもあれば重大度によらずnon-conformant、
+      どちらもなければconformantとする。JSONとtextは同じ判断、違反、解析問題を表し、
+      moduleはid、declarationはparent・child・evidence、dependencyはsource・target・kind・evidence、
+      violationはrule_id・source・target・dependency_kind・evidence、analysis issueはcode・affected_scope・reason、
+      excluded scopeは文字列を比較keyとして昇順で出力する。
+    conditions:
+      - id: complete-without-violation
+        input_predicate:
+          kind: input
+          term: input.complete_without_violation
+          op: present
+      - id: complete-with-violation
+        input_predicate:
+          kind: input
+          term: input.complete_with_violation
+          op: present
+      - id: incomplete-analysis
+        input_predicate:
+          kind: input
+          term: input.incomplete_analysis
+          op: present
+      - id: report-request-present
+        input_predicate:
+          kind: input
+          term: input.report_request
+          op: present
+      - id: json-report-request
+        input_predicate:
+          kind: input
+          term: input.json_report_request
+          op: present
+    guarantees:
+      - id: conformant-decision
+        when: complete-without-violation
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.decision
+            right:
+              kind: value_set
+              values:
+                - conformant
+      - id: non-conformant-decision
+        when: complete-with-violation
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.decision
+            right:
+              kind: value_set
+              values:
+                - non-conformant
+      - id: indeterminate-decision
+        when: incomplete-analysis
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.decision
+            right:
+              kind: value_set
+              values:
+                - indeterminate
+      - id: json-schema-version-present
+        when: json-report-request
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.schema_version
+            right:
+              kind: value_set
+              values:
+                - "1"
+      - id: analysis-issues-present
+        when: report-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.analysis_issues
+      - id: analysis-issue-code-supported
+        when: report-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.analysis_issues.code
+            right:
+              kind: value_set
+              values:
+                - analysis.unresolved-reference
+                - analysis.unsupported-macro-expansion
+                - analysis.unsupported-name-resolution
+                - analysis.unsupported-syntax
+                - analysis.unsupported-analysis-context
+      - id: analysis-issue-reason-present
+        when: report-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.analysis_issues.reason
+      - id: analysis-issue-affected-scope-present
+        when: report-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.analysis_issues.affected_scope
+      - id: report-serialization-supported
+        when: report-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.serialization
+            right:
+              kind: value_set
+              values:
+                - text
+                - json
+      - id: report-ordering-canonical
+        when: report-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.ordering
+            right:
+              kind: value_set
+              values:
+                - canonical
+      - id: report-decision-supported
+        when: report-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.decision
+            right:
+              kind: value_set
+              values:
+                - conformant
+                - non-conformant
+                - indeterminate
+      - id: report-violations-present
+        when: report-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.violations
+    verification_intents:
+      - id: decision-precedence
+        goal: incomplete、violation、conformantの優先順で三状態判断が決まることを確認する
+        guarantee_refs:
+          - conformant-decision
+          - non-conformant-decision
+          - indeterminate-decision
+      - id: incomplete-analysis-classification
+        goal: 各stable codeのAnalysisIssueがindeterminateと理由・影響範囲へ接続されることを確認する
+        guarantee_refs:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+      - id: json-report-projection
+        goal: 共通の検証結果をcanonical順序のJSONへ直列化することを確認する
+        guarantee_refs:
+          - json-schema-version-present
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+      - id: text-report-projection
+        goal: JSONと同じ共通の検証結果をcanonical順序のtextへ直列化することを確認する
+        guarantee_refs:
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+
+  - id: contract.logical-module-boundary.cli-outcome
+    summary: >-
+      CLIはconformantを0、non-conformantを1、indeterminateを2、
+      不正な呼出し、読込不能または契約不適合のBoundaryPolicy、その他の実行失敗を3へ写像する。
+      完了した解析だけがtextまたはJSONの検証結果を標準出力へ返し、実行失敗の説明は標準エラーへ返す。
+    conditions:
+      - id: conformant-result
+        input_predicate:
+          kind: input
+          term: input.validation_decision.conformant
+          op: present
+      - id: non-conformant-result
+        input_predicate:
+          kind: input
+          term: input.validation_decision.non_conformant
+          op: present
+      - id: indeterminate-result
+        input_predicate:
+          kind: input
+          term: input.validation_decision.indeterminate
+          op: present
+      - id: cli-execution-failure
+        input_predicate:
+          kind: input
+          term: input.cli_execution_failure
+          op: present
+      - id: completed-validation-result
+        input_predicate:
+          kind: input
+          term: input.completed_validation_result
+          op: present
+    guarantees:
+      - id: conformant-exit-code
+        when: conformant-result
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.exit_code
+            right:
+              kind: value_set
+              values:
+                - "0"
+      - id: non-conformant-exit-code
+        when: non-conformant-result
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.exit_code
+            right:
+              kind: value_set
+              values:
+                - "1"
+      - id: indeterminate-exit-code
+        when: indeterminate-result
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.exit_code
+            right:
+              kind: value_set
+              values:
+                - "2"
+      - id: execution-failure-exit-code
+        when: cli-execution-failure
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.exit_code
+            right:
+              kind: value_set
+              values:
+                - "3"
+      - id: completed-result-written-to-stdout
+        when: completed-validation-result
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.stdout_status
+            right:
+              kind: value_set
+              values:
+                - validation-result
+      - id: completed-result-keeps-stderr-empty
+        when: completed-validation-result
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.stderr_status
+            right:
+              kind: value_set
+              values:
+                - empty
+      - id: execution-failure-keeps-stdout-empty
+        when: cli-execution-failure
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.stdout_status
+            right:
+              kind: value_set
+              values:
+                - empty
+      - id: execution-failure-writes-stderr-diagnostic
+        when: cli-execution-failure
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.stderr_status
+            right:
+              kind: value_set
+              values:
+                - diagnostic
+    verification_intents:
+      - id: cli-exit-code-mapping
+        goal: 三状態判断とCLI実行失敗が重複しない終了コードへ写像されることを確認する
+        guarantee_refs:
+          - conformant-exit-code
+          - non-conformant-exit-code
+          - indeterminate-exit-code
+          - execution-failure-exit-code
+          - completed-result-written-to-stdout
+          - completed-result-keeps-stderr-empty
+          - execution-failure-keeps-stdout-empty
+          - execution-failure-writes-stderr-diagnostic

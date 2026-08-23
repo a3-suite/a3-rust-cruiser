@@ -1,0 +1,475 @@
+version: 1
+name: contract-verifications
+subject_ref: subject.logical-module-boundary.validation
+verifications:
+  - id: verification.logical-module-boundary.dependency-graph
+    contract_id: contract.logical-module-boundary.dependency-graph
+    cases:
+      - id: typed-dependencies-and-declarations
+        intent_id: graph-observation
+        input:
+          analysis_request:
+            package: a3-rust-cruiser
+            target: bin:a3-rust-cruiser
+            features: []
+            cfg: []
+            target_triple: x86_64-unknown-linux-gnu
+            include:
+              - crate
+            exclude: []
+        checks:
+          - id: check-analysis-context
+            guarantee_ref: analysis-context-present
+          - id: check-logical-modules
+            guarantee_ref: logical-modules-present
+          - id: check-module-declarations
+            guarantee_ref: module-declarations-separated
+          - id: check-dependency-edges
+            guarantee_ref: dependency-edges-present
+          - id: check-dependency-kind
+            guarantee_ref: dependency-kind-supported
+          - id: check-dependency-target-scope
+            guarantee_ref: dependency-target-scope-supported
+          - id: check-excluded-scopes
+            guarantee_ref: excluded-scopes-present
+
+  - id: verification.logical-module-boundary.policy-evaluation
+    contract_id: contract.logical-module-boundary.policy-evaluation
+    cases:
+      - id: forbidden-overrides-matching-allowed-rule
+        intent_id: forbidden-precedence
+        input:
+          forbidden_and_allowed_match: true
+          graph_and_boundary_policy:
+            dependencies:
+              - source: crate::application
+                target: crate::infrastructure
+                kind: import
+            boundary_policy:
+              rules:
+                - id: forbidden-application-to-infrastructure
+                  kind: forbidden
+                  severity: error
+                  from:
+                    - crate::application
+                  to:
+                    - crate::infrastructure
+                - id: allowed-application-targets
+                  kind: allowed
+                  severity: warning
+                  from:
+                    - crate::application
+                  to:
+                    - crate::infrastructure
+        checks:
+          - id: check-policy-violations
+            guarantee_ref: violations-present
+          - id: check-policy-violation-kind
+            guarantee_ref: violation-kind-supported
+          - id: check-policy-rule-id
+            guarantee_ref: violation-rule-id-present
+          - id: check-policy-severity
+            guarantee_ref: violation-severity-supported
+          - id: check-policy-source
+            guarantee_ref: violation-source-present
+          - id: check-policy-target
+            guarantee_ref: violation-target-present
+          - id: check-policy-dependency-kind
+            guarantee_ref: violation-dependency-kind-present
+          - id: check-policy-source-evidence
+            guarantee_ref: violation-source-evidence-present
+          - id: check-policy-source-line
+            guarantee_ref: violation-source-line-present
+          - id: check-policy-source-column
+            guarantee_ref: violation-source-column-present
+          - id: check-all-forbidden-matches
+            guarantee_ref: all-forbidden-matches-evaluated
+          - id: check-forbidden-precedence
+            guarantee_ref: forbidden-overrides-allowed
+      - id: applicable-allowed-rules-use-target-union
+        intent_id: allowed-union-acceptance
+        input:
+          allowed_union_matches: true
+          graph_and_boundary_policy:
+            dependencies:
+              - source: crate::application
+                target: crate::domain
+                kind: path-reference
+            boundary_policy:
+              rules:
+                - id: allowed-application-shared
+                  kind: allowed
+                  severity: warning
+                  from:
+                    - crate::application
+                  to:
+                    - crate::shared
+                - id: allowed-application-domain
+                  kind: allowed
+                  severity: warning
+                  from:
+                    - crate::application
+                  to:
+                    - crate::domain
+        checks:
+          - id: check-policy-violations
+            guarantee_ref: violations-present
+          - id: check-allowed-target-union
+            guarantee_ref: allowed-targets-unioned
+          - id: check-allowed-union-acceptance
+            guarantee_ref: allowed-union-allows-dependency
+      - id: unmatched-applicable-allowed-rules-produce-violation
+        intent_id: allowed-union-rejection
+        input:
+          allowed_union_misses: true
+          graph_and_boundary_policy:
+            dependencies:
+              - source: crate::application
+                target: crate::infrastructure
+                kind: import
+            boundary_policy:
+              rules:
+                - id: allowed-application-domain
+                  kind: allowed
+                  severity: error
+                  from:
+                    - crate::application
+                  to:
+                    - crate::domain
+        checks:
+          - id: check-policy-violations
+            guarantee_ref: violations-present
+          - id: check-policy-violation-kind
+            guarantee_ref: violation-kind-supported
+          - id: check-policy-rule-id
+            guarantee_ref: violation-rule-id-present
+          - id: check-policy-severity
+            guarantee_ref: violation-severity-supported
+          - id: check-policy-source
+            guarantee_ref: violation-source-present
+          - id: check-policy-target
+            guarantee_ref: violation-target-present
+          - id: check-policy-dependency-kind
+            guarantee_ref: violation-dependency-kind-present
+          - id: check-policy-source-evidence
+            guarantee_ref: violation-source-evidence-present
+          - id: check-policy-source-line
+            guarantee_ref: violation-source-line-present
+          - id: check-policy-source-column
+            guarantee_ref: violation-source-column-present
+          - id: check-allowed-target-union
+            guarantee_ref: allowed-targets-unioned
+          - id: check-allowed-union-rejection
+            guarantee_ref: allowed-union-rejects-dependency
+      - id: circular-rule-is-independent-from-allowed-rules
+        intent_id: circular-independent-evaluation
+        input:
+          allowed_cycle_present: true
+          graph_and_boundary_policy:
+            dependencies:
+              - source: crate::application
+                target: crate::domain
+                kind: import
+              - source: crate::domain
+                target: crate::application
+                kind: re-export
+            boundary_policy:
+              rules:
+                - id: allowed-application-domain
+                  kind: allowed
+                  severity: warning
+                  from:
+                    - crate::application
+                  to:
+                    - crate::domain
+                - id: allowed-domain-application
+                  kind: allowed
+                  severity: warning
+                  from:
+                    - crate::domain
+                  to:
+                    - crate::application
+                - id: circular-core-modules
+                  kind: circular
+                  severity: error
+                  modules:
+                    - crate::application
+                    - crate::domain
+        checks:
+          - id: check-policy-violations
+            guarantee_ref: violations-present
+          - id: check-policy-violation-kind
+            guarantee_ref: violation-kind-supported
+          - id: check-policy-rule-id
+            guarantee_ref: violation-rule-id-present
+          - id: check-policy-severity
+            guarantee_ref: violation-severity-supported
+          - id: check-policy-source
+            guarantee_ref: violation-source-present
+          - id: check-policy-target
+            guarantee_ref: violation-target-present
+          - id: check-policy-dependency-kind
+            guarantee_ref: violation-dependency-kind-present
+          - id: check-policy-source-evidence
+            guarantee_ref: violation-source-evidence-present
+          - id: check-policy-source-line
+            guarantee_ref: violation-source-line-present
+          - id: check-policy-source-column
+            guarantee_ref: violation-source-column-present
+          - id: check-cycle-independent
+            guarantee_ref: cycle-evaluated-independently
+          - id: check-cycle-dependencies-allowed
+            guarantee_ref: allowed-cycle-dependencies-remain-allowed
+          - id: check-cycle-not-suppressed
+            guarantee_ref: allowed-rules-do-not-suppress-cycle
+          - id: check-cycle-path
+            guarantee_ref: circular-violation-cycle-path-present
+
+  - id: verification.logical-module-boundary.validation-report
+    contract_id: contract.logical-module-boundary.validation-report
+    cases:
+      - id: complete-without-violation
+        intent_id: decision-precedence
+        input:
+          complete_without_violation: true
+        checks:
+          - id: check-conformant-decision
+            guarantee_ref: conformant-decision
+      - id: complete-with-violation
+        intent_id: decision-precedence
+        input:
+          complete_with_violation: true
+        checks:
+          - id: check-non-conformant-decision
+            guarantee_ref: non-conformant-decision
+      - id: incomplete-with-observed-violation
+        intent_id: decision-precedence
+        input:
+          incomplete_analysis: true
+          observed_violation: true
+        checks:
+          - id: check-indeterminate-decision
+            guarantee_ref: indeterminate-decision
+      - id: json-report
+        intent_id: json-report-projection
+        input:
+          report_request:
+            format: json
+          json_report_request: true
+        checks:
+          - id: check-json-schema-version
+            guarantee_ref: json-schema-version-present
+          - id: check-analysis-issues
+            guarantee_ref: analysis-issues-present
+          - id: check-analysis-issue-code
+            guarantee_ref: analysis-issue-code-supported
+          - id: check-analysis-issue-reason
+            guarantee_ref: analysis-issue-reason-present
+          - id: check-analysis-issue-affected-scope
+            guarantee_ref: analysis-issue-affected-scope-present
+          - id: check-report-serialization
+            guarantee_ref: report-serialization-supported
+          - id: check-report-ordering
+            guarantee_ref: report-ordering-canonical
+          - id: check-report-decision
+            guarantee_ref: report-decision-supported
+          - id: check-report-violations
+            guarantee_ref: report-violations-present
+      - id: text-report
+        intent_id: text-report-projection
+        input:
+          report_request:
+            format: text
+        checks:
+          - id: check-analysis-issues
+            guarantee_ref: analysis-issues-present
+          - id: check-analysis-issue-code
+            guarantee_ref: analysis-issue-code-supported
+          - id: check-analysis-issue-reason
+            guarantee_ref: analysis-issue-reason-present
+          - id: check-analysis-issue-affected-scope
+            guarantee_ref: analysis-issue-affected-scope-present
+          - id: check-report-serialization
+            guarantee_ref: report-serialization-supported
+          - id: check-report-ordering
+            guarantee_ref: report-ordering-canonical
+          - id: check-report-decision
+            guarantee_ref: report-decision-supported
+          - id: check-report-violations
+            guarantee_ref: report-violations-present
+      - id: repeated-json-report
+        intent_id: json-report-projection
+        input:
+          report_request:
+            format: json
+            repeat_count: 2
+            same_analysis_input: true
+          json_report_request: true
+        checks:
+          - id: check-json-schema-version
+            guarantee_ref: json-schema-version-present
+          - id: check-analysis-issues
+            guarantee_ref: analysis-issues-present
+          - id: check-analysis-issue-code
+            guarantee_ref: analysis-issue-code-supported
+          - id: check-analysis-issue-reason
+            guarantee_ref: analysis-issue-reason-present
+          - id: check-analysis-issue-affected-scope
+            guarantee_ref: analysis-issue-affected-scope-present
+          - id: check-report-serialization
+            guarantee_ref: report-serialization-supported
+          - id: check-report-ordering
+            guarantee_ref: report-ordering-canonical
+          - id: check-report-decision
+            guarantee_ref: report-decision-supported
+          - id: check-report-violations
+            guarantee_ref: report-violations-present
+      - id: unresolved-reference-is-indeterminate
+        intent_id: incomplete-analysis-classification
+        input:
+          incomplete_analysis: true
+          report_request:
+            format: json
+          analysis_issue:
+            code: analysis.unresolved-reference
+        checks:
+          - id: check-indeterminate
+            guarantee_ref: indeterminate-decision
+          - id: check-analysis-issues
+            guarantee_ref: analysis-issues-present
+          - id: check-analysis-issue-code
+            guarantee_ref: analysis-issue-code-supported
+          - id: check-analysis-issue-reason
+            guarantee_ref: analysis-issue-reason-present
+          - id: check-analysis-issue-affected-scope
+            guarantee_ref: analysis-issue-affected-scope-present
+      - id: unsupported-macro-expansion-is-indeterminate
+        intent_id: incomplete-analysis-classification
+        input:
+          incomplete_analysis: true
+          report_request:
+            format: json
+          analysis_issue:
+            code: analysis.unsupported-macro-expansion
+        checks:
+          - id: check-indeterminate
+            guarantee_ref: indeterminate-decision
+          - id: check-analysis-issues
+            guarantee_ref: analysis-issues-present
+          - id: check-analysis-issue-code
+            guarantee_ref: analysis-issue-code-supported
+          - id: check-analysis-issue-reason
+            guarantee_ref: analysis-issue-reason-present
+          - id: check-analysis-issue-affected-scope
+            guarantee_ref: analysis-issue-affected-scope-present
+      - id: unsupported-name-resolution-is-indeterminate
+        intent_id: incomplete-analysis-classification
+        input:
+          incomplete_analysis: true
+          report_request:
+            format: json
+          analysis_issue:
+            code: analysis.unsupported-name-resolution
+        checks:
+          - id: check-indeterminate
+            guarantee_ref: indeterminate-decision
+          - id: check-analysis-issues
+            guarantee_ref: analysis-issues-present
+          - id: check-analysis-issue-code
+            guarantee_ref: analysis-issue-code-supported
+          - id: check-analysis-issue-reason
+            guarantee_ref: analysis-issue-reason-present
+          - id: check-analysis-issue-affected-scope
+            guarantee_ref: analysis-issue-affected-scope-present
+      - id: unsupported-syntax-is-indeterminate
+        intent_id: incomplete-analysis-classification
+        input:
+          incomplete_analysis: true
+          report_request:
+            format: json
+          analysis_issue:
+            code: analysis.unsupported-syntax
+        checks:
+          - id: check-indeterminate
+            guarantee_ref: indeterminate-decision
+          - id: check-analysis-issues
+            guarantee_ref: analysis-issues-present
+          - id: check-analysis-issue-code
+            guarantee_ref: analysis-issue-code-supported
+          - id: check-analysis-issue-reason
+            guarantee_ref: analysis-issue-reason-present
+          - id: check-analysis-issue-affected-scope
+            guarantee_ref: analysis-issue-affected-scope-present
+      - id: unsupported-analysis-context-is-indeterminate
+        intent_id: incomplete-analysis-classification
+        input:
+          incomplete_analysis: true
+          report_request:
+            format: json
+          analysis_issue:
+            code: analysis.unsupported-analysis-context
+        checks:
+          - id: check-indeterminate
+            guarantee_ref: indeterminate-decision
+          - id: check-analysis-issues
+            guarantee_ref: analysis-issues-present
+          - id: check-analysis-issue-code
+            guarantee_ref: analysis-issue-code-supported
+          - id: check-analysis-issue-reason
+            guarantee_ref: analysis-issue-reason-present
+          - id: check-analysis-issue-affected-scope
+            guarantee_ref: analysis-issue-affected-scope-present
+
+  - id: verification.logical-module-boundary.cli-outcome
+    contract_id: contract.logical-module-boundary.cli-outcome
+    cases:
+      - id: conformant-exit
+        intent_id: cli-exit-code-mapping
+        input:
+          completed_validation_result: true
+          validation_decision:
+            conformant: true
+        checks:
+          - id: check-conformant-exit-code
+            guarantee_ref: conformant-exit-code
+          - id: check-completed-stdout
+            guarantee_ref: completed-result-written-to-stdout
+          - id: check-completed-stderr
+            guarantee_ref: completed-result-keeps-stderr-empty
+      - id: non-conformant-exit
+        intent_id: cli-exit-code-mapping
+        input:
+          completed_validation_result: true
+          validation_decision:
+            non_conformant: true
+        checks:
+          - id: check-non-conformant-exit-code
+            guarantee_ref: non-conformant-exit-code
+          - id: check-completed-stdout
+            guarantee_ref: completed-result-written-to-stdout
+          - id: check-completed-stderr
+            guarantee_ref: completed-result-keeps-stderr-empty
+      - id: indeterminate-exit
+        intent_id: cli-exit-code-mapping
+        input:
+          completed_validation_result: true
+          validation_decision:
+            indeterminate: true
+        checks:
+          - id: check-indeterminate-exit-code
+            guarantee_ref: indeterminate-exit-code
+          - id: check-completed-stdout
+            guarantee_ref: completed-result-written-to-stdout
+          - id: check-completed-stderr
+            guarantee_ref: completed-result-keeps-stderr-empty
+      - id: execution-failure-exit
+        intent_id: cli-exit-code-mapping
+        input:
+          cli_execution_failure: true
+        checks:
+          - id: check-execution-failure-exit-code
+            guarantee_ref: execution-failure-exit-code
+          - id: check-execution-failure-stdout
+            guarantee_ref: execution-failure-keeps-stdout-empty
+          - id: check-execution-failure-stderr
+            guarantee_ref: execution-failure-writes-stderr-diagnostic

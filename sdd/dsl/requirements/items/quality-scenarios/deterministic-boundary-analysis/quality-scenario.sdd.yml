@@ -1,0 +1,19 @@
+version: 1
+name: quality-scenario
+quality_scenario_id: deterministic-boundary-analysis
+summary: 同一の解析入力に対して同一の境界判定を返す
+quality_attribute: reliability
+stimulus: 同一のRustソース、解析条件、境界検証条件で解析が繰り返される
+environment: 対応対象のRustプロジェクトを通常の検証環境で解析する
+response: 論理モジュール依存と境界違反について同一の判定結果を返す
+response_measure:
+  - 論理モジュールと依存辺の集合が一致する
+  - 各診断の識別子、重大度、依存元、依存先、ソース位置が一致する
+related_requirements:
+  - requirement_ref:
+      requirement_id: validate-rust-logical-module-boundaries
+related_contracts:
+  - contract_ref:
+      contract_id: contract.logical-module-boundary.dependency-graph
+  - contract_ref:
+      contract_id: contract.logical-module-boundary.validation-report

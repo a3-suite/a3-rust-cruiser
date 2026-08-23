@@ -1,0 +1,14 @@
+version: 1
+name: constraint
+constraint_id: logical-module-analysis-boundary
+summary: 論理モジュールを境界検証の基本単位にする
+scope:
+  namespace: a3-rust-cruiser
+  key: dependency-analysis
+rule: 境界検証はRustの論理モジュールを基本単位とし、ファイル配置またはCargoパッケージ依存だけで代替せず、モジュールの宣言包含と利用依存を区別する
+rationale:
+  why: Rustではファイル配置、モジュール包含、名前参照が異なる意味を持ち、混同すると境界違反と循環依存を誤判定するため
+violation_impact: 正常なモジュール包含を循環依存として扱う、または実際のモジュール境界越境を見落とす
+related_requirements:
+  - requirement_ref:
+      requirement_id: validate-rust-logical-module-boundaries

@@ -1,0 +1,72 @@
+config_version: 1
+
+project:
+  variables:
+    skills_root: ${env.A3_SKILLS_ROOT}
+
+  rule_sets:
+    - id: skill-rust
+      root: ${skills_root}/rust/rust/assets/a3-lint/rules
+      lib_dir: ${skills_root}/rust/rust/assets/a3-lint/shared
+      include:
+        - '**/*.lua'
+        - '**/*.yml'
+        - '**/*.yaml'
+      languages:
+        - rust
+      frameworks:
+        - any
+
+    - id: skill-rust-semantic-extension
+      root: ${skills_root}/rust/rust/assets/a3-lint/semantic-extension
+      lib_dir: ${skills_root}/rust/rust/assets/a3-lint/shared
+      include:
+        - '**/*.lua'
+        - '**/*.yml'
+        - '**/*.yaml'
+      languages:
+        - rust
+      frameworks:
+        - any
+
+    - id: skill-cargo
+      root: ${skills_root}/rust/cargo/assets/a3-lint/rules
+      lib_dir: ${skills_root}/rust/cargo/assets/a3-lint/shared
+      include:
+        - '**/*.lua'
+        - '**/*.yml'
+        - '**/*.yaml'
+      languages:
+        - rust
+      frameworks:
+        - cargo
+
+    - id: skill-cargo-semantic-extension
+      root: ${skills_root}/rust/cargo/assets/a3-lint/semantic-extension
+      lib_dir: ${skills_root}/rust/cargo/assets/a3-lint/shared
+      include:
+        - '**/*.lua'
+        - '**/*.yml'
+        - '**/*.yaml'
+      languages:
+        - rust
+      frameworks:
+        - cargo
+
+    - id: skill-ddd
+      root: ${skills_root}/ddd/assets/a3-lint/rules
+      include:
+        - '**/*.lua'
+        - '**/*.yml'
+        - '**/*.yaml'
+      languages:
+        - rust
+        - markdown
+      frameworks:
+        - any
+
+run_defaults:
+  lang: rust
+  framework: any
+  format: text
+  fail_on: warning

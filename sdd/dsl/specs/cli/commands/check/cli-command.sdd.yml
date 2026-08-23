@@ -1,0 +1,31 @@
+version: 1
+name: cli-command
+command:
+  id: check
+  path:
+    - a3-rust-cruiser
+    - check
+  summary: 1つのCargo packageとcompilation targetの論理モジュール境界を検証する
+  positional:
+    - id: project-root
+      value_name: PROJECT_ROOT
+      arity: 1
+      summary: Cargo.tomlを含む解析対象プロジェクトのルート
+  option_groups:
+    - id: analysis-input
+      title: Analysis input
+      options:
+        - policy
+        - package
+        - target
+        - target-triple
+        - feature
+        - cfg
+        - include
+        - exclude
+    - id: output
+      title: Output
+      options:
+        - format
+  help:
+    usage: a3-rust-cruiser check <PROJECT_ROOT> --policy <BOUNDARY_POLICY_PATH> --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]

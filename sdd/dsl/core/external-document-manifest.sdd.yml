@@ -1,0 +1,31 @@
+version: 1
+name: external-document-manifest
+documents:
+  dependency-cruiser-readme:
+    source:
+      kind: uri
+      value: https://raw.githubusercontent.com/sverweij/dependency-cruiser/main/README.md
+    accepted_digest:
+      algorithm: sha256
+      digest: 2f7268fca047094e6434ac8a2e1cd1cd0f8c183de9ea5c40ca45c0334b37a082
+  dependency-cruiser-rules-reference:
+    source:
+      kind: uri
+      value: https://raw.githubusercontent.com/sverweij/dependency-cruiser/main/doc/rules-reference.md
+    accepted_digest:
+      algorithm: sha256
+      digest: 25d7b8fbe799e7af67a539022f989fd6906fe32825b3e8d3fc1e03710b4f5a72
+  dependency-cruiser-options-reference:
+    source:
+      kind: uri
+      value: https://raw.githubusercontent.com/sverweij/dependency-cruiser/main/doc/options-reference.md
+    accepted_digest:
+      algorithm: sha256
+      digest: c86e802256939d5243f0239bab5f8a79220e021249f598bb012f99ec77ad1cbf
+  dependency-cruiser-output-format:
+    source:
+      kind: uri
+      value: https://raw.githubusercontent.com/sverweij/dependency-cruiser/main/doc/output-format.md
+    accepted_digest:
+      algorithm: sha256
+      digest: e2ff26b1b7233f1371732bd0d40b485d810d4e701861b535ed9347ebf04577bb

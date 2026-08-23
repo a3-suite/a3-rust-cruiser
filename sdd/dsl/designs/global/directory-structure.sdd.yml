@@ -1,0 +1,40 @@
+version: 1
+name: directory-structure
+structure_id: a3-rust-cruiser-source-layout
+nodes:
+  - node_id: src-entrypoints
+    path: src
+    primary_area_kind: source
+    area_kinds:
+      - source
+    responsibility: crate の entrypoint と component の composition 配線だけを配置する
+  - node_id: src-command-interface
+    path: src/command_interface
+    primary_area_kind: source
+    area_kinds:
+      - source
+    responsibility: CLI 入出力と validation use case への変換を配置する
+  - node_id: src-boundary-validation
+    path: src/boundary_validation
+    primary_area_kind: source
+    area_kinds:
+      - source
+    responsibility: 論理モジュール境界検証 use case と外部入力 port を配置する
+  - node_id: src-boundary-evaluation
+    path: src/boundary_evaluation
+    primary_area_kind: source
+    area_kinds:
+      - source
+    responsibility: 境界ポリシーによる違反と循環の評価を担う domain 実装を配置する
+  - node_id: src-rust-dependency-observation
+    path: src/rust_dependency_observation
+    primary_area_kind: source
+    area_kinds:
+      - source
+    responsibility: Rust の意味情報から依存 graph を観測する adapter を配置する
+  - node_id: src-boundary-policy-input
+    path: src/boundary_policy_input
+    primary_area_kind: source
+    area_kinds:
+      - source
+    responsibility: 外部表現から BoundaryPolicy を読み込む adapter を配置する

@@ -1,0 +1,16 @@
+[package]
+name = "a3-rust-cruiser"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+proc-macro2 = { version = "1", features = ["span-locations"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+syn = { version = "2", features = ["full", "visit"] }
+toml = "0.8"
+
+[[test]]
+name = "logical_module_boundary_validation"
+path = "tests/contracts/logical_module_boundary_validation.rs"

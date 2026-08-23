@@ -1,0 +1,28 @@
+version: 1
+name: logical-structure
+structure_id: logical-module-boundary-validation
+components:
+  - component_id: command-interface
+    responsibility: CLI 入力を検証要求へ変換し、ValidationDecision と CLI 実行失敗を終了コードと標準 stream へ変換する
+    kind_ref: controller
+  - component_id: boundary-validation
+    responsibility: 依存観測、ポリシー取得、境界評価を調停して ValidationDecision を確定する
+    kind_ref: application-service
+  - component_id: boundary-evaluation
+    responsibility: 観測済み依存 graph と BoundaryPolicy から違反と循環を評価する
+    kind_ref: domain-model
+  - component_id: rust-dependency-observation
+    responsibility: Rust project の意味情報を LogicalModule と型付き DependencyEdge の graph へ変換する
+    kind_ref: project-input-adapter
+  - component_id: boundary-policy-input
+    responsibility: 外部のポリシー表現を BoundaryPolicy として取得し、技術的な入力失敗を隔離する
+    kind_ref: project-input-adapter
+dependencies:
+  - from_component_id: command-interface
+    to_component_id: boundary-validation
+  - from_component_id: boundary-validation
+    to_component_id: boundary-evaluation
+  - from_component_id: rust-dependency-observation
+    to_component_id: boundary-validation
+  - from_component_id: boundary-policy-input
+    to_component_id: boundary-validation

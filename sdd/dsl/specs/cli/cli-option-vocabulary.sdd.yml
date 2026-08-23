@@ -1,0 +1,56 @@
+version: 1
+name: cli-option-vocabulary
+options:
+  - id: policy
+    long: --policy
+    short: -p
+    kind: value
+    value_name: BOUNDARY_POLICY_PATH
+    summary: 一意なrule ID、重大度、rule種別、論理モジュール一致条件を持つYAML BoundaryPolicyのパス
+  - id: package
+    long: --package
+    kind: value
+    value_name: PACKAGE
+    summary: 解析するCargo package名
+  - id: target
+    long: --target
+    kind: value
+    value_name: TARGET
+    summary: bin:name、lib、example:name、test:name、bench:nameのいずれかで指定するcompilation target
+  - id: target-triple
+    long: --target-triple
+    kind: value
+    value_name: TARGET_TRIPLE
+    summary: 解析に使用するRust target triple
+  - id: feature
+    long: --feature
+    kind: value
+    value_name: FEATURE
+    summary: 解析で有効にするCargo feature
+    repeatable: true
+  - id: cfg
+    long: --cfg
+    kind: value
+    value_name: CFG
+    summary: 解析で有効にするRust cfg条件
+    repeatable: true
+  - id: include
+    long: --include
+    kind: value
+    value_name: MODULE_PATTERN
+    summary: 解析対象へ含める論理モジュールpattern
+    repeatable: true
+  - id: exclude
+    long: --exclude
+    kind: value
+    value_name: MODULE_PATTERN
+    summary: includeより優先して解析対象から除外する論理モジュールpattern
+    repeatable: true
+  - id: format
+    long: --format
+    short: -f
+    kind: value
+    value_name: FORMAT
+    summary: textまたはjsonで指定する出力形式
+    detail_lines:
+      - 省略時はtextを使用する。

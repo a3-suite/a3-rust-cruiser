@@ -1,0 +1,20 @@
+version: 1
+name: quality-scenario
+quality_scenario_id: traceable-boundary-diagnostics
+summary: 境界違反の根拠を追跡できる
+quality_attribute: auditability
+stimulus: 論理モジュール間の境界違反が検出される
+environment: 境界検証条件を適用してRustプロジェクトを解析している
+response: 利用者が違反した条件と依存関係の根拠を確認できる診断を返す
+response_measure:
+  - 各違反診断から検証条件の識別子を確認できる
+  - 各違反診断から依存元、依存先、ソース位置を確認できる
+  - 循環依存では循環を構成する依存経路を確認できる
+related_requirements:
+  - requirement_ref:
+      requirement_id: validate-rust-logical-module-boundaries
+related_contracts:
+  - contract_ref:
+      contract_id: contract.logical-module-boundary.policy-evaluation
+  - contract_ref:
+      contract_id: contract.logical-module-boundary.validation-report

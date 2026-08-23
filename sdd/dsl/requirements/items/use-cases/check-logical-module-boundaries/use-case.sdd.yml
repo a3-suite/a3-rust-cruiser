@@ -1,0 +1,39 @@
+version: 1
+name: use-case
+use_case_id: check-logical-module-boundaries
+summary: 利用者がRustの論理モジュール境界を確認する
+actors:
+  - actor_id: rust-developer
+    kind: human
+    role: primary
+    summary: Rustコードの変更に対するモジュール境界の適合性を確認する主体
+  - actor_id: continuous-integration
+    kind: external-system
+    role: secondary
+    summary: 継続的検証としてモジュール境界の判定結果を利用する外部システム
+goal: Rustプロジェクトの論理モジュール間依存が定められた境界に適合しているか判断する
+preconditions:
+  - 解析対象のRustプロジェクトが存在する
+  - 適用するモジュール境界の検証条件が指定されている
+trigger: 利用者または継続的インテグレーションがモジュール境界の検証を要求する
+main_success_scenario:
+  - summary: 利用者が解析対象と解析条件を指定して検証を要求する
+  - summary: 利用者が論理モジュール間の依存関係と境界違反の有無を受け取る
+  - summary: 違反がある場合、利用者が依存元、依存先、ソース位置、依存経路を確認する
+success_outcomes:
+  - 利用者が論理モジュール境界への適合性を判断できる
+  - 継続的インテグレーションが境界違反の有無を判定できる
+failure_outcomes:
+  - 解析を完了できない場合、利用者が未完了の理由と影響範囲を確認できる
+related_requirements:
+  - requirement_ref:
+      requirement_id: validate-rust-logical-module-boundaries
+related_contracts:
+  - contract_ref:
+      contract_id: contract.logical-module-boundary.dependency-graph
+  - contract_ref:
+      contract_id: contract.logical-module-boundary.policy-evaluation
+  - contract_ref:
+      contract_id: contract.logical-module-boundary.validation-report
+  - contract_ref:
+      contract_id: contract.logical-module-boundary.cli-outcome

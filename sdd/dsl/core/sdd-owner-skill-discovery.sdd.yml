@@ -1,0 +1,6 @@
+version: 1
+name: sdd-owner-skill-discovery
+scan_depth: 2
+scan_roots:
+  - ~/.agents/skills/sdd
+direct_skill_roots: []

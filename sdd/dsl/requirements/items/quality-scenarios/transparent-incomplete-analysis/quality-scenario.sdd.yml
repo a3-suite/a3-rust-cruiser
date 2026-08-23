@@ -1,0 +1,20 @@
+version: 1
+name: quality-scenario
+quality_scenario_id: transparent-incomplete-analysis
+summary: 不完全な解析を違反なしとして扱わない
+quality_attribute: reliability
+stimulus: 対応できない構文、展開、参照または解析条件により依存関係を完全に判定できない
+environment: Rustプロジェクトのモジュール境界を検証している
+response: 解析未完了を成功結果と区別し、理由と影響範囲を利用者へ示す
+response_measure:
+  - 解析未完了の状態を違反なしの状態と区別できる
+  - 未判定となった理由と対象範囲を確認できる
+  - 継続的インテグレーションが解析未完了を成功として扱わない
+related_requirements:
+  - requirement_ref:
+      requirement_id: validate-rust-logical-module-boundaries
+related_contracts:
+  - contract_ref:
+      contract_id: contract.logical-module-boundary.validation-report
+  - contract_ref:
+      contract_id: contract.logical-module-boundary.cli-outcome
