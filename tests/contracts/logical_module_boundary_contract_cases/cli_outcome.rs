@@ -4,6 +4,64 @@
 use super::*;
 
 #[test]
+fn root_help_exits_with_zero() {
+    // Arrange
+    let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
+
+    // Act
+    let output = Command::new(binary)
+        .arg("--help")
+        .output()
+        .expect("binary should run");
+
+    // Assert
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8(output.stdout).expect("help is UTF-8");
+    assert!(stdout.contains("Usage: a3-rust-cruiser <COMMAND>"));
+    assert!(stdout.contains("check"));
+}
+
+#[test]
+fn check_help_exits_with_zero() {
+    // Arrange
+    let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
+
+    // Act
+    let output = Command::new(binary)
+        .args(["check", "--help"])
+        .output()
+        .expect("binary should run");
+
+    // Assert
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8(output.stdout).expect("help is UTF-8");
+    assert!(stdout.contains("Usage: a3-rust-cruiser check <PROJECT_ROOT>"));
+    assert!(stdout.contains("--analysis-profile <compilation|source-union>"));
+}
+
+#[test]
+fn version_exits_with_zero() {
+    // Arrange
+    let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
+
+    // Act
+    let output = Command::new(binary)
+        .arg("--version")
+        .output()
+        .expect("binary should run");
+
+    // Assert
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty());
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("version is UTF-8"),
+        format!("a3-rust-cruiser {}\n", env!("CARGO_PKG_VERSION"))
+    );
+}
+
+#[test]
 fn conformant_result_exits_with_zero() {
     // Arrange
     let fixture = TempFixture::new("conformant-exit");

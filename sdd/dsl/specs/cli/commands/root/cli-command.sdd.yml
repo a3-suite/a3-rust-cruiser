@@ -1,0 +1,15 @@
+version: 1
+name: cli-command
+command:
+  id: root
+  path:
+    - a3-rust-cruiser
+  summary: Rust論理モジュール境界検証CLIのcommand入口
+  option_groups:
+    - id: information
+      title: Information
+      options:
+        - help
+        - version
+  help:
+    usage: a3-rust-cruiser <COMMAND>

@@ -6,6 +6,16 @@ Cargo package と compilation target を1つずつ解析し、Rust の論理モ�
 
 - Rust 2024 edition に対応した Rust toolchain
 
+## CLI情報
+
+```sh
+a3-rust-cruiser --version
+a3-rust-cruiser --help
+a3-rust-cruiser check --help
+```
+
+GitHub Releaseの固定版セットアップとchecksum検証は、`skills/a3-rust-cruiser`の公開スキルを使用します。
+
 ## 最短実行
 
 同梱の最小プロジェクトを検証します。
@@ -24,7 +34,7 @@ cargo run -- check examples/minimal-project \
 ## 正本
 
 - 要求: [requirement.sdd.yml](sdd/dsl/requirements/items/requirements/validate-rust-logical-module-boundaries/requirement.sdd.yml)
-- CLI仕様: [cli-command.sdd.yml](sdd/dsl/specs/cli/commands/check/cli-command.sdd.yml)
+- CLI仕様: [cli-command-manifest.sdd.yml](sdd/dsl/specs/cli/cli-command-manifest.sdd.yml)
 - 検証契約: [observations.sdd.yml](sdd/dsl/specs/contract-core/subjects/logical-module-boundary-validation/observations.sdd.yml)
 - DDD分析メモ: [logical-module-boundary-ddd-analysis.md](docs/notes/logical-module-boundary-ddd-analysis.md)
 

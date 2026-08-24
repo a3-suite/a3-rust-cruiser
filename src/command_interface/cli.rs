@@ -69,6 +69,9 @@ where
         .into_iter()
         .map(|value| value.to_string_lossy().into_owned())
         .collect();
+    if let Some(payload) = informational_output(&args) {
+        return Ok((payload, 0));
+    }
     let check = parse_check_args(&args)?;
     let context = AnalysisContext {
         analysis_profile: check.analysis_profile,
@@ -95,6 +98,19 @@ where
         })?,
     };
     Ok((payload, decision_exit_code(report.decision)))
+}
+
+fn informational_output(args: &[String]) -> Option<String> {
+    match args {
+        [option] if option == "--help" || option == "-h" => Some(root_help().to_owned()),
+        [option] if option == "--version" || option == "-V" => {
+            Some(format!("a3-rust-cruiser {}", env!("CARGO_PKG_VERSION")))
+        }
+        [command, option] if command == "check" && (option == "--help" || option == "-h") => {
+            Some(check_help().to_owned())
+        }
+        _ => None,
+    }
 }
 
 fn decision_exit_code(decision: ValidationDecision) -> u8 {
@@ -196,12 +212,20 @@ fn sorted_unique(mut values: Vec<String>) -> Vec<String> {
 }
 
 fn usage() -> &'static str {
-    "usage: a3-rust-cruiser check <PROJECT_ROOT> --policy <BOUNDARY_POLICY_PATH> --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]"
+    "Usage: a3-rust-cruiser check <PROJECT_ROOT> --policy <BOUNDARY_POLICY_PATH> --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]"
+}
+
+fn root_help() -> &'static str {
+    "Usage: a3-rust-cruiser <COMMAND>\n\nCommands:\n  check  Validate logical module boundaries for one Cargo package and compilation target\n\nOptions:\n  -h, --help     Print help\n  -V, --version  Print version"
+}
+
+fn check_help() -> &'static str {
+    "Usage: a3-rust-cruiser check <PROJECT_ROOT> --policy <BOUNDARY_POLICY_PATH> --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]\n\nAnalysis input:\n  -p, --policy <BOUNDARY_POLICY_PATH>\n      --package <PACKAGE>\n      --target <TARGET>\n      --target-triple <TARGET_TRIPLE>\n      --analysis-profile <compilation|source-union>\n      --feature <FEATURE>\n      --cfg <CFG>\n      --include <MODULE_PATTERN>\n      --exclude <MODULE_PATTERN>\n\nOutput:\n  -f, --format <text|json>\n\nOptions:\n  -h, --help  Print help"
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{decision_exit_code, parse_check_args};
+    use super::{decision_exit_code, informational_output, parse_check_args};
     use crate::boundary_validation::{AnalysisProfile, ValidationDecision};
 
     #[test]
@@ -290,5 +314,17 @@ mod tests {
 
         // Assert
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn informational_aliases_are_supported() {
+        // Arrange
+        let arguments = [vec!["-h".to_owned()], vec!["-V".to_owned()]];
+
+        // Act
+        let outputs = arguments.map(|arguments| informational_output(&arguments));
+
+        // Assert
+        assert!(outputs.into_iter().all(|output| output.is_some()));
     }
 }

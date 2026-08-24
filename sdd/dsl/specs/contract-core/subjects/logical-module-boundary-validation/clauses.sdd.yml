@@ -793,7 +793,8 @@ contracts:
     summary: >-
       CLIはconformantを0、non-conformantを1、indeterminateを2、
       不正な呼出し、読込不能または契約不適合のBoundaryPolicy、その他の実行失敗を3へ写像する。
-      完了した解析だけがtextまたはJSONの検証結果を標準出力へ返し、実行失敗の説明は標準エラーへ返す。
+      helpとversionは情報を標準出力へ返して0で終了する。完了した解析だけがtextまたはJSONの検証結果を
+      標準出力へ返し、実行失敗の説明は標準エラーへ返す。
     conditions:
       - id: conformant-result
         input_predicate:
@@ -819,6 +820,11 @@ contracts:
         input_predicate:
           kind: input
           term: input.completed_validation_result
+          op: present
+      - id: cli-information-request
+        input_predicate:
+          kind: input
+          term: input.cli_information_request
           op: present
     guarantees:
       - id: conformant-exit-code
@@ -933,6 +939,48 @@ contracts:
               kind: value_set
               values:
                 - diagnostic
+      - id: cli-information-exit-code
+        when: cli-information-request
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.exit_code
+            right:
+              kind: value_set
+              values:
+                - "0"
+      - id: cli-information-written-to-stdout
+        when: cli-information-request
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.stdout_status
+            right:
+              kind: value_set
+              values:
+                - information
+      - id: cli-information-keeps-stderr-empty
+        when: cli-information-request
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.stderr_status
+            right:
+              kind: value_set
+              values:
+                - empty
     verification_intents:
       - id: cli-exit-code-mapping
         goal: 三状態判断とCLI実行失敗が重複しない終了コードへ写像されることを確認する
@@ -945,3 +993,9 @@ contracts:
           - completed-result-keeps-stderr-empty
           - execution-failure-keeps-stdout-empty
           - execution-failure-writes-stderr-diagnostic
+      - id: cli-information-output
+        goal: root help、check help、versionが情報を標準出力へ返して正常終了することを確認する
+        guarantee_refs:
+          - cli-information-exit-code
+          - cli-information-written-to-stdout
+          - cli-information-keeps-stderr-empty

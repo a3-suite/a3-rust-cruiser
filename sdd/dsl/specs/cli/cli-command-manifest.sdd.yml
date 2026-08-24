@@ -1,5 +1,7 @@
 version: 1
 name: cli-command-manifest
 commands:
+  - id: root
+    path: commands/root/cli-command.sdd.yml
   - id: check
     path: commands/check/cli-command.sdd.yml

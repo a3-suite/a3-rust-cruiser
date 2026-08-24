@@ -1,6 +1,16 @@
 version: 1
 name: cli-option-vocabulary
 options:
+  - id: help
+    long: --help
+    short: -h
+    kind: flag
+    summary: 対象commandの利用方法を標準出力へ表示して終了する
+  - id: version
+    long: --version
+    short: -V
+    kind: flag
+    summary: a3-rust-cruiserのpackage versionを標準出力へ表示して終了する
   - id: policy
     long: --policy
     short: -p

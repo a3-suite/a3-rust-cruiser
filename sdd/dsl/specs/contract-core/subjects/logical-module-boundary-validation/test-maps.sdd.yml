@@ -403,6 +403,33 @@ test_maps:
           - check-analysis-issue-reason
           - check-analysis-issue-affected-scope
   - verification_id: verification.logical-module-boundary.cli-outcome
+    case_id: root-help
+    tests:
+      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+        symbol: root_help_exits_with_zero
+        check_refs:
+          - check-information-exit-code
+          - check-information-stdout
+          - check-information-stderr
+  - verification_id: verification.logical-module-boundary.cli-outcome
+    case_id: check-help
+    tests:
+      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+        symbol: check_help_exits_with_zero
+        check_refs:
+          - check-information-exit-code
+          - check-information-stdout
+          - check-information-stderr
+  - verification_id: verification.logical-module-boundary.cli-outcome
+    case_id: version
+    tests:
+      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+        symbol: version_exits_with_zero
+        check_refs:
+          - check-information-exit-code
+          - check-information-stdout
+          - check-information-stderr
+  - verification_id: verification.logical-module-boundary.cli-outcome
     case_id: conformant-exit
     tests:
       - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs

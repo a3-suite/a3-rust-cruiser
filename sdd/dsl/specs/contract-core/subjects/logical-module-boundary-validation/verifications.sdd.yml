@@ -548,6 +548,42 @@ verifications:
   - id: verification.logical-module-boundary.cli-outcome
     contract_id: contract.logical-module-boundary.cli-outcome
     cases:
+      - id: root-help
+        intent_id: cli-information-output
+        input:
+          cli_information_request:
+            kind: root-help
+        checks:
+          - id: check-information-exit-code
+            guarantee_ref: cli-information-exit-code
+          - id: check-information-stdout
+            guarantee_ref: cli-information-written-to-stdout
+          - id: check-information-stderr
+            guarantee_ref: cli-information-keeps-stderr-empty
+      - id: check-help
+        intent_id: cli-information-output
+        input:
+          cli_information_request:
+            kind: check-help
+        checks:
+          - id: check-information-exit-code
+            guarantee_ref: cli-information-exit-code
+          - id: check-information-stdout
+            guarantee_ref: cli-information-written-to-stdout
+          - id: check-information-stderr
+            guarantee_ref: cli-information-keeps-stderr-empty
+      - id: version
+        intent_id: cli-information-output
+        input:
+          cli_information_request:
+            kind: version
+        checks:
+          - id: check-information-exit-code
+            guarantee_ref: cli-information-exit-code
+          - id: check-information-stdout
+            guarantee_ref: cli-information-written-to-stdout
+          - id: check-information-stderr
+            guarantee_ref: cli-information-keeps-stderr-empty
       - id: conformant-exit
         intent_id: cli-exit-code-mapping
         input:

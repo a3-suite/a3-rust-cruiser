@@ -159,7 +159,7 @@ observations:
           meaning: ValidationDecisionまたはCLI実行失敗を表す終了コード
         - selector: process.stdout_status
           kind: observation_field
-          meaning: validation-resultまたはemptyで表す標準出力の状態
+          meaning: validation-result、informationまたはemptyで表す標準出力の状態
         - selector: process.stderr_status
           kind: observation_field
           meaning: diagnosticまたはemptyで表す標準エラーの状態
