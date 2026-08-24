@@ -2,6 +2,7 @@
 name = "a3-rust-cruiser"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 proc-macro2 = { version = "1", features = ["span-locations"] }
@@ -13,4 +14,4 @@ toml = "0.8"
 
 [[test]]
 name = "logical_module_boundary_validation"
-path = "tests/contracts/logical_module_boundary_validation.rs"
+path = "tests/contracts/logical_module_boundary_validation_integration_test.rs"

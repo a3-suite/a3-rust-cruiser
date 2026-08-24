@@ -4,6 +4,7 @@ use super::model::{
     BoundaryPolicy, BoundaryRule, BoundaryViolation, Dependency, DependencyKind,
     ObservedDependencyGraph, PolicyEvaluation, RuleKind, ValidationDecision, ViolationKind,
 };
+use super::pattern::matches_pattern;
 
 pub fn evaluate(
     graph: &ObservedDependencyGraph,
@@ -140,27 +141,6 @@ fn matches_kind(rule: &BoundaryRule, kind: DependencyKind) -> bool {
     rule.dependency_kinds.is_empty() || rule.dependency_kinds.contains(&kind)
 }
 
-pub fn matches_pattern(pattern: &str, value: &str) -> bool {
-    let pattern_segments: Vec<&str> = pattern.split("::").collect();
-    let value_segments: Vec<&str> = value.split("::").collect();
-    match_segments(&pattern_segments, &value_segments)
-}
-
-fn match_segments(pattern: &[&str], value: &[&str]) -> bool {
-    if pattern.is_empty() {
-        return value.is_empty();
-    }
-    if pattern[0] == "**" {
-        (0..=value.len()).any(|index| match_segments(&pattern[1..], &value[index..]))
-    } else if value.is_empty() {
-        false
-    } else if pattern[0] == "*" || pattern[0] == value[0] {
-        match_segments(&pattern[1..], &value[1..])
-    } else {
-        false
-    }
-}
-
 fn find_cycles(graph: &ObservedDependencyGraph, rule: &BoundaryRule) -> Vec<Vec<String>> {
     let nodes: BTreeSet<String> = graph
         .modules
@@ -242,15 +222,7 @@ mod tests {
         LogicalModule, ObservedDependencyGraph, RuleKind, Severity, SourceEvidence, TargetScope,
         ValidationDecision, ViolationKind,
     };
-    use super::{decide, evaluate, matches_pattern};
-
-    #[test]
-    fn pattern_uses_single_and_multi_segment_wildcards() {
-        assert!(matches_pattern("crate::*::infra", "crate::app::infra"));
-        assert!(matches_pattern("crate::**", "crate::app::infra"));
-        assert!(matches_pattern("crate::**::infra", "crate::infra"));
-        assert!(!matches_pattern("crate::*", "crate::app::infra"));
-    }
+    use super::{decide, evaluate};
 
     #[test]
     fn forbidden_rule_wins_over_allowed_rule() {

@@ -30,6 +30,8 @@ related_requirements:
       requirement_id: validate-rust-logical-module-boundaries
 related_contracts:
   - contract_ref:
+      contract_id: contract.logical-module-boundary.boundary-policy-input
+  - contract_ref:
       contract_id: contract.logical-module-boundary.dependency-graph
   - contract_ref:
       contract_id: contract.logical-module-boundary.policy-evaluation

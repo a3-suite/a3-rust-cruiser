@@ -29,3 +29,7 @@ cargo run -- check examples/minimal-project \
 - DDD分析メモ: [logical-module-boundary-ddd-analysis.md](docs/notes/logical-module-boundary-ddd-analysis.md)
 
 要求・仕様・設計の判断は SDD の DSL を正本とし、README では再定義しません。
+
+## ライセンス
+
+[MIT License](LICENSE) で公開します。

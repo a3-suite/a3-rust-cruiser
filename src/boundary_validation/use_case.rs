@@ -2,7 +2,7 @@ use std::{collections::BTreeSet, path::Path};
 
 use crate::boundary_evaluation::{
     AnalysisContext, AnalysisIssue, BoundaryPolicy, ObservedDependencyGraph, RuleKind,
-    ValidationResult, decide, evaluate,
+    ValidationResult, decide, evaluate, is_valid_pattern,
 };
 
 use super::{CruiserError, Result};
@@ -129,16 +129,6 @@ fn is_kebab_case(value: &str) -> bool {
         && !value.starts_with('-')
         && !value.ends_with('-')
         && !value.contains("--")
-}
-
-fn is_valid_pattern(pattern: &str) -> bool {
-    !pattern.is_empty()
-        && pattern.split("::").all(|segment| {
-            !segment.is_empty()
-                && (segment == "*"
-                    || segment == "**"
-                    || (!segment.contains('*') && !segment.contains('?')))
-        })
 }
 
 #[cfg(test)]

@@ -58,6 +58,86 @@ verifications:
           - id: check-dependency-edges
             guarantee_ref: dependency-edges-present
 
+  - id: verification.logical-module-boundary.boundary-policy-input
+    contract_id: contract.logical-module-boundary.boundary-policy-input
+    cases:
+      - id: documented-policy-shape-is-accepted
+        intent_id: boundary-policy-input-acceptance
+        input:
+          valid_boundary_policy:
+            rules:
+              - id: forbid-application-to-infrastructure
+                kind: forbidden
+                severity: error
+                from:
+                  - crate::application
+                to:
+                  - crate::infrastructure
+                modules: []
+                dependency_kinds:
+                  - import
+        checks:
+          - id: check-valid-policy-accepted
+            guarantee_ref: valid-boundary-policy-input-accepted
+      - id: omitted-optional-policy-collections-default-empty
+        intent_id: boundary-policy-input-acceptance
+        input:
+          valid_boundary_policy:
+            rules:
+              - id: forbid-application-to-infrastructure
+                kind: forbidden
+                severity: error
+                from:
+                  - crate::application
+                to:
+                  - crate::infrastructure
+        checks:
+          - id: check-valid-policy-accepted
+            guarantee_ref: valid-boundary-policy-input-accepted
+      - id: unknown-policy-field-is-rejected
+        intent_id: boundary-policy-input-rejection
+        input:
+          invalid_boundary_policy:
+            unknown_field: true
+        checks:
+          - id: check-invalid-policy-exit-code
+            guarantee_ref: invalid-boundary-policy-input-exits-with-three
+          - id: check-invalid-policy-stdout
+            guarantee_ref: invalid-boundary-policy-input-keeps-stdout-empty
+          - id: check-invalid-policy-stderr
+            guarantee_ref: invalid-boundary-policy-input-writes-stderr-diagnostic
+      - id: unsupported-policy-enum-is-rejected
+        intent_id: boundary-policy-input-rejection
+        input:
+          invalid_boundary_policy:
+            rule_kind: required
+        checks:
+          - id: check-invalid-policy-exit-code
+            guarantee_ref: invalid-boundary-policy-input-exits-with-three
+          - id: check-invalid-policy-stdout
+            guarantee_ref: invalid-boundary-policy-input-keeps-stdout-empty
+          - id: check-invalid-policy-stderr
+            guarantee_ref: invalid-boundary-policy-input-writes-stderr-diagnostic
+      - id: invalid-policy-rules-are-rejected
+        intent_id: boundary-policy-input-rejection
+        input:
+          invalid_boundary_policy:
+            constraints:
+              - kebab-case-rule-id
+              - unique-rule-id
+              - forbidden-and-allowed-require-from-and-to
+              - forbidden-and-allowed-forbid-modules
+              - circular-requires-modules
+              - circular-forbids-from-and-to
+              - logical-module-pattern-grammar
+        checks:
+          - id: check-invalid-policy-exit-code
+            guarantee_ref: invalid-boundary-policy-input-exits-with-three
+          - id: check-invalid-policy-stdout
+            guarantee_ref: invalid-boundary-policy-input-keeps-stdout-empty
+          - id: check-invalid-policy-stderr
+            guarantee_ref: invalid-boundary-policy-input-writes-stderr-diagnostic
+
   - id: verification.logical-module-boundary.policy-evaluation
     contract_id: contract.logical-module-boundary.policy-evaluation
     cases:

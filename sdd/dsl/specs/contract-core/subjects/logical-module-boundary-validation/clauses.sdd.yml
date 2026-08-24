@@ -153,10 +153,100 @@ contracts:
           - source-union-profile-selected
           - dependency-edges-present
 
+  - id: contract.logical-module-boundary.boundary-policy-input
+    summary: >-
+      CLIが受け取るBoundaryPolicy YAMLはrules配列をrootとし、各ruleは必須のid、kind、severityと、
+      任意のfrom、to、modules、dependency_kinds配列を持つ。kindはforbidden、allowed、circular、
+      severityはerror、warning、dependency_kindsはimport、re-export、path-referenceだけを受理する。
+      任意配列の省略は空配列として扱う。forbiddenとallowedは空でないfromとtoだけを使用し、
+      circularは空でないmodulesだけを使用する。patternは空でない`::`区切りのsegment列とし、
+      各segmentにはliteral、`*`、`**`だけを受理する。未定義field、未対応enum、重複または
+      kebab-caseでないid、kind別field制約またはpattern文法に反するruleは解析開始前の入力失敗として扱う。
+    conditions:
+      - id: valid-boundary-policy-input
+        input_predicate:
+          kind: input
+          term: input.valid_boundary_policy
+          op: present
+      - id: invalid-boundary-policy-input
+        input_predicate:
+          kind: input
+          term: input.invalid_boundary_policy
+          op: present
+    guarantees:
+      - id: valid-boundary-policy-input-accepted
+        when: valid-boundary-policy-input
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.exit_code
+            right:
+              kind: value_set
+              values:
+                - "0"
+                - "1"
+                - "2"
+      - id: invalid-boundary-policy-input-exits-with-three
+        when: invalid-boundary-policy-input
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.exit_code
+            right:
+              kind: value_set
+              values:
+                - "3"
+      - id: invalid-boundary-policy-input-keeps-stdout-empty
+        when: invalid-boundary-policy-input
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.stdout_status
+            right:
+              kind: value_set
+              values:
+                - empty
+      - id: invalid-boundary-policy-input-writes-stderr-diagnostic
+        when: invalid-boundary-policy-input
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.stderr_status
+            right:
+              kind: value_set
+              values:
+                - diagnostic
+    verification_intents:
+      - id: boundary-policy-input-acceptance
+        goal: 文書化されたBoundaryPolicy YAMLと任意配列の省略が入力失敗にならないことを確認する
+        guarantee_refs:
+          - valid-boundary-policy-input-accepted
+      - id: boundary-policy-input-rejection
+        goal: 未定義field、未対応enum、意味的に不正なruleが解析開始前の入力失敗になることを確認する
+        guarantee_refs:
+          - invalid-boundary-policy-input-exits-with-three
+          - invalid-boundary-policy-input-keeps-stdout-empty
+          - invalid-boundary-policy-input-writes-stderr-diagnostic
+
   - id: contract.logical-module-boundary.policy-evaluation
     summary: >-
-      BoundaryPolicyはrules集合を持ち、各ruleは一意なkebab-caseのid、errorまたはwarningのseverity、kindを持つ。
-      forbiddenとallowedはfrom、toのpattern集合、circularはmodulesのpattern集合を持ち、各ruleは任意のdependency_kindsを持つ。
+      有効なBoundaryPolicyのforbiddenとallowedはfrom、toのpattern集合、circularはmodulesのpattern集合を使う。
       patternはLogicalModule IDの::区切りsegmentへ一致し、*は1 segment、**は0以上のsegment、その他の文字はliteralとして扱う。
       dependency_kinds省略時は全DependencyKindへ一致する。
       同じ依存に一致するforbidden ruleはすべて違反を生成し、適用可能なallowed rule群は許可先の和集合として評価する。

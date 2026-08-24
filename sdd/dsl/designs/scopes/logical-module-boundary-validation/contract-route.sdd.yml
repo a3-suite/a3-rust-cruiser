@@ -1,6 +1,17 @@
 version: 1
 name: contract-route
 routes:
+  - route_id: load-boundary-policy
+    contract_ref:
+      contract_id: contract.logical-module-boundary.boundary-policy-input
+    hops:
+      - component_id: boundary-policy-input
+      - component_id: boundary-validation
+      - component_id: command-interface
+    edge_semantics:
+      - kind: route-only-handoff
+        from_component_id: boundary-validation
+        to_component_id: command-interface
   - route_id: observe-dependency-graph
     contract_ref:
       contract_id: contract.logical-module-boundary.dependency-graph

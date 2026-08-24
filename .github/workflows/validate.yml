@@ -1,0 +1,39 @@
+name: validate
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions: {}
+
+jobs:
+  request:
+    name: validate / release request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Record release request
+        env:
+          REQUEST_EVENT: ${{ github.event_name }}
+          REQUEST_REF: ${{ github.ref }}
+          REQUEST_REPOSITORY: ${{ github.repository }}
+          REQUEST_RUN_ID: ${{ github.run_id }}
+          REQUEST_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          jq -n \
+            --arg event "$REQUEST_EVENT" \
+            --arg ref "$REQUEST_REF" \
+            --arg repository "$REQUEST_REPOSITORY" \
+            --arg run_id "$REQUEST_RUN_ID" \
+            --arg source_sha "$REQUEST_SOURCE_SHA" \
+            '{event: $event, ref: $ref, repository: $repository, run_id: $run_id, source_sha: $source_sha}' \
+            > release-request.json
+      - name: Upload release request
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-request
+          path: release-request.json
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: false
