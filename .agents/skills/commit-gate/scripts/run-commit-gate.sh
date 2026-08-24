@@ -6,7 +6,7 @@ usage() {
   cat <<'EOF'
 Usage: .agents/skills/commit-gate/scripts/run-commit-gate.sh [--help]
 
-Validate the staged snapshot by installing it into an isolated temporary root.
+Validate and persistently install the staged snapshot.
 
 Exit codes:
   0  commit allowed
@@ -83,8 +83,7 @@ temporary_root="$(mktemp -d "${TMPDIR:-/tmp}/a3-rust-cruiser-commit-gate.XXXXXX"
   exit 2
 }
 workspace_root="$temporary_root/workspace"
-install_root="$temporary_root/install"
-mkdir -p "$workspace_root" "$install_root"
+mkdir -p "$workspace_root"
 
 if ! git -C "$repo_root" checkout-index --all --force --prefix="$workspace_root/"; then
   echo "Failed to materialize the staged snapshot" >&2
@@ -97,8 +96,8 @@ if [[ ! -f "$local_install" ]]; then
   exit 2
 fi
 
-echo "Validating the staged snapshot with an isolated install root"
-if ! CARGO_INSTALL_ROOT="$install_root" bash "$local_install"; then
+echo "Validating and installing the staged snapshot"
+if ! bash "$local_install"; then
   echo "Commit gate failed: local-install validation did not pass" >&2
   exit 1
 fi
