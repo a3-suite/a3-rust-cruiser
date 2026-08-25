@@ -344,7 +344,7 @@ mod tests {
     };
 
     #[test]
-    fn text_report_contains_the_decision() {
+    fn should_include_the_decision_in_a_text_report() {
         // Arrange
         let report = ValidationReport {
             schema_version: "1".to_owned(),

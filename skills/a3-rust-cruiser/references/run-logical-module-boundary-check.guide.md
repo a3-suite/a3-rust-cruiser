@@ -8,16 +8,22 @@
 ## 前提条件
 
 - `a3-rust-cruiser` コマンドが利用できること。利用できない場合はインストールを自動実行せず、その不足を報告する。
-- 対象プロジェクトが所有する boundary policy のパスを確認できること。見つからない場合は policy を推測または新規作成せず、入力不足として停止する。
+- 対象プロジェクトが所有する YAML boundary policy、または SDD の logical-structure、projection、directory-structure の3パスを確認できること。どちらも確認できない場合は入力を推測または新規作成せず、入力不足として停止する。
 
 ## 検証フロー
 
-1. 対象プロジェクトから project root、boundary policy、package、compilation target を確認する。
+1. 対象プロジェクトから project root、policy入力、package、compilation target を確認する。policy入力はYAML 1ファイル、またはSDD 3ファイルのどちらか一方に固定する。
 2. 対象ツールチェーンから target triple を確認する。
 3. 既定の `compilation` profile で次の形式のコマンドを実行する。機械判定が必要な場合は JSON を選ぶ。
 
    ```shell
    a3-rust-cruiser check <project-root> --policy <boundary-policy-path> --package <package> --target <target-kind>:<target-name> --target-triple <target-triple> --format json
+   ```
+
+   SDD設計を正本とするプロジェクトでは、派生YAMLを保存せず次の形式で直接検証する。
+
+   ```shell
+   a3-rust-cruiser check <project-root> --logical-structure <logical-structure-path> --projection <projection-path> --directory-structure <directory-structure-path> --package <package> --target <target-kind>:<target-name> --target-triple <target-triple> --format json
    ```
 
 4. 対象プロジェクトが feature、cfg、解析範囲を明示している場合だけ、対応する `--feature`、`--cfg`、`--include`、`--exclude` を追加する。
@@ -34,6 +40,7 @@
 ## 出力/完了条件
 
 - 実行した解析コンテキストを package、target、target triple、analysis profile とともに示す。
+- 使用したpolicy入力をYAMLまたはSDDとして示す。SDD入力では3つの正本パスを示し、派生policyを永続成果物として作らない。
 - `non-conformant` では rule ID、依存元、依存先、根拠位置を示す。
 - `indeterminate` では analysis issue code、理由、影響範囲を示す。
 - 対象としたすべての解析コンテキストが `conformant` の場合だけ、検証完了とする。
@@ -41,5 +48,6 @@
 ## 注意
 
 - `source-union` profile は、対象プロジェクトが非コンパイル経路を含むソース集合の解析を明示的に求める場合だけ使用する。
+- `--policy` とSDD 3オプションは同時に指定しない。SDD入力は3オプションすべてを指定する。
 - `--exclude` によって消えた依存は検証対象外であり、依存が存在しないことの証拠にはならない。
 - 空の `violations` だけを見て適合と判断せず、必ず `decision` と `analysis_issues` を確認する。

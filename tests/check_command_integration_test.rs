@@ -10,6 +10,69 @@ use std::{
 static FIXTURE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn check_accepts_sdd_design_as_the_boundary_policy_source() {
+    // Arrange
+    let fixture = TempFixture::new();
+    fixture.write(
+        "Cargo.toml",
+        "[package]\nname = \"sdd-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    );
+    fixture.write(
+        "src/main.rs",
+        "mod application;\nmod infrastructure;\nfn main() {}\n",
+    );
+    fixture.write(
+        "src/application.rs",
+        "use crate::infrastructure::Thing;\npub fn run() -> Thing { Thing }\n",
+    );
+    fixture.write("src/infrastructure.rs", "pub struct Thing;\n");
+    fixture.write(
+        "logical-structure.sdd.yml",
+        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: application\n    responsibility: application\n    kind_ref: application-service\n  - component_id: infrastructure\n    responsibility: infrastructure\n    kind_ref: project-input-adapter\ndependencies: []\n",
+    );
+    fixture.write(
+        "projection.sdd.yml",
+        "version: 1\nname: projection\nprojection_id: fixture-source\nmappings:\n  - component_id: application\n    node_id: src-application\n  - component_id: infrastructure\n    node_id: src-infrastructure\n",
+    );
+    fixture.write(
+        "directory-structure.sdd.yml",
+        "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n  - node_id: src-application\n    path: src/application.rs\n    primary_area_kind: source\n    area_kinds: [source]\n    responsibility: application\n  - node_id: src-infrastructure\n    path: src/infrastructure.rs\n    primary_area_kind: source\n    area_kinds: [source]\n    responsibility: infrastructure\n",
+    );
+
+    // Act
+    let output = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"))
+        .arg("check")
+        .arg(fixture.path())
+        .arg("--logical-structure")
+        .arg(fixture.join("logical-structure.sdd.yml"))
+        .arg("--projection")
+        .arg(fixture.join("projection.sdd.yml"))
+        .arg("--directory-structure")
+        .arg(fixture.join("directory-structure.sdd.yml"))
+        .args([
+            "--package",
+            "sdd-fixture",
+            "--target",
+            "bin:sdd-fixture",
+            "--target-triple",
+            "x86_64-unknown-linux-gnu",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("binary should run");
+
+    // Assert
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stderr.is_empty());
+    let report: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("valid JSON report");
+    assert_eq!(report["decision"], "non-conformant");
+    assert_eq!(report["violations"][0]["source"], "crate::application");
+    assert_eq!(report["violations"][0]["target"], "crate::infrastructure");
+}
+
+#[test]
 fn check_reports_forbidden_dependency_as_json_and_returns_one() {
     // Arrange
     let fixture = TempFixture::new();

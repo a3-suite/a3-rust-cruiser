@@ -162,6 +162,13 @@ contracts:
       circularは空でないmodulesだけを使用する。patternは空でない`::`区切りのsegment列とし、
       各segmentにはliteral、`*`、`**`だけを受理する。未定義field、未対応enum、重複または
       kebab-caseでないid、kind別field制約またはpattern文法に反するruleは解析開始前の入力失敗として扱う。
+      またはCLIはlogical-structure、projection、directory-structureを一組で受け取り、各logical componentを
+      projectionとdirectory nodeを介してRust logical moduleへ一意に対応付ける。宣言済みcomponent依存以外の
+      component間依存をerrorのforbidden ruleへ投影する。logical-structureの宣言依存graphは非循環でなければならず、
+      宣言外依存を禁止することで実装上のcomponent間循環を防ぐ。
+      YAMLとSDDの同時指定、SDD三入力の欠落、未知または重複するcomponent/node参照、重複または包含関係にある
+      Rust logical moduleへの投影、選択したCargo target rootへのcomponent投影、未対応source pathは
+      解析開始前の入力失敗として扱う。
     conditions:
       - id: valid-boundary-policy-input
         input_predicate:
@@ -172,6 +179,16 @@ contracts:
         input_predicate:
           kind: input
           term: input.invalid_boundary_policy
+          op: present
+      - id: valid-sdd-boundary-policy-input
+        input_predicate:
+          kind: input
+          term: input.valid_sdd_boundary_policy
+          op: present
+      - id: invalid-sdd-boundary-policy-input
+        input_predicate:
+          kind: input
+          term: input.invalid_sdd_boundary_policy
           op: present
     guarantees:
       - id: valid-boundary-policy-input-accepted
@@ -232,6 +249,36 @@ contracts:
               kind: value_set
               values:
                 - diagnostic
+      - id: valid-sdd-boundary-policy-input-accepted
+        when: valid-sdd-boundary-policy-input
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.exit_code
+            right:
+              kind: value_set
+              values:
+                - "0"
+                - "1"
+                - "2"
+      - id: invalid-sdd-boundary-policy-input-exits-with-three
+        when: invalid-sdd-boundary-policy-input
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.exit_code
+            right:
+              kind: value_set
+              values:
+                - "3"
     verification_intents:
       - id: boundary-policy-input-acceptance
         goal: 文書化されたBoundaryPolicy YAMLと任意配列の省略が入力失敗にならないことを確認する
@@ -243,6 +290,14 @@ contracts:
           - invalid-boundary-policy-input-exits-with-three
           - invalid-boundary-policy-input-keeps-stdout-empty
           - invalid-boundary-policy-input-writes-stderr-diagnostic
+      - id: sdd-boundary-policy-input-acceptance
+        goal: SDD設計三入力が一意なBoundaryPolicyへ投影され、非循環な宣言graphに対する未宣言依存を検証できることを確認する
+        guarantee_refs:
+          - valid-sdd-boundary-policy-input-accepted
+      - id: sdd-boundary-policy-input-rejection
+        goal: 不完全または整合しないSDD設計入力が解析開始前の入力失敗になることを確認する
+        guarantee_refs:
+          - invalid-sdd-boundary-policy-input-exits-with-three
 
   - id: contract.logical-module-boundary.policy-evaluation
     summary: >-

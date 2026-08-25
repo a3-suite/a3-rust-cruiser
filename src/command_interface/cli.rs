@@ -1,8 +1,8 @@
 use std::{ffi::OsString, io::Write, path::PathBuf, process::ExitCode};
 
 use crate::boundary_validation::{
-    self, AnalysisContext, AnalysisProfile, BoundaryPolicyLoader, CruiserError, DependencyObserver,
-    Result, ValidationDecision,
+    self, AnalysisContext, AnalysisProfile, BoundaryPolicyInput, BoundaryPolicyLoader,
+    CruiserError, DependencyObserver, Result, ValidationDecision,
 };
 
 use super::report;
@@ -10,7 +10,7 @@ use super::report;
 #[derive(Debug)]
 struct CheckArgs {
     project_root: PathBuf,
-    policy: PathBuf,
+    policy_input: BoundaryPolicyInput,
     package: String,
     target: String,
     target_triple: String,
@@ -88,7 +88,7 @@ where
         policy_loader,
         &check.project_root,
         context,
-        &check.policy,
+        &check.policy_input,
     )?;
     let report = report::build(result, check.format.as_str());
     let payload = match check.format {
@@ -129,6 +129,9 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
         .get(1)
         .ok_or_else(|| CruiserError::InvalidInput(usage().to_owned()))?;
     let mut policy = None;
+    let mut logical_structure = None;
+    let mut projection = None;
+    let mut directory_structure = None;
     let mut package = None;
     let mut target = None;
     let mut target_triple = None;
@@ -149,6 +152,15 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
         };
         match option {
             "--policy" | "-p" => policy = Some(PathBuf::from(takes_value(option, &mut index)?)),
+            "--logical-structure" => {
+                logical_structure = Some(PathBuf::from(takes_value(option, &mut index)?));
+            }
+            "--projection" => {
+                projection = Some(PathBuf::from(takes_value(option, &mut index)?));
+            }
+            "--directory-structure" => {
+                directory_structure = Some(PathBuf::from(takes_value(option, &mut index)?));
+            }
             "--package" => package = Some(takes_value(option, &mut index)?),
             "--target" => target = Some(takes_value(option, &mut index)?),
             "--target-triple" => target_triple = Some(takes_value(option, &mut index)?),
@@ -188,8 +200,12 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
     }
     Ok(CheckArgs {
         project_root: PathBuf::from(project_root),
-        policy: policy
-            .ok_or_else(|| CruiserError::InvalidInput("--policy is required".to_owned()))?,
+        policy_input: parse_policy_input(
+            policy,
+            logical_structure,
+            projection,
+            directory_structure,
+        )?,
         package: package
             .ok_or_else(|| CruiserError::InvalidInput("--package is required".to_owned()))?,
         target: target
@@ -205,6 +221,40 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
     })
 }
 
+fn parse_policy_input(
+    policy: Option<PathBuf>,
+    logical_structure: Option<PathBuf>,
+    projection: Option<PathBuf>,
+    directory_structure: Option<PathBuf>,
+) -> Result<BoundaryPolicyInput> {
+    let has_sdd_input =
+        logical_structure.is_some() || projection.is_some() || directory_structure.is_some();
+    if policy.is_some() && has_sdd_input {
+        return Err(CruiserError::InvalidInput(
+            "--policy cannot be combined with SDD boundary policy input".to_owned(),
+        ));
+    }
+    if let Some(path) = policy {
+        return Ok(BoundaryPolicyInput::Yaml { path });
+    }
+    match (logical_structure, projection, directory_structure) {
+        (Some(logical_structure), Some(projection), Some(directory_structure)) => {
+            Ok(BoundaryPolicyInput::SddDesign {
+                logical_structure,
+                projection,
+                directory_structure,
+            })
+        }
+        (None, None, None) => Err(CruiserError::InvalidInput(
+            "--policy or complete SDD boundary policy input is required".to_owned(),
+        )),
+        _ => Err(CruiserError::InvalidInput(
+            "SDD boundary policy input requires --logical-structure, --projection, and --directory-structure"
+                .to_owned(),
+        )),
+    }
+}
+
 fn sorted_unique(mut values: Vec<String>) -> Vec<String> {
     values.sort();
     values.dedup();
@@ -212,7 +262,7 @@ fn sorted_unique(mut values: Vec<String>) -> Vec<String> {
 }
 
 fn usage() -> &'static str {
-    "Usage: a3-rust-cruiser check <PROJECT_ROOT> --policy <BOUNDARY_POLICY_PATH> --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]"
+    "Usage: a3-rust-cruiser check <PROJECT_ROOT> (--policy <BOUNDARY_POLICY_PATH> | --logical-structure <LOGICAL_STRUCTURE_PATH> --projection <PROJECTION_PATH> --directory-structure <DIRECTORY_STRUCTURE_PATH>) --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]"
 }
 
 fn root_help() -> &'static str {
@@ -220,7 +270,7 @@ fn root_help() -> &'static str {
 }
 
 fn check_help() -> &'static str {
-    "Usage: a3-rust-cruiser check <PROJECT_ROOT> --policy <BOUNDARY_POLICY_PATH> --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]\n\nAnalysis input:\n  -p, --policy <BOUNDARY_POLICY_PATH>\n      --package <PACKAGE>\n      --target <TARGET>\n      --target-triple <TARGET_TRIPLE>\n      --analysis-profile <compilation|source-union>\n      --feature <FEATURE>\n      --cfg <CFG>\n      --include <MODULE_PATTERN>\n      --exclude <MODULE_PATTERN>\n\nOutput:\n  -f, --format <text|json>\n\nOptions:\n  -h, --help  Print help"
+    "Usage: a3-rust-cruiser check <PROJECT_ROOT> (--policy <BOUNDARY_POLICY_PATH> | --logical-structure <LOGICAL_STRUCTURE_PATH> --projection <PROJECTION_PATH> --directory-structure <DIRECTORY_STRUCTURE_PATH>) --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]\n\nAnalysis input:\n  -p, --policy <BOUNDARY_POLICY_PATH>\n      --logical-structure <LOGICAL_STRUCTURE_PATH>\n      --projection <PROJECTION_PATH>\n      --directory-structure <DIRECTORY_STRUCTURE_PATH>\n      --package <PACKAGE>\n      --target <TARGET>\n      --target-triple <TARGET_TRIPLE>\n      --analysis-profile <compilation|source-union>\n      --feature <FEATURE>\n      --cfg <CFG>\n      --include <MODULE_PATTERN>\n      --exclude <MODULE_PATTERN>\n\nOutput:\n  -f, --format <text|json>\n\nOptions:\n  -h, --help  Print help"
 }
 
 #[cfg(test)]
@@ -229,7 +279,7 @@ mod tests {
     use crate::boundary_validation::{AnalysisProfile, ValidationDecision};
 
     #[test]
-    fn check_requires_a_project_root() {
+    fn should_require_a_project_root_for_check() {
         // Arrange
         let arguments = vec!["check".to_owned()];
 
@@ -241,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn decision_exit_codes_are_stable() {
+    fn should_keep_decision_exit_codes_stable() {
         // Arrange
         let decisions = [
             (ValidationDecision::Conformant, 0),
@@ -317,7 +367,39 @@ mod tests {
     }
 
     #[test]
-    fn informational_aliases_are_supported() {
+    fn should_reject_multiple_policy_sources() {
+        // Arrange
+        let arguments = vec![
+            "check",
+            ".",
+            "--policy",
+            "policy.yaml",
+            "--logical-structure",
+            "logical-structure.sdd.yml",
+            "--projection",
+            "projection.sdd.yml",
+            "--directory-structure",
+            "directory-structure.sdd.yml",
+            "--package",
+            "fixture",
+            "--target",
+            "bin:fixture",
+            "--target-triple",
+            "x86_64-unknown-linux-gnu",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+
+        // Act
+        let result = parse_check_args(&arguments);
+
+        // Assert
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_support_informational_aliases() {
         // Arrange
         let arguments = [vec!["-h".to_owned()], vec!["-V".to_owned()]];
 

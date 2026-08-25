@@ -1,4 +1,7 @@
-use std::{collections::BTreeSet, path::Path};
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 
 use crate::boundary_evaluation::{
     AnalysisContext, AnalysisIssue, BoundaryPolicy, ObservedDependencyGraph, RuleKind,
@@ -8,10 +11,29 @@ use crate::boundary_evaluation::{
 use super::{CruiserError, Result};
 
 pub trait BoundaryPolicyLoader {
-    fn load(&self, path: &Path) -> Result<BoundaryPolicy>;
+    fn load(
+        &self,
+        input: &BoundaryPolicyInput,
+        project_root: &Path,
+        target_source: &Path,
+    ) -> Result<BoundaryPolicy>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BoundaryPolicyInput {
+    Yaml {
+        path: PathBuf,
+    },
+    SddDesign {
+        logical_structure: PathBuf,
+        projection: PathBuf,
+        directory_structure: PathBuf,
+    },
 }
 
 pub trait DependencyObserver {
+    fn target_source(&self, project_root: &Path, context: &AnalysisContext) -> Result<PathBuf>;
+
     fn observe(
         &self,
         project_root: &Path,
@@ -24,7 +46,7 @@ pub fn validate<O, L>(
     policy_loader: &L,
     project_root: &Path,
     context: AnalysisContext,
-    policy_path: &Path,
+    policy_input: &BoundaryPolicyInput,
 ) -> Result<ValidationResult>
 where
     O: DependencyObserver,
@@ -38,7 +60,11 @@ where
             "package, target, and target_triple are required".to_owned(),
         ));
     }
-    let policy = policy_loader.load(policy_path)?;
+    let target_source = match policy_input {
+        BoundaryPolicyInput::Yaml { .. } => PathBuf::new(),
+        BoundaryPolicyInput::SddDesign { .. } => observer.target_source(project_root, &context)?,
+    };
+    let policy = policy_loader.load(policy_input, project_root, &target_source)?;
     validate_policy(&policy)?;
     validate_module_patterns(&context.include)?;
     validate_module_patterns(&context.exclude)?;
@@ -142,7 +168,12 @@ mod tests {
     struct StubPolicyLoader;
 
     impl BoundaryPolicyLoader for StubPolicyLoader {
-        fn load(&self, _path: &std::path::Path) -> Result<BoundaryPolicy> {
+        fn load(
+            &self,
+            _input: &super::BoundaryPolicyInput,
+            _project_root: &std::path::Path,
+            _target_source: &std::path::Path,
+        ) -> Result<BoundaryPolicy> {
             Ok(BoundaryPolicy { rules: Vec::new() })
         }
     }
@@ -150,6 +181,14 @@ mod tests {
     struct StubDependencyObserver;
 
     impl DependencyObserver for StubDependencyObserver {
+        fn target_source(
+            &self,
+            project_root: &std::path::Path,
+            _context: &AnalysisContext,
+        ) -> Result<std::path::PathBuf> {
+            Ok(project_root.join("src/main.rs"))
+        }
+
         fn observe(
             &self,
             _project_root: &std::path::Path,
@@ -171,7 +210,12 @@ mod tests {
     struct InvalidPolicyLoader;
 
     impl BoundaryPolicyLoader for InvalidPolicyLoader {
-        fn load(&self, _path: &std::path::Path) -> Result<BoundaryPolicy> {
+        fn load(
+            &self,
+            _input: &super::BoundaryPolicyInput,
+            _project_root: &std::path::Path,
+            _target_source: &std::path::Path,
+        ) -> Result<BoundaryPolicy> {
             let rule = BoundaryRule {
                 id: "duplicate".to_owned(),
                 kind: RuleKind::Forbidden,
@@ -188,10 +232,12 @@ mod tests {
     }
 
     #[test]
-    fn validation_coordinates_ports() {
+    fn should_coordinate_validation_ports() {
         // Arrange
         let project_root = std::path::Path::new("project-that-does-not-exist");
-        let policy = std::path::Path::new("policy-that-does-not-exist.yaml");
+        let policy = super::BoundaryPolicyInput::Yaml {
+            path: "policy-that-does-not-exist.yaml".into(),
+        };
         let context = AnalysisContext {
             analysis_profile: crate::boundary_validation::AnalysisProfile::Compilation,
             package: "fixture".to_owned(),
@@ -209,7 +255,7 @@ mod tests {
             &StubPolicyLoader,
             project_root,
             context,
-            policy,
+            &policy,
         )
         .expect("port-backed validation should succeed");
 
@@ -218,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn validation_rejects_invalid_policy_from_a_port() {
+    fn should_reject_invalid_policy_from_a_port() {
         // Arrange
         let context = AnalysisContext {
             analysis_profile: crate::boundary_validation::AnalysisProfile::Compilation,
@@ -237,7 +283,9 @@ mod tests {
             &InvalidPolicyLoader,
             std::path::Path::new("unused-project"),
             context,
-            std::path::Path::new("unused-policy"),
+            &super::BoundaryPolicyInput::Yaml {
+                path: "unused-policy".into(),
+            },
         );
 
         // Assert

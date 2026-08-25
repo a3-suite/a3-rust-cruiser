@@ -299,7 +299,7 @@ mod tests {
     use super::path_to_string;
 
     #[test]
-    fn path_segments_are_joined_with_rust_separator() {
+    fn should_join_path_segments_with_the_rust_separator() {
         // Arrange
         let path = vec!["crate".to_owned(), "application".to_owned()];
 

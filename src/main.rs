@@ -10,6 +10,6 @@ fn main() -> ExitCode {
     command_interface::run(
         std::env::args_os().skip(1),
         &rust_dependency_observation::RustDependencyObserver,
-        &boundary_policy_input::YamlBoundaryPolicyLoader,
+        &boundary_policy_input::ProjectBoundaryPolicyLoader,
     )
 }

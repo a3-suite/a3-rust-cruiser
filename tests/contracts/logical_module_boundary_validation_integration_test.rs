@@ -9,7 +9,15 @@ use serde_json::Value;
 
 static FIXTURE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-mod logical_module_boundary_contract_cases;
+mod logical_module_boundary_validation_integration_test {
+    use super::*;
+
+    mod boundary_policy_input;
+    mod cli_outcome;
+    mod dependency_graph;
+    mod policy_evaluation;
+    mod validation_report;
+}
 
 fn dependency_fixture(label: &str, target: &str) -> TempFixture {
     let fixture = TempFixture::new(label);

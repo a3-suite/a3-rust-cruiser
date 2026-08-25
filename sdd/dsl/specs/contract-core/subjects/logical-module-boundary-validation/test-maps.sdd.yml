@@ -5,7 +5,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.dependency-graph
     case_id: typed-dependencies-and-declarations
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: typed_dependencies_and_declarations_are_reported
         check_refs:
           - check-analysis-context
@@ -16,27 +16,27 @@ test_maps:
           - check-dependency-kind
           - check-dependency-target-scope
           - check-excluded-scopes
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: aliases_and_multiple_super_segments_are_resolved
         check_refs:
           - check-dependency-edges
           - check-dependency-target-scope
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: supported_compilation_targets_select_their_entry_files
         check_refs:
           - check-analysis-context
           - check-analysis-profile
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: conventional_compilation_target_paths_are_supported
         check_refs:
           - check-analysis-context
           - check-analysis-profile
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: required_feature_activates_the_selected_target
         check_refs:
           - check-analysis-context
           - check-analysis-profile
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: inline_nested_and_declared_external_dependencies_are_observed
         check_refs:
           - check-logical-modules
@@ -44,26 +44,26 @@ test_maps:
           - check-dependency-edges
           - check-dependency-kind
           - check-dependency-target-scope
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: leading_colon_selects_the_external_crate_namespace
         check_refs:
           - check-dependency-edges
           - check-dependency-kind
           - check-dependency-target-scope
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: declared_item_kinds_support_complete_path_resolution
         check_refs:
           - check-dependency-edges
           - check-dependency-kind
           - check-dependency-target-scope
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: dev_dependency_is_available_to_test_target
         check_refs:
           - check-analysis-context
           - check-dependency-edges
           - check-dependency-kind
           - check-dependency-target-scope
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: exact_target_dependency_is_active_for_the_selected_triple
         check_refs:
           - check-analysis-context
@@ -73,28 +73,28 @@ test_maps:
   - verification_id: verification.logical-module-boundary.dependency-graph
     case_id: source-union-source-authored-dependencies
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: source_union_observes_source_authored_dependencies_without_expansion_issues
         check_refs:
           - check-analysis-context
           - check-analysis-profile
           - check-source-union-profile
           - check-dependency-edges
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: source_union_unions_cfg_gated_alias_candidates
         check_refs:
           - check-analysis-context
           - check-analysis-profile
           - check-source-union-profile
           - check-dependency-edges
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: source_union_includes_conditional_external_dependencies
         check_refs:
           - check-analysis-context
           - check-analysis-profile
           - check-source-union-profile
           - check-dependency-edges
-      - path: tests/contracts/logical_module_boundary_contract_cases/dependency_graph.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: source_union_preserves_conditional_dependency_kind_boundaries
         check_refs:
           - check-analysis-context
@@ -104,21 +104,21 @@ test_maps:
   - verification_id: verification.logical-module-boundary.boundary-policy-input
     case_id: documented-policy-shape-is-accepted
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/boundary_policy_input.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: documented_boundary_policy_shape_is_accepted
         check_refs:
           - check-valid-policy-accepted
   - verification_id: verification.logical-module-boundary.boundary-policy-input
     case_id: omitted-optional-policy-collections-default-empty
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/boundary_policy_input.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: omitted_boundary_policy_collections_default_to_empty
         check_refs:
           - check-valid-policy-accepted
   - verification_id: verification.logical-module-boundary.boundary-policy-input
     case_id: unknown-policy-field-is-rejected
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/boundary_policy_input.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: unknown_boundary_policy_field_is_rejected
         check_refs:
           - check-invalid-policy-exit-code
@@ -127,7 +127,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.boundary-policy-input
     case_id: unsupported-policy-enum-is-rejected
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/boundary_policy_input.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: unsupported_boundary_policy_enum_is_rejected
         check_refs:
           - check-invalid-policy-exit-code
@@ -136,16 +136,48 @@ test_maps:
   - verification_id: verification.logical-module-boundary.boundary-policy-input
     case_id: invalid-policy-rules-are-rejected
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/boundary_policy_input.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: invalid_boundary_policy_rules_are_rejected
         check_refs:
           - check-invalid-policy-exit-code
           - check-invalid-policy-stdout
           - check-invalid-policy-stderr
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: sdd-design-is-projected-to-boundary-policy
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: sdd_design_is_projected_to_a_boundary_policy
+        check_refs:
+          - check-valid-sdd-policy-accepted
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: incomplete-sdd-design-input-is-rejected
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: incomplete_sdd_design_input_is_rejected
+        check_refs:
+          - check-invalid-sdd-policy-exit-code
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: circular-sdd-component-dependencies-are-rejected
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: circular_sdd_component_dependencies_are_rejected
+        check_refs:
+          - check-circular-sdd-policy-exit-code
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: inconsistent-sdd-design-inputs-are-rejected
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: inconsistent_sdd_design_inputs_are_rejected
+        check_refs:
+          - check-inconsistent-sdd-policy-exit-code
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: cargo_target_root_component_projections_are_rejected
+        check_refs:
+          - check-inconsistent-sdd-policy-exit-code
   - verification_id: verification.logical-module-boundary.policy-evaluation
     case_id: forbidden-overrides-matching-allowed-rule
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/policy_evaluation.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/policy_evaluation.rs
         symbol: forbidden_rule_overrides_matching_allowed_rule
         check_refs:
           - check-policy-violations
@@ -163,7 +195,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.policy-evaluation
     case_id: applicable-allowed-rules-use-target-union
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/policy_evaluation.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/policy_evaluation.rs
         symbol: applicable_allowed_rules_use_target_union
         check_refs:
           - check-policy-violations
@@ -172,7 +204,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.policy-evaluation
     case_id: unmatched-applicable-allowed-rules-produce-violation
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/policy_evaluation.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/policy_evaluation.rs
         symbol: unmatched_applicable_allowed_rules_produce_violation
         check_refs:
           - check-policy-violations
@@ -190,7 +222,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.policy-evaluation
     case_id: circular-rule-is-independent-from-allowed-rules
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/policy_evaluation.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/policy_evaluation.rs
         symbol: circular_rule_is_independent_from_allowed_rules
         check_refs:
           - check-policy-violations
@@ -210,28 +242,28 @@ test_maps:
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: complete-without-violation
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: complete_graph_without_violations_is_conformant
         check_refs:
           - check-conformant-decision
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: complete-with-violation
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: complete_graph_with_violations_is_non_conformant
         check_refs:
           - check-non-conformant-decision
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: incomplete-with-observed-violation
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: incomplete_analysis_is_indeterminate_even_with_violations
         check_refs:
           - check-indeterminate-decision
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: json-report
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: json_report_projects_common_validation_result
         check_refs:
           - check-json-schema-version
@@ -246,7 +278,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: text-report
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: text_report_projects_common_validation_result
         check_refs:
           - check-analysis-issues
@@ -260,7 +292,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: unresolved-reference-is-indeterminate
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: unresolved_reference_is_indeterminate
         check_refs:
           - check-indeterminate
@@ -271,7 +303,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: source-union-unresolved-reference-is-indeterminate
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: source_union_keeps_unresolved_internal_references_indeterminate
         check_refs:
           - check-indeterminate
@@ -282,7 +314,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: repeated-json-report
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: repeated_json_report_is_byte_stable
         check_refs:
           - check-json-schema-version
@@ -297,7 +329,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: unsupported-macro-expansion-is-indeterminate
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: unsupported_macro_expansion_is_indeterminate
         check_refs:
           - check-indeterminate
@@ -305,7 +337,7 @@ test_maps:
           - check-analysis-issue-code
           - check-analysis-issue-reason
           - check-analysis-issue-affected-scope
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: unsupported_derive_macro_is_indeterminate
         check_refs:
           - check-indeterminate
@@ -316,7 +348,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: unsupported-name-resolution-is-indeterminate
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: unsupported_name_resolution_is_indeterminate
         check_refs:
           - check-indeterminate
@@ -324,7 +356,7 @@ test_maps:
           - check-analysis-issue-code
           - check-analysis-issue-reason
           - check-analysis-issue-affected-scope
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: unresolved_single_segment_type_is_indeterminate
         check_refs:
           - check-indeterminate
@@ -332,7 +364,7 @@ test_maps:
           - check-analysis-issue-code
           - check-analysis-issue-reason
           - check-analysis-issue-affected-scope
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: block_scoped_use_is_indeterminate_until_scope_resolution_is_supported
         check_refs:
           - check-indeterminate
@@ -340,7 +372,7 @@ test_maps:
           - check-analysis-issue-code
           - check-analysis-issue-reason
           - check-analysis-issue-affected-scope
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: unsupported_expression_name_resolution_is_indeterminate
         check_refs:
           - check-indeterminate
@@ -348,7 +380,7 @@ test_maps:
           - check-analysis-issue-code
           - check-analysis-issue-reason
           - check-analysis-issue-affected-scope
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: dev_dependency_is_unavailable_to_binary_target
         check_refs:
           - check-indeterminate
@@ -359,7 +391,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: unsupported-syntax-is-indeterminate
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: unsupported_syntax_is_indeterminate
         check_refs:
           - check-indeterminate
@@ -370,7 +402,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: unsupported-analysis-context-is-indeterminate
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: unsupported_analysis_context_is_indeterminate
         check_refs:
           - check-indeterminate
@@ -378,7 +410,7 @@ test_maps:
           - check-analysis-issue-code
           - check-analysis-issue-reason
           - check-analysis-issue-affected-scope
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: missing_target_required_feature_is_indeterminate
         check_refs:
           - check-indeterminate
@@ -386,7 +418,7 @@ test_maps:
           - check-analysis-issue-code
           - check-analysis-issue-reason
           - check-analysis-issue-affected-scope
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: cfg_selected_dependency_is_indeterminate_without_cfg_evaluation
         check_refs:
           - check-indeterminate
@@ -394,7 +426,7 @@ test_maps:
           - check-analysis-issue-code
           - check-analysis-issue-reason
           - check-analysis-issue-affected-scope
-      - path: tests/contracts/logical_module_boundary_contract_cases/validation_report.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: optional_dependency_is_indeterminate_without_feature_evaluation
         check_refs:
           - check-indeterminate
@@ -405,7 +437,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.cli-outcome
     case_id: root-help
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: root_help_exits_with_zero
         check_refs:
           - check-information-exit-code
@@ -414,7 +446,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.cli-outcome
     case_id: check-help
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: check_help_exits_with_zero
         check_refs:
           - check-information-exit-code
@@ -423,7 +455,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.cli-outcome
     case_id: version
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: version_exits_with_zero
         check_refs:
           - check-information-exit-code
@@ -432,7 +464,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.cli-outcome
     case_id: conformant-exit
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: conformant_result_exits_with_zero
         check_refs:
           - check-conformant-exit-code
@@ -441,7 +473,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.cli-outcome
     case_id: non-conformant-exit
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: non_conformant_result_exits_with_one
         check_refs:
           - check-non-conformant-exit-code
@@ -450,7 +482,7 @@ test_maps:
   - verification_id: verification.logical-module-boundary.cli-outcome
     case_id: indeterminate-exit
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: indeterminate_result_exits_with_two
         check_refs:
           - check-indeterminate-exit-code
@@ -459,49 +491,49 @@ test_maps:
   - verification_id: verification.logical-module-boundary.cli-outcome
     case_id: execution-failure-exit
     tests:
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: execution_failure_exits_with_three
         check_refs:
           - check-execution-failure-exit-code
           - check-execution-failure-stdout
           - check-execution-failure-stderr
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: invalid_cli_options_are_rejected
         check_refs:
           - check-execution-failure-exit-code
           - check-execution-failure-stdout
           - check-execution-failure-stderr
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: disabled_auto_discovery_rejects_hidden_target
         check_refs:
           - check-execution-failure-exit-code
           - check-execution-failure-stdout
           - check-execution-failure-stderr
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: missing_target_source_is_rejected
         check_refs:
           - check-execution-failure-exit-code
           - check-execution-failure-stdout
           - check-execution-failure-stderr
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: invalid_manifest_and_target_requests_fail_with_diagnostics
         check_refs:
           - check-execution-failure-exit-code
           - check-execution-failure-stdout
           - check-execution-failure-stderr
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: manifest_target_and_dependency_types_are_rejected
         check_refs:
           - check-execution-failure-exit-code
           - check-execution-failure-stdout
           - check-execution-failure-stderr
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: malformed_manifest_shapes_fail_before_analysis
         check_refs:
           - check-execution-failure-exit-code
           - check-execution-failure-stdout
           - check-execution-failure-stderr
-      - path: tests/contracts/logical_module_boundary_contract_cases/cli_outcome.rs
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: missing_required_analysis_context_is_rejected
         check_refs:
           - check-execution-failure-exit-code

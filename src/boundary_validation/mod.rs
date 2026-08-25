@@ -8,4 +8,6 @@ pub(crate) use crate::boundary_evaluation::{
     ValidationDecision, ValidationResult, ViolationKind, matches_pattern,
 };
 pub(crate) use error::{CruiserError, Result};
-pub(crate) use use_case::{BoundaryPolicyLoader, DependencyObserver, validate};
+pub(crate) use use_case::{
+    BoundaryPolicyInput, BoundaryPolicyLoader, DependencyObserver, validate,
+};

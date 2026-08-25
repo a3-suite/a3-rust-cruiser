@@ -225,7 +225,7 @@ mod tests {
     use super::{decide, evaluate};
 
     #[test]
-    fn forbidden_rule_wins_over_allowed_rule() {
+    fn should_prioritize_forbidden_rule_over_allowed_rule() {
         // Arrange
         let graph = graph_with_dependency("crate::application", "crate::infrastructure");
         let policy = BoundaryPolicy {
@@ -248,7 +248,7 @@ mod tests {
     }
 
     #[test]
-    fn allowed_target_union_rejects_unlisted_target() {
+    fn should_reject_an_unlisted_target_from_the_allowed_target_union() {
         // Arrange
         let graph = graph_with_dependency("crate::application", "crate::infrastructure");
         let policy = BoundaryPolicy {
@@ -272,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn circular_rule_reports_a_canonical_cycle_path() {
+    fn should_report_a_canonical_cycle_path_for_a_circular_rule() {
         // Arrange
         let mut graph = graph_with_dependency("crate::application", "crate::infrastructure");
         graph.dependencies.push(Dependency {
@@ -316,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn dependency_outcome_stays_within_the_contract_value_set() {
+    fn should_keep_dependency_outcome_within_the_contract_value_set() {
         // Arrange
         let mut graph = graph_with_dependency("crate::application", "crate::infrastructure");
         graph.modules.push(LogicalModule {
@@ -354,7 +354,7 @@ mod tests {
     }
 
     #[test]
-    fn circular_rule_filters_edges_by_dependency_kind() {
+    fn should_filter_circular_rule_edges_by_dependency_kind() {
         // Arrange
         let mut graph = graph_with_dependency("crate::application", "crate::infrastructure");
         graph.dependencies.push(Dependency {

@@ -205,7 +205,7 @@ mod tests {
     use super::{BoundaryViolation, DependencyKind, Severity, SourceEvidence, ViolationKind};
 
     #[test]
-    fn canonical_cmp_orders_violations_by_rule_id_first() {
+    fn should_order_violations_by_rule_id_first() {
         // Arrange
         let violation = |rule_id: &str| BoundaryViolation {
             kind: ViolationKind::Forbidden,

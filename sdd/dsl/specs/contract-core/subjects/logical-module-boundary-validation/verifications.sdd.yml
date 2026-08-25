@@ -137,6 +137,48 @@ verifications:
             guarantee_ref: invalid-boundary-policy-input-keeps-stdout-empty
           - id: check-invalid-policy-stderr
             guarantee_ref: invalid-boundary-policy-input-writes-stderr-diagnostic
+      - id: sdd-design-is-projected-to-boundary-policy
+        intent_id: sdd-boundary-policy-input-acceptance
+        input:
+          valid_sdd_boundary_policy:
+            sources:
+              - logical-structure
+              - projection
+              - directory-structure
+        checks:
+          - id: check-valid-sdd-policy-accepted
+            guarantee_ref: valid-sdd-boundary-policy-input-accepted
+      - id: incomplete-sdd-design-input-is-rejected
+        intent_id: sdd-boundary-policy-input-rejection
+        input:
+          invalid_sdd_boundary_policy:
+            missing_source: directory-structure
+        checks:
+          - id: check-invalid-sdd-policy-exit-code
+            guarantee_ref: invalid-sdd-boundary-policy-input-exits-with-three
+      - id: circular-sdd-component-dependencies-are-rejected
+        intent_id: sdd-boundary-policy-input-rejection
+        input:
+          invalid_sdd_boundary_policy:
+            logical_dependency_graph: circular
+        checks:
+          - id: check-circular-sdd-policy-exit-code
+            guarantee_ref: invalid-sdd-boundary-policy-input-exits-with-three
+      - id: inconsistent-sdd-design-inputs-are-rejected
+        intent_id: sdd-boundary-policy-input-rejection
+        input:
+          invalid_sdd_boundary_policy:
+            constraints:
+              - unique-component-and-node-identities
+              - complete-component-projection
+              - known-component-and-node-references
+              - unique-rust-module-projection
+              - non-overlapping-rust-module-projection
+              - selected-cargo-target-root-projection-forbidden
+              - supported-rust-source-path
+        checks:
+          - id: check-inconsistent-sdd-policy-exit-code
+            guarantee_ref: invalid-sdd-boundary-policy-input-exits-with-three
 
   - id: verification.logical-module-boundary.policy-evaluation
     contract_id: contract.logical-module-boundary.policy-evaluation

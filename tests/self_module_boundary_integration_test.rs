@@ -20,13 +20,11 @@ mod self_module_boundary_sdd_projection {
         // Arrange
         let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let design = ModuleBoundaryDesign::load(project_root);
-        let scratch = ScratchDirectory::new("current-project");
-        let policy_path = scratch.write("boundary-policy.yaml", &design.dependency_policy_yaml());
 
         // Act
         let output = run_check(
             project_root,
-            &policy_path,
+            project_root,
             env!("CARGO_PKG_NAME"),
             &format!("bin:{}", env!("CARGO_PKG_NAME")),
         );
@@ -57,12 +55,11 @@ mod self_module_boundary_sdd_projection {
         let design = ModuleBoundaryDesign::load(project_root);
         let fixture = ScratchDirectory::new("declared-dependencies");
         write_component_fixture(&fixture, &design, &design.dependencies);
-        let policy_path = fixture.write("boundary-policy.yaml", &design.dependency_policy_yaml());
 
         // Act
         let output = run_check(
             fixture.path(),
-            &policy_path,
+            project_root,
             "self-boundary-fixture",
             "bin:self-boundary-fixture",
         );
@@ -90,12 +87,11 @@ mod self_module_boundary_sdd_projection {
         let mut dependencies = design.dependencies.clone();
         dependencies.insert((source.clone(), target.clone()));
         write_component_fixture(&fixture, &design, &dependencies);
-        let policy_path = fixture.write("boundary-policy.yaml", &design.dependency_policy_yaml());
 
         // Act
         let output = run_check(
             fixture.path(),
-            &policy_path,
+            project_root,
             "self-boundary-fixture",
             "bin:self-boundary-fixture",
         );
@@ -118,12 +114,11 @@ mod self_module_boundary_sdd_projection {
         let design = ModuleBoundaryDesign::load(project_root);
         let fixture = ScratchDirectory::new("component-cycle");
         write_component_fixture(&fixture, &design, &design.dependencies);
-        let policy_path = fixture.write("boundary-policy.yaml", &design.cycle_policy_yaml());
 
         // Act
         let output = run_check(
             fixture.path(),
-            &policy_path,
+            project_root,
             "self-boundary-fixture",
             "bin:self-boundary-fixture",
         );
@@ -131,7 +126,6 @@ mod self_module_boundary_sdd_projection {
 
         // Assert
         assert_eq!(report["violations"], json!([]));
-        assert_eq!(report["policy_evaluation"]["cycle_outcome"], "acyclic");
     }
 
     #[test]
@@ -148,12 +142,11 @@ mod self_module_boundary_sdd_projection {
         dependencies.insert((target.clone(), source.clone()));
         let fixture = ScratchDirectory::new("component-cycle-negative");
         write_component_fixture(&fixture, &design, &dependencies);
-        let policy_path = fixture.write("boundary-policy.yaml", &design.cycle_policy_yaml());
 
         // Act
         let output = run_check(
             fixture.path(),
-            &policy_path,
+            project_root,
             "self-boundary-fixture",
             "bin:self-boundary-fixture",
         );
@@ -163,7 +156,7 @@ mod self_module_boundary_sdd_projection {
         assert!(report["violations"].as_array().is_some_and(|violations| {
             violations
                 .iter()
-                .any(|violation| violation["kind"] == "circular")
+                .any(|violation| violation["kind"] == "forbidden")
         }));
     }
 }
@@ -239,42 +232,6 @@ impl ModuleBoundaryDesign {
             dependencies,
             top_level_modules,
         }
-    }
-
-    fn dependency_policy_yaml(&self) -> String {
-        let modules: Vec<_> = self.component_modules.values().cloned().collect();
-        let mut rules = Vec::new();
-        for source in &modules {
-            for target in &modules {
-                if source != target
-                    && !self
-                        .dependencies
-                        .contains(&(source.clone(), target.clone()))
-                {
-                    rules.push(json!({
-                        "id": forbidden_rule_id(source, target),
-                        "kind": "forbidden",
-                        "severity": "error",
-                        "from": module_patterns(source),
-                        "to": module_patterns(target),
-                    }));
-                }
-            }
-        }
-        serde_yaml::to_string(&json!({ "rules": rules }))
-            .expect("derived boundary policy must be serializable")
-    }
-
-    fn cycle_policy_yaml(&self) -> String {
-        serde_yaml::to_string(&json!({
-            "rules": [{
-                "id": "self-no-component-cycles",
-                "kind": "circular",
-                "severity": "error",
-                "modules": self.component_modules.values().collect::<Vec<_>>(),
-            }]
-        }))
-        .expect("derived cycle policy must be serializable")
     }
 
     fn first_forbidden_dependency(&self) -> Option<(String, String)> {
@@ -359,24 +316,6 @@ fn top_level_module(module: &str) -> String {
     format!("crate::{first_segment}")
 }
 
-fn module_patterns(module: &str) -> [String; 2] {
-    [module.to_owned(), format!("{module}::**")]
-}
-
-fn forbidden_rule_id(source: &str, target: &str) -> String {
-    format!(
-        "self-forbid-{}-to-{}",
-        source
-            .trim_start_matches("crate::")
-            .replace("::", "-")
-            .replace('_', "-"),
-        target
-            .trim_start_matches("crate::")
-            .replace("::", "-")
-            .replace('_', "-")
-    )
-}
-
 fn fixture_entrypoint(design: &ModuleBoundaryDesign) -> String {
     let mut declarations = String::new();
     for module in &design.top_level_modules {
@@ -419,12 +358,22 @@ fn module_file(module: &str) -> String {
     )
 }
 
-fn run_check(project_root: &Path, policy: &Path, package: &str, target: &str) -> Output {
+fn run_check(project_root: &Path, design_root: &Path, package: &str, target: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"))
         .arg("check")
         .arg(project_root)
-        .arg("--policy")
-        .arg(policy)
+        .arg("--logical-structure")
+        .arg(design_root.join(
+            "sdd/dsl/designs/scopes/logical-module-boundary-validation/logical-structure.sdd.yml",
+        ))
+        .arg("--projection")
+        .arg(
+            design_root.join(
+                "sdd/dsl/designs/scopes/logical-module-boundary-validation/projection.sdd.yml",
+            ),
+        )
+        .arg("--directory-structure")
+        .arg(design_root.join("sdd/dsl/designs/global/directory-structure.sdd.yml"))
         .arg("--package")
         .arg(package)
         .arg("--target")

@@ -3,20 +3,14 @@ use std::path::Path;
 use serde::Deserialize;
 
 use crate::boundary_validation::{
-    BoundaryPolicy, BoundaryPolicyLoader, BoundaryRule, CruiserError, DependencyKind, Result,
-    RuleKind, Severity,
+    BoundaryPolicy, BoundaryRule, CruiserError, DependencyKind, Result, RuleKind, Severity,
 };
 
-pub struct YamlBoundaryPolicyLoader;
-
-impl BoundaryPolicyLoader for YamlBoundaryPolicyLoader {
-    fn load(&self, path: &Path) -> Result<BoundaryPolicy> {
-        let content = std::fs::read_to_string(path)?;
-        let dto: BoundaryPolicyDto = serde_yaml::from_str(&content).map_err(|error| {
-            CruiserError::Parse(format!("invalid boundary policy YAML: {error}"))
-        })?;
-        Ok(dto.into_domain())
-    }
+pub(super) fn load(path: &Path) -> Result<BoundaryPolicy> {
+    let content = std::fs::read_to_string(path)?;
+    let dto: BoundaryPolicyDto = serde_yaml::from_str(&content)
+        .map_err(|error| CruiserError::Parse(format!("invalid boundary policy YAML: {error}")))?;
+    Ok(dto.into_domain())
 }
 
 #[derive(Deserialize)]
@@ -125,16 +119,15 @@ impl DependencyKindDto {
 
 #[cfg(test)]
 mod tests {
-    use super::YamlBoundaryPolicyLoader;
-    use crate::boundary_validation::BoundaryPolicyLoader;
+    use super::load;
 
     #[test]
-    fn missing_policy_is_an_error() {
+    fn should_return_an_error_for_a_missing_policy() {
         // Arrange
         let path = std::path::Path::new("policy-that-does-not-exist.yaml");
 
         // Act
-        let result = YamlBoundaryPolicyLoader.load(path);
+        let result = load(path);
 
         // Assert
         assert!(result.is_err());
