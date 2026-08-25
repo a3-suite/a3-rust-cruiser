@@ -71,6 +71,8 @@ rules:
 同じポリシーは[examples/minimal-project/boundary-policy.yaml](examples/minimal-project/boundary-policy.yaml)にもあります。
 
 `--logical-structure`、`--projection`、`--directory-structure`は、SDD設計を正本として管理しているプロジェクト向けの任意入力です。
+project全体のprojectionに含まれる正規source nodeのうち、Rust module解析対象外と確定できるnodeは入力不正とせず、boundary policyの導出対象から除外します。
+複数のlogical componentが同じdirectory nodeへ投影されるmany-to-one、またはcomponentのRust module scopeが親子関係で重なるprojectionは有効入力ですが、Rust moduleからcomponentを一意に帰属できないため、終了コード`2` / `decision: indeterminate`と`analysis.ambiguous-component-attribution`を返します。
 
 ## 最短実行
 

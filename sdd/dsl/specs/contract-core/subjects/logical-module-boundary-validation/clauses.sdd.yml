@@ -162,12 +162,18 @@ contracts:
       circularは空でないmodulesだけを使用する。patternは空でない`::`区切りのsegment列とし、
       各segmentにはliteral、`*`、`**`だけを受理する。未定義field、未対応enum、重複または
       kebab-caseでないid、kind別field制約またはpattern文法に反するruleは解析開始前の入力失敗として扱う。
-      またはCLIはlogical-structure、projection、directory-structureを一組で受け取り、各logical componentを
-      projectionとdirectory nodeを介してRust logical moduleへ一意に対応付ける。宣言済みcomponent依存以外の
-      component間依存をerrorのforbidden ruleへ投影する。logical-structureの宣言依存graphは非循環でなければならず、
-      宣言外依存を禁止することで実装上のcomponent間循環を防ぐ。
-      YAMLとSDDの同時指定、SDD三入力の欠落、未知または重複するcomponent/node参照、重複または包含関係にある
-      Rust logical moduleへの投影、選択したCargo target rootへのcomponent投影、未対応source pathは
+      またはCLIはlogical-structure、projection、directory-structureをproject全体の一組として受け取り、
+      component/node参照とlogical dependency graphの整合性を検証した後、Rust module解析対象へ対応するcomponentだけを
+      projectionとdirectory nodeを介してRust logical moduleへ対応付ける。Rust module解析対象外と確定できる正規source nodeは
+      入力不正または解析不能とせず、BoundaryPolicy導出対象から除外する。複数componentが同じdirectory nodeへ対応する場合、
+      またはcomponentのRust module scopeが親子関係で重なる場合は、component帰属が曖昧な有効入力として扱う。1つのdirectory nodeへ複数componentを
+      対応付けるmany-to-oneは有効入力として受理するが、そのRust logical moduleに関係するcomponent帰属を
+      一意に解析できないため、対象moduleとcomponent集合を伴うAnalysisIssueを返す。曖昧なcomponent組から
+      forbidden ruleを生成せず、一対一で対応するcomponent間では宣言済み依存以外をerrorのforbidden ruleへ投影する。
+      logical-structureの宣言依存graphは非循環でなければならず、宣言外依存を禁止することで実装上のcomponent間循環を防ぐ。
+      YAMLとSDDの同時指定、SDD三入力の欠落、未知のcomponent/node参照、component IDまたはnode IDの重複、
+      1つのcomponentから複数nodeへの投影、異なるdirectory nodeから同一Rust logical moduleへの
+      投影、選択したCargo target rootへのcomponent投影、非正規project path、Rust解析対象内の未対応module pathは
       解析開始前の入力失敗として扱う。
     conditions:
       - id: valid-boundary-policy-input
@@ -639,6 +645,11 @@ contracts:
           kind: input
           term: input.incomplete_analysis
           op: present
+      - id: ambiguous-component-attribution
+        input_predicate:
+          kind: input
+          term: input.ambiguous_component_attribution
+          op: present
       - id: report-request-present
         input_predicate:
           kind: input
@@ -733,6 +744,21 @@ contracts:
                 - analysis.unsupported-name-resolution
                 - analysis.unsupported-syntax
                 - analysis.unsupported-analysis-context
+                - analysis.ambiguous-component-attribution
+      - id: ambiguous-component-attribution-code
+        when: ambiguous-component-attribution
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.analysis_issues.code
+            right:
+              kind: value_set
+              values:
+                - analysis.ambiguous-component-attribution
       - id: analysis-issue-reason-present
         when: report-request-present
         observation_ref: observation.validation.result
@@ -820,6 +846,17 @@ contracts:
           - analysis-issue-code-supported
           - analysis-issue-reason-present
           - analysis-issue-affected-scope-present
+      - id: ambiguous-component-attribution-report
+        goal: >-
+          many-to-one moduleのissue code・module scope・決定的に整列したcomponent集合を確認し、
+          曖昧なmoduleに関係する違反を生成せず、一対一module間で安全に確定する違反を保持することを確認する
+        guarantee_refs:
+          - indeterminate-decision
+          - ambiguous-component-attribution-code
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - report-ordering-canonical
+          - report-violations-present
       - id: json-report-projection
         goal: 共通の検証結果をcanonical順序のJSONへ直列化することを確認する
         guarantee_refs:

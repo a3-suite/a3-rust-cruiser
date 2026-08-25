@@ -148,6 +148,32 @@ verifications:
         checks:
           - id: check-valid-sdd-policy-accepted
             guarantee_ref: valid-sdd-boundary-policy-input-accepted
+      - id: many-to-one-sdd-projection-is-accepted
+        intent_id: sdd-boundary-policy-input-acceptance
+        input:
+          valid_sdd_boundary_policy:
+            projection_shape: many-to-one
+        checks:
+          - id: check-valid-many-to-one-sdd-policy-accepted
+            guarantee_ref: valid-sdd-boundary-policy-input-accepted
+      - id: non-rust-sdd-projection-is-excluded
+        intent_id: sdd-boundary-policy-input-acceptance
+        input:
+          valid_sdd_boundary_policy:
+            projection_contains_source_outside_rust_module_scope: true
+        checks:
+          - id: check-valid-sdd-policy-with-non-rust-node-accepted
+            guarantee_ref: valid-sdd-boundary-policy-input-accepted
+      - id: overlapping-rust-module-projections-are-indeterminate
+        intent_id: sdd-boundary-policy-input-acceptance
+        input:
+          valid_sdd_boundary_policy:
+            rust_module_projection_shape: overlapping-parent-child
+        checks:
+          - id: check-overlapping-rust-module-projection-accepted
+            guarantee_ref: valid-sdd-boundary-policy-input-accepted
+          - id: check-overlapping-rust-module-projection-indeterminate
+            guarantee_ref: ambiguous-component-attribution-code
       - id: incomplete-sdd-design-input-is-rejected
         intent_id: sdd-boundary-policy-input-rejection
         input:
@@ -172,10 +198,10 @@ verifications:
               - unique-component-and-node-identities
               - complete-component-projection
               - known-component-and-node-references
-              - unique-rust-module-projection
-              - non-overlapping-rust-module-projection
+              - distinct-directory-node-rust-modules
               - selected-cargo-target-root-projection-forbidden
-              - supported-rust-source-path
+              - normalized-project-relative-path
+              - supported-rust-module-path
         checks:
           - id: check-inconsistent-sdd-policy-exit-code
             guarantee_ref: invalid-sdd-boundary-policy-input-exits-with-three
@@ -397,6 +423,30 @@ verifications:
         checks:
           - id: check-indeterminate-decision
             guarantee_ref: indeterminate-decision
+      - id: ambiguous-component-attribution-is-indeterminate
+        intent_id: ambiguous-component-attribution-report
+        input:
+          incomplete_analysis:
+            code: analysis.ambiguous-component-attribution
+            affected_scope: crate::shared
+          ambiguous_component_attribution: true
+          report_request: true
+          observed_violation: true
+        checks:
+          - id: check-indeterminate
+            guarantee_ref: indeterminate-decision
+          - id: check-analysis-issues
+            guarantee_ref: analysis-issues-present
+          - id: check-analysis-issue-code
+            guarantee_ref: ambiguous-component-attribution-code
+          - id: check-analysis-issue-reason
+            guarantee_ref: analysis-issue-reason-present
+          - id: check-analysis-issue-affected-scope
+            guarantee_ref: analysis-issue-affected-scope-present
+          - id: check-canonical-ordering
+            guarantee_ref: report-ordering-canonical
+          - id: check-safe-violations-remain-observable
+            guarantee_ref: report-violations-present
       - id: json-report
         intent_id: json-report-projection
         input:

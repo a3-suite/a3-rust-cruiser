@@ -16,7 +16,7 @@ pub trait BoundaryPolicyLoader {
         input: &BoundaryPolicyInput,
         project_root: &Path,
         target_source: &Path,
-    ) -> Result<BoundaryPolicy>;
+    ) -> Result<(BoundaryPolicy, Vec<AnalysisIssue>)>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,11 +64,13 @@ where
         BoundaryPolicyInput::Yaml { .. } => PathBuf::new(),
         BoundaryPolicyInput::SddDesign { .. } => observer.target_source(project_root, &context)?,
     };
-    let policy = policy_loader.load(policy_input, project_root, &target_source)?;
+    let (policy, mut analysis_issues) =
+        policy_loader.load(policy_input, project_root, &target_source)?;
     validate_policy(&policy)?;
     validate_module_patterns(&context.include)?;
     validate_module_patterns(&context.exclude)?;
-    let (graph, analysis_issues) = observer.observe(project_root, context)?;
+    let (graph, observation_issues) = observer.observe(project_root, context)?;
+    analysis_issues.extend(observation_issues);
     let (violations, policy_evaluation) = evaluate(&graph, &policy);
     let decision = decide(analysis_issues.len(), violations.len());
     Ok(ValidationResult {
@@ -173,8 +175,8 @@ mod tests {
             _input: &super::BoundaryPolicyInput,
             _project_root: &std::path::Path,
             _target_source: &std::path::Path,
-        ) -> Result<BoundaryPolicy> {
-            Ok(BoundaryPolicy { rules: Vec::new() })
+        ) -> Result<(BoundaryPolicy, Vec<AnalysisIssue>)> {
+            Ok((BoundaryPolicy { rules: Vec::new() }, Vec::new()))
         }
     }
 
@@ -215,7 +217,7 @@ mod tests {
             _input: &super::BoundaryPolicyInput,
             _project_root: &std::path::Path,
             _target_source: &std::path::Path,
-        ) -> Result<BoundaryPolicy> {
+        ) -> Result<(BoundaryPolicy, Vec<AnalysisIssue>)> {
             let rule = BoundaryRule {
                 id: "duplicate".to_owned(),
                 kind: RuleKind::Forbidden,
@@ -225,9 +227,12 @@ mod tests {
                 modules: Vec::new(),
                 dependency_kinds: Vec::new(),
             };
-            Ok(BoundaryPolicy {
-                rules: vec![rule.clone(), rule],
-            })
+            Ok((
+                BoundaryPolicy {
+                    rules: vec![rule.clone(), rule],
+                },
+                Vec::new(),
+            ))
         }
     }
 

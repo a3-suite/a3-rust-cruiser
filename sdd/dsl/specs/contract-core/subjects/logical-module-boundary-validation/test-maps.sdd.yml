@@ -150,6 +150,28 @@ test_maps:
         check_refs:
           - check-valid-sdd-policy-accepted
   - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: many-to-one-sdd-projection-is-accepted
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: many_to_one_sdd_projection_with_non_rust_nodes_is_accepted
+        check_refs:
+          - check-valid-many-to-one-sdd-policy-accepted
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: non-rust-sdd-projection-is-excluded
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: many_to_one_sdd_projection_with_non_rust_nodes_is_accepted
+        check_refs:
+          - check-valid-sdd-policy-with-non-rust-node-accepted
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: overlapping-rust-module-projections-are-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: overlapping_rust_module_projections_are_indeterminate
+        check_refs:
+          - check-overlapping-rust-module-projection-accepted
+          - check-overlapping-rust-module-projection-indeterminate
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
     case_id: incomplete-sdd-design-input-is-rejected
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
@@ -260,6 +282,19 @@ test_maps:
         symbol: incomplete_analysis_is_indeterminate_even_with_violations
         check_refs:
           - check-indeterminate-decision
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: ambiguous-component-attribution-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: ambiguous_component_attribution_is_indeterminate_without_ambiguous_violations
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+          - check-canonical-ordering
+          - check-safe-violations-remain-observable
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: json-report
     tests:

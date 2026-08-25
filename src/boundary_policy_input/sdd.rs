@@ -6,7 +6,7 @@ use std::{
 use serde::Deserialize;
 
 use crate::boundary_validation::{
-    BoundaryPolicy, BoundaryRule, CruiserError, Result, RuleKind, Severity,
+    AnalysisIssue, BoundaryPolicy, BoundaryRule, CruiserError, Result, RuleKind, Severity,
 };
 
 pub(super) fn load(
@@ -15,7 +15,7 @@ pub(super) fn load(
     directory_structure_path: &Path,
     project_root: &Path,
     target_source: &Path,
-) -> Result<BoundaryPolicy> {
+) -> Result<(BoundaryPolicy, Vec<AnalysisIssue>)> {
     let logical: LogicalStructure = read_yaml(logical_structure_path, "logical-structure")?;
     let projection: Projection = read_yaml(projection_path, "projection")?;
     let directories: DirectoryStructure =
@@ -54,7 +54,8 @@ pub(super) fn load(
     }
 
     let mut component_modules = BTreeMap::new();
-    let mut projected_modules = BTreeSet::new();
+    let mut module_components = BTreeMap::<String, Vec<String>>::new();
+    let mut module_nodes = BTreeMap::new();
     for (component_id, node_id) in mappings {
         let path = nodes.get(&node_id).ok_or_else(|| {
             invalid_sdd(format!(
@@ -66,15 +67,62 @@ pub(super) fn load(
                 "component cannot project to the selected Cargo target root: {path}"
             )));
         }
-        let module = rust_module_id(path)?;
-        if !projected_modules.insert(module.clone()) {
+        let Some(module) = rust_module_id(path)? else {
+            continue;
+        };
+        if module_nodes
+            .insert(module.clone(), node_id.clone())
+            .is_some_and(|existing_node| existing_node != node_id)
+        {
             return Err(invalid_sdd(format!(
-                "multiple components project to the same Rust module: {module}"
+                "multiple directory nodes project to the same Rust module: {module}"
             )));
         }
+        module_components
+            .entry(module.clone())
+            .or_default()
+            .push(component_id.clone());
         component_modules.insert(component_id, module);
     }
-    validate_non_overlapping_modules(&projected_modules)?;
+
+    let mut ambiguous_components = BTreeSet::new();
+    let mut analysis_issues = Vec::new();
+    for (module, components) in module_components
+        .iter()
+        .filter(|(_, components)| components.len() > 1)
+    {
+        ambiguous_components.extend(components.iter().cloned());
+        analysis_issues.push(AnalysisIssue {
+            code: "analysis.ambiguous-component-attribution".to_owned(),
+            reason: format!(
+                "Rust module {module} represents multiple logical components: {}",
+                components.join(", ")
+            ),
+            affected_scope: module.clone(),
+        });
+    }
+    for (ancestor, ancestor_components) in &module_components {
+        let descendant_prefix = format!("{ancestor}::");
+        for (descendant, descendant_components) in module_components
+            .range(descendant_prefix.clone()..)
+            .take_while(|(module, _)| module.starts_with(&descendant_prefix))
+        {
+            let components = ancestor_components
+                .iter()
+                .chain(descendant_components)
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            ambiguous_components.extend(components.iter().cloned());
+            analysis_issues.push(AnalysisIssue {
+                code: "analysis.ambiguous-component-attribution".to_owned(),
+                reason: format!(
+                    "Rust module scope {ancestor} overlaps {descendant} for logical components: {}",
+                    components.into_iter().collect::<Vec<_>>().join(", ")
+                ),
+                affected_scope: descendant.clone(),
+            });
+        }
+    }
 
     let mut declared_dependencies = BTreeSet::new();
     for dependency in logical.dependencies {
@@ -98,6 +146,8 @@ pub(super) fn load(
     for (source_component, source_module) in &component_modules {
         for (target_component, target_module) in &component_modules {
             if source_component != target_component
+                && !ambiguous_components.contains(source_component)
+                && !ambiguous_components.contains(target_component)
                 && !declared_dependencies
                     .contains(&(source_component.clone(), target_component.clone()))
             {
@@ -113,7 +163,7 @@ pub(super) fn load(
             }
         }
     }
-    Ok(BoundaryPolicy { rules })
+    Ok((BoundaryPolicy { rules }, analysis_issues))
 }
 
 fn validate_acyclic_dependencies(
@@ -197,7 +247,7 @@ fn unique_pairs(
     Ok(unique)
 }
 
-fn rust_module_id(path: &str) -> Result<String> {
+fn rust_module_id(path: &str) -> Result<Option<String>> {
     if path.starts_with('/')
         || path
             .split('/')
@@ -207,9 +257,9 @@ fn rust_module_id(path: &str) -> Result<String> {
             "component path must be a normalized path below src/: {path}"
         )));
     }
-    let relative = path
-        .strip_prefix("src/")
-        .ok_or_else(|| invalid_sdd(format!("component path must be below src/: {path}")))?;
+    let Some(relative) = path.strip_prefix("src/") else {
+        return Ok(None);
+    };
     let module_path = relative
         .strip_suffix("/mod.rs")
         .or_else(|| relative.strip_suffix(".rs"))
@@ -228,7 +278,7 @@ fn rust_module_id(path: &str) -> Result<String> {
             "component path contains an unsupported Rust module segment: {path}"
         )));
     }
-    Ok(format!("crate::{}", segments.join("::")))
+    Ok(Some(format!("crate::{}", segments.join("::"))))
 }
 
 fn is_rust_module_segment(segment: &str) -> bool {
@@ -241,22 +291,6 @@ fn is_rust_module_segment(segment: &str) -> bool {
 
 fn module_patterns(module: &str) -> Vec<String> {
     vec![module.to_owned(), format!("{module}::**")]
-}
-
-fn validate_non_overlapping_modules(modules: &BTreeSet<String>) -> Result<()> {
-    for module in modules {
-        let descendant_prefix = format!("{module}::");
-        if let Some(descendant) = modules
-            .range(descendant_prefix.clone()..)
-            .next()
-            .filter(|candidate| candidate.starts_with(&descendant_prefix))
-        {
-            return Err(invalid_sdd(format!(
-                "component Rust modules must not overlap: {module} and {descendant}"
-            )));
-        }
-    }
-    Ok(())
 }
 
 fn invalid_sdd(message: impl Into<String>) -> CruiserError {
@@ -317,14 +351,31 @@ mod tests {
         let module_root = "src/infrastructure/mod.rs";
 
         // Act
-        let mapped_file = rust_module_id(module_file).expect("module file should map");
-        let mapped_directory =
-            rust_module_id(module_directory).expect("module directory should map");
-        let mapped_root = rust_module_id(module_root).expect("mod.rs should map");
+        let mapped_file = rust_module_id(module_file)
+            .expect("module file should be valid")
+            .expect("module file should map");
+        let mapped_directory = rust_module_id(module_directory)
+            .expect("module directory should be valid")
+            .expect("module directory should map");
+        let mapped_root = rust_module_id(module_root)
+            .expect("mod.rs should be valid")
+            .expect("mod.rs should map");
 
         // Assert
         assert_eq!(mapped_file, "crate::application");
         assert_eq!(mapped_directory, "crate::domain::model");
         assert_eq!(mapped_root, "crate::infrastructure");
+    }
+
+    #[test]
+    fn should_exclude_project_sources_outside_the_rust_module_scope() {
+        // Arrange
+        let path = ".ci/scripts";
+
+        // Act
+        let mapped = rust_module_id(path).expect("project-relative path should be valid");
+
+        // Assert
+        assert_eq!(mapped, None);
     }
 }

@@ -48,6 +48,65 @@ fn forbidden_fixture(label: &str, with_issue: bool) -> TempFixture {
     fixture
 }
 
+fn many_to_one_sdd_fixture() -> TempFixture {
+    let fixture = TempFixture::new("many-to-one-sdd-policy-input");
+    fixture.write(
+        "src/main.rs",
+        "mod infrastructure;\nmod reporting;\nmod shared;\nfn main() {}\n",
+    );
+    fixture.write("src/infrastructure.rs", "pub struct Thing;\n");
+    fixture.write(
+        "src/reporting.rs",
+        "use crate::infrastructure::Thing;\npub fn report() -> Thing { Thing }\n",
+    );
+    fixture.write(
+        "src/shared.rs",
+        "use crate::infrastructure::Thing;\npub fn run() -> Thing { Thing }\n",
+    );
+    fixture.write(
+        "logical-structure.sdd.yml",
+        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: domain\n  - component_id: application\n  - component_id: infrastructure\n  - component_id: reporting\n  - component_id: ci-publish-script-adapter\ndependencies:\n  - from_component_id: application\n    to_component_id: infrastructure\n",
+    );
+    fixture.write(
+        "projection.sdd.yml",
+        "version: 1\nname: projection\nprojection_id: fixture-source\nmappings:\n  - component_id: domain\n    node_id: src-shared\n  - component_id: application\n    node_id: src-shared\n  - component_id: infrastructure\n    node_id: src-infrastructure\n  - component_id: reporting\n    node_id: src-reporting\n  - component_id: ci-publish-script-adapter\n    node_id: ci-scripts\n",
+    );
+    fixture.write(
+        "directory-structure.sdd.yml",
+        "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n  - node_id: src-infrastructure\n    path: src/infrastructure.rs\n  - node_id: src-reporting\n    path: src/reporting.rs\n  - node_id: src-shared\n    path: src/shared.rs\n  - node_id: ci-scripts\n    path: .ci/scripts\n",
+    );
+    fixture
+}
+
+fn run_sdd_check(fixture: &TempFixture, include_directory_structure: bool) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"));
+    command
+        .arg("check")
+        .arg(fixture.path())
+        .arg("--logical-structure")
+        .arg(fixture.join("logical-structure.sdd.yml"))
+        .arg("--projection")
+        .arg(fixture.join("projection.sdd.yml"));
+    if include_directory_structure {
+        command
+            .arg("--directory-structure")
+            .arg(fixture.join("directory-structure.sdd.yml"));
+    }
+    command
+        .arg("--package")
+        .arg(fixture.package())
+        .arg("--target")
+        .arg(fixture.target())
+        .args([
+            "--target-triple",
+            "x86_64-unknown-linux-gnu",
+            "--format",
+            "json",
+        ])
+        .output()
+        .expect("binary should run")
+}
+
 fn run_check(fixture: &TempFixture, format: &str) -> Output {
     run_check_with(fixture, "bin", format, &[])
 }

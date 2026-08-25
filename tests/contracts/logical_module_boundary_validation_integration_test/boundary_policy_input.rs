@@ -23,6 +23,18 @@ fn sdd_design_is_projected_to_a_boundary_policy() {
 }
 
 #[test]
+fn many_to_one_sdd_projection_with_non_rust_nodes_is_accepted() {
+    // Arrange
+    let fixture = many_to_one_sdd_fixture();
+
+    // Act
+    let output = run_sdd_check(&fixture, true);
+
+    // Assert
+    assert_completed_output(&output, 2, "indeterminate");
+}
+
+#[test]
 fn incomplete_sdd_design_input_is_rejected() {
     // Arrange
     let fixture = TempFixture::new("incomplete-sdd-policy-input");
@@ -89,6 +101,24 @@ fn cargo_target_root_component_projections_are_rejected() {
 }
 
 #[test]
+fn overlapping_rust_module_projections_are_indeterminate() {
+    // Arrange
+    let fixture = TempFixture::new("overlapping-rust-module-sdd-policy-input");
+    write_sdd_policy_input(&fixture);
+    fixture.write(
+        "directory-structure.sdd.yml",
+        "nodes:\n  - node_id: src-application\n    path: src/application\n  - node_id: src-domain\n    path: src/application/domain.rs\n",
+    );
+
+    // Act
+    let output = run_sdd_check(&fixture, true);
+
+    // Assert
+    let report = completed_json(&output, 2);
+    assert_issue(&report, "analysis.ambiguous-component-attribution");
+}
+
+#[test]
 fn inconsistent_sdd_design_inputs_are_rejected() {
     // Arrange
     let cases = [
@@ -147,16 +177,10 @@ fn inconsistent_sdd_design_inputs_are_rejected() {
             "same Rust module",
         ),
         (
-            "overlapping-rust-modules",
+            "non-normalized-project-path",
             "directory-structure.sdd.yml",
-            "nodes:\n  - node_id: src-application\n    path: src/application\n  - node_id: src-domain\n    path: src/application/domain.rs\n",
-            "component Rust modules must not overlap",
-        ),
-        (
-            "path-outside-source",
-            "directory-structure.sdd.yml",
-            "nodes:\n  - node_id: src-application\n    path: application.rs\n  - node_id: src-domain\n    path: src/domain.rs\n",
-            "component path must be below src/",
+            "nodes:\n  - node_id: src-application\n    path: ../application.rs\n  - node_id: src-domain\n    path: src/domain.rs\n",
+            "component path must be a normalized path",
         ),
         (
             "unsupported-module-segment",
@@ -319,33 +343,4 @@ fn write_sdd_policy_input(fixture: &TempFixture) {
         "directory-structure.sdd.yml",
         "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n  - node_id: src-application\n    path: src/application.rs\n  - node_id: src-domain\n    path: src/domain.rs\n",
     );
-}
-
-fn run_sdd_check(fixture: &TempFixture, include_directory_structure: bool) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"));
-    command
-        .arg("check")
-        .arg(fixture.path())
-        .arg("--logical-structure")
-        .arg(fixture.join("logical-structure.sdd.yml"))
-        .arg("--projection")
-        .arg(fixture.join("projection.sdd.yml"));
-    if include_directory_structure {
-        command
-            .arg("--directory-structure")
-            .arg(fixture.join("directory-structure.sdd.yml"));
-    }
-    command
-        .arg("--package")
-        .arg(fixture.package())
-        .arg("--target")
-        .arg(fixture.target())
-        .args([
-            "--target-triple",
-            "x86_64-unknown-linux-gnu",
-            "--format",
-            "json",
-        ])
-        .output()
-        .expect("binary should run")
 }

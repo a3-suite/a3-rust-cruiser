@@ -52,6 +52,37 @@ fn incomplete_analysis_is_indeterminate_even_with_violations() {
 }
 
 #[test]
+fn ambiguous_component_attribution_is_indeterminate_without_ambiguous_violations() {
+    // Arrange
+    let fixture = many_to_one_sdd_fixture();
+
+    // Act
+    let report = completed_json(&run_sdd_check(&fixture, true), 2);
+
+    // Assert
+    assert_eq!(report["decision"], "indeterminate");
+    assert_eq!(report["ordering"], "canonical");
+    assert_issue(&report, "analysis.ambiguous-component-attribution");
+    assert_eq!(
+        report["analysis_issues"][0]["affected_scope"],
+        "crate::shared"
+    );
+    assert_eq!(
+        report["analysis_issues"][0]["reason"],
+        "Rust module crate::shared represents multiple logical components: application, domain"
+    );
+    let violations = report["violations"]
+        .as_array()
+        .expect("violations should be an array");
+    assert!(violations.iter().any(|violation| {
+        violation["source"] == "crate::reporting" && violation["target"] == "crate::infrastructure"
+    }));
+    assert!(violations.iter().all(|violation| {
+        violation["source"] != "crate::shared" && violation["target"] != "crate::shared"
+    }));
+}
+
+#[test]
 fn json_report_projects_common_validation_result() {
     // Arrange
     let fixture = forbidden_fixture("json-report", true);
