@@ -234,7 +234,7 @@ fn source_union_includes_conditional_external_dependencies() {
 #[test]
 fn source_union_preserves_conditional_dependency_kind_boundaries() {
     // Arrange
-    let fixture = TempFixture::new("source-union-target-cfg-dependencies");
+    let fixture = policy_sensitive_fixture("source-union-target-cfg-dependencies");
     fixture.write_manifest(
         "[target.'cfg(unix)'.dependencies]\ncfg-runtime = \"1\"\n[target.'cfg(unix)'.dev-dependencies]\ncfg-dev = \"1\"\n[target.'cfg(unix)'.build-dependencies]\ncfg-build = \"1\"\n",
     );
@@ -477,7 +477,7 @@ fn leading_colon_selects_the_external_crate_namespace() {
 #[test]
 fn declared_item_kinds_support_complete_path_resolution() {
     // Arrange
-    let fixture = TempFixture::new("declared-items");
+    let fixture = policy_sensitive_fixture("declared-items");
     fixture.write(
         "src/main.rs",
         "mod domain;\nfn consume(_: crate::domain::Model) {}\nfn main() {}\n",

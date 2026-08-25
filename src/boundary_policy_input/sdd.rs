@@ -92,14 +92,15 @@ pub(super) fn load(
         .filter(|(_, components)| components.len() > 1)
     {
         ambiguous_components.extend(components.iter().cloned());
-        analysis_issues.push(AnalysisIssue {
-            code: "analysis.ambiguous-component-attribution".to_owned(),
-            reason: format!(
+        analysis_issues.push(AnalysisIssue::component_attribution_unresolved(
+            "analysis.ambiguous-component-attribution",
+            format!(
                 "Rust module {module} represents multiple logical components: {}",
                 components.join(", ")
             ),
-            affected_scope: module.clone(),
-        });
+            module.clone(),
+            components.clone(),
+        ));
     }
     for (ancestor, ancestor_components) in &module_components {
         let descendant_prefix = format!("{ancestor}::");
@@ -113,14 +114,16 @@ pub(super) fn load(
                 .cloned()
                 .collect::<BTreeSet<_>>();
             ambiguous_components.extend(components.iter().cloned());
-            analysis_issues.push(AnalysisIssue {
-                code: "analysis.ambiguous-component-attribution".to_owned(),
-                reason: format!(
+            let candidate_components = components.iter().cloned().collect::<Vec<_>>();
+            analysis_issues.push(AnalysisIssue::component_attribution_unresolved(
+                "analysis.ambiguous-component-attribution",
+                format!(
                     "Rust module scope {ancestor} overlaps {descendant} for logical components: {}",
-                    components.into_iter().collect::<Vec<_>>().join(", ")
+                    candidate_components.join(", ")
                 ),
-                affected_scope: descendant.clone(),
-            });
+                descendant.clone(),
+                candidate_components,
+            ));
         }
     }
 

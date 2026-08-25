@@ -160,23 +160,8 @@ fn observe(
     observer
         .declarations
         .dedup_by(|left, right| left.declaration_id == right.declaration_id);
-    observer.issues.sort_by(|left, right| {
-        (
-            left.code.as_str(),
-            left.affected_scope.as_str(),
-            left.reason.as_str(),
-        )
-            .cmp(&(
-                right.code.as_str(),
-                right.affected_scope.as_str(),
-                right.reason.as_str(),
-            ))
-    });
-    observer.issues.dedup_by(|left, right| {
-        left.code == right.code
-            && left.affected_scope == right.affected_scope
-            && left.reason == right.reason
-    });
+    observer.issues.sort_by(AnalysisIssue::canonical_cmp);
+    observer.issues.dedup();
 
     let graph = ObservedDependencyGraph {
         analysis_context: context,
@@ -202,11 +187,15 @@ impl Observer {
         let ast = match syn::parse_file(&source) {
             Ok(ast) => ast,
             Err(error) => {
-                self.issues.push(AnalysisIssue {
-                    code: "analysis.unsupported-syntax".to_owned(),
-                    reason: format!("unable to parse {}: {error}", path.display()),
-                    affected_scope: id.to_owned(),
-                });
+                let evidence = self.evidence(path, error.span().start());
+                self.issues.push(AnalysisIssue::analysis_context_unresolved(
+                    "analysis.unsupported-syntax",
+                    format!("unable to parse {}: {error}", path.display()),
+                    id,
+                    Some(id.to_owned()),
+                    Some(evidence),
+                    all_dependency_kinds(),
+                ));
                 return Ok(());
             }
         };
@@ -246,14 +235,17 @@ impl Observer {
                 declaration_id: format!("decl:{parent_id}:{}", module.ident),
                 parent: parent_id.to_owned(),
                 child: child_id.clone(),
-                evidence,
+                evidence: evidence.clone(),
             });
             if has_path_attribute(&module.attrs) {
-                self.issues.push(AnalysisIssue {
-                    code: "analysis.unsupported-syntax".to_owned(),
-                    reason: "#[path] module declarations are not supported in the MVP".to_owned(),
-                    affected_scope: child_id,
-                });
+                self.issues.push(AnalysisIssue::analysis_context_unresolved(
+                    "analysis.unsupported-syntax",
+                    "#[path] module declarations are not supported in the MVP",
+                    child_id.clone(),
+                    Some(parent_id.to_owned()),
+                    Some(evidence),
+                    all_dependency_kinds(),
+                ));
                 continue;
             }
             if let Some((_, inline_items)) = module.content {
@@ -368,30 +360,38 @@ impl Observer {
             .collect();
         for use_span in visitor.use_spans {
             if !top_level_use_spans.contains(&use_span) {
-                issues.push(AnalysisIssue {
-                    code: "analysis.unsupported-name-resolution".to_owned(),
-                    reason:
-                        "block-scoped use declarations are outside the MVP name-resolution boundary"
-                            .to_owned(),
-                    affected_scope: format!("{source_id}:{}", use_span.line),
-                });
+                issues.push(AnalysisIssue::unresolved_dependency_candidate(
+                    "analysis.unsupported-name-resolution",
+                    "block-scoped use declarations are outside the MVP name-resolution boundary",
+                    format!("{source_id}:{}", use_span.line),
+                    source_id.to_owned(),
+                    self.evidence(&variant.path, use_span),
+                    Vec::new(),
+                    vec![DependencyKind::Import],
+                ));
             }
         }
         if analysis_profile == AnalysisProfile::Compilation {
             for macro_span in visitor.macro_spans {
-                issues.push(AnalysisIssue {
-                    code: "analysis.unsupported-macro-expansion".to_owned(),
-                    reason: "macro expansion is outside the MVP observer boundary".to_owned(),
-                    affected_scope: format!("{source_id}:{}", macro_span.line),
-                });
+                issues.push(AnalysisIssue::unresolved_dependency_candidate(
+                    "analysis.unsupported-macro-expansion",
+                    "macro expansion is outside the MVP observer boundary",
+                    format!("{source_id}:{}", macro_span.line),
+                    source_id.to_owned(),
+                    self.evidence(&variant.path, macro_span),
+                    Vec::new(),
+                    all_dependency_kinds(),
+                ));
             }
             for cfg_span in visitor.cfg_spans {
-                issues.push(AnalysisIssue {
-                    code: "analysis.unsupported-analysis-context".to_owned(),
-                    reason: "cfg and feature conditions are not evaluated by the MVP observer"
-                        .to_owned(),
-                    affected_scope: format!("{source_id}:{}", cfg_span.line),
-                });
+                issues.push(AnalysisIssue::analysis_context_unresolved(
+                    "analysis.unsupported-analysis-context",
+                    "cfg and feature conditions are not evaluated by the MVP observer",
+                    format!("{source_id}:{}", cfg_span.line),
+                    Some(source_id.to_owned()),
+                    Some(self.evidence(&variant.path, cfg_span)),
+                    all_dependency_kinds(),
+                ));
             }
         }
         for path in visitor.paths {
@@ -420,24 +420,46 @@ impl Observer {
                 );
                 if explicit_relative_path || requires_complete_resolution || may_reference_internal
                 {
-                    issues.push(AnalysisIssue {
-                        code: if path_segments
-                            .first()
-                            .is_some_and(|first| self.context_dependent_crates.contains(first))
-                        {
-                            "analysis.unsupported-analysis-context"
-                        } else if explicit_relative_path {
-                            "analysis.unresolved-reference"
-                        } else {
-                            "analysis.unsupported-name-resolution"
-                        }
-                        .to_owned(),
-                        reason: format!(
-                            "unable to resolve path {}",
-                            path_to_string(&path_segments)
-                        ),
-                        affected_scope: source_id.to_owned(),
-                    });
+                    let code = if path_segments
+                        .first()
+                        .is_some_and(|first| self.context_dependent_crates.contains(first))
+                    {
+                        "analysis.unsupported-analysis-context"
+                    } else if explicit_relative_path {
+                        "analysis.unresolved-reference"
+                    } else {
+                        "analysis.unsupported-name-resolution"
+                    };
+                    let reason =
+                        format!("unable to resolve path {}", path_to_string(&path_segments));
+                    let evidence = self.evidence(&variant.path, path.span().start());
+                    let candidate_targets = self.candidate_targets_for_path(
+                        source_id,
+                        variant,
+                        &path_segments,
+                        path.leading_colon.is_some(),
+                        all_modules,
+                    );
+                    if code == "analysis.unsupported-analysis-context" {
+                        issues.push(AnalysisIssue::analysis_context_unresolved(
+                            code,
+                            reason,
+                            source_id,
+                            Some(source_id.to_owned()),
+                            Some(evidence),
+                            vec![DependencyKind::PathReference],
+                        ));
+                    } else {
+                        issues.push(AnalysisIssue::unresolved_dependency_candidate(
+                            code,
+                            reason,
+                            source_id,
+                            source_id.to_owned(),
+                            evidence,
+                            candidate_targets,
+                            vec![DependencyKind::PathReference],
+                        ));
+                    }
                 }
                 continue;
             }
@@ -539,21 +561,45 @@ impl Observer {
                     path.first().map(String::as_str),
                     Some("crate" | "self" | "super")
                 );
-                issues.push(AnalysisIssue {
-                    code: if path
-                        .first()
-                        .is_some_and(|first| self.context_dependent_crates.contains(first))
-                    {
-                        "analysis.unsupported-analysis-context"
-                    } else if explicit_relative_path {
-                        "analysis.unresolved-reference"
-                    } else {
-                        "analysis.unsupported-name-resolution"
-                    }
-                    .to_owned(),
-                    reason: format!("unable to resolve use path {}", path_to_string(&path)),
-                    affected_scope: source_id.to_owned(),
-                });
+                let code = if path
+                    .first()
+                    .is_some_and(|first| self.context_dependent_crates.contains(first))
+                {
+                    "analysis.unsupported-analysis-context"
+                } else if explicit_relative_path {
+                    "analysis.unresolved-reference"
+                } else {
+                    "analysis.unsupported-name-resolution"
+                };
+                let reason = format!("unable to resolve use path {}", path_to_string(&path));
+                let evidence = self.evidence(&source_variant.path, use_item.span().start());
+                let candidate_targets = self.candidate_targets_for_path(
+                    source_id,
+                    source_variant,
+                    &path,
+                    use_item.leading_colon.is_some(),
+                    all_modules,
+                );
+                if code == "analysis.unsupported-analysis-context" {
+                    issues.push(AnalysisIssue::analysis_context_unresolved(
+                        code,
+                        reason,
+                        source_id,
+                        Some(source_id.to_owned()),
+                        Some(evidence),
+                        vec![kind],
+                    ));
+                } else {
+                    issues.push(AnalysisIssue::unresolved_dependency_candidate(
+                        code,
+                        reason,
+                        source_id,
+                        source_id.to_owned(),
+                        evidence,
+                        candidate_targets,
+                        vec![kind],
+                    ));
+                }
                 continue;
             }
             let evidence = self.evidence(&source_variant.path, use_item.span().start());
@@ -575,6 +621,34 @@ impl Observer {
             }
         }
         (dependencies, issues)
+    }
+
+    fn candidate_targets_for_path(
+        &self,
+        source_id: &str,
+        source_variant: &ModuleVariant,
+        path: &[String],
+        leading_colon: bool,
+        all_modules: &BTreeSet<String>,
+    ) -> Vec<String> {
+        let mut candidates = BTreeSet::new();
+        for end in (1..path.len()).rev() {
+            for (target, scope) in self.resolve_path(
+                source_id,
+                source_variant,
+                &path[..end],
+                leading_colon,
+                all_modules,
+            ) {
+                if scope == TargetScope::InternalModule && target != source_id {
+                    candidates.insert(target);
+                }
+            }
+            if !candidates.is_empty() {
+                break;
+            }
+        }
+        candidates.into_iter().collect()
     }
 
     fn resolve_path(
@@ -735,6 +809,14 @@ impl Observer {
             column,
         }
     }
+}
+
+fn all_dependency_kinds() -> Vec<DependencyKind> {
+    vec![
+        DependencyKind::Import,
+        DependencyKind::ReExport,
+        DependencyKind::PathReference,
+    ]
 }
 
 fn known_external_crate(name: &str) -> bool {

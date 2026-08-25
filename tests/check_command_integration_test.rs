@@ -192,7 +192,10 @@ fn unsupported_macro_makes_the_decision_indeterminate() {
         "[package]\nname = \"macro-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
     );
     fixture.write("src/main.rs", "fn main() { println!(\"hello\"); }\n");
-    fixture.write("policy.yaml", "rules: []\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: possible-crate-cycle\n    kind: circular\n    severity: error\n    modules: [crate, 'crate::**']\n",
+    );
 
     // Act
     let output = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"))
@@ -225,6 +228,10 @@ fn unsupported_macro_makes_the_decision_indeterminate() {
     assert_eq!(
         report["analysis_issues"][0]["code"],
         "analysis.unsupported-macro-expansion"
+    );
+    assert_eq!(
+        report["analysis_issues"][0]["policy_impact"]["outcome"],
+        "possible"
     );
 }
 

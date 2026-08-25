@@ -73,20 +73,19 @@ pub fn build(result: ValidationResult, serialization: &str) -> ValidationReport 
     });
     graph.excluded_scopes.sort();
     violations.sort_by(BoundaryViolation::canonical_cmp);
-    analysis_issues.sort_by(|left, right| {
-        (
-            left.code.as_str(),
-            left.affected_scope.as_str(),
-            left.reason.as_str(),
-        )
-            .cmp(&(
-                right.code.as_str(),
-                right.affected_scope.as_str(),
-                right.reason.as_str(),
-            ))
-    });
+    for issue in &mut analysis_issues {
+        issue.observation.candidate_targets.sort();
+        issue.observation.candidate_targets.dedup();
+        issue.observation.candidate_components.sort();
+        issue.observation.candidate_components.dedup();
+        issue.observation.dependency_kinds.sort();
+        issue.observation.dependency_kinds.dedup();
+        issue.policy_impact.rule_ids.sort();
+        issue.policy_impact.rule_ids.dedup();
+    }
+    analysis_issues.sort_by(AnalysisIssue::canonical_cmp);
     ValidationReport {
-        schema_version: "1".to_owned(),
+        schema_version: "2".to_owned(),
         serialization: serialization.to_owned(),
         ordering: "canonical".to_owned(),
         analysis_context: graph.analysis_context,
@@ -128,12 +127,51 @@ fn report_value(report: &ValidationReport) -> Value {
             "allowed_match_handling": report.policy_evaluation.allowed_match_handling,
             "cycle_handling": report.policy_evaluation.cycle_handling,
         },
-        "analysis_issues": report.analysis_issues.iter().map(|issue| json!({
-            "code": issue.code,
-            "reason": issue.reason,
-            "affected_scope": issue.affected_scope,
-        })).collect::<Vec<_>>(),
+        "analysis_issues": report.analysis_issues.iter().map(analysis_issue_value).collect::<Vec<_>>(),
         "decision": decision_name(report.decision),
+    })
+}
+
+fn analysis_issue_value(issue: &AnalysisIssue) -> Value {
+    let mut observation = Map::new();
+    observation.insert(
+        "outcome".to_owned(),
+        json!(issue.observation.outcome.as_str()),
+    );
+    if let Some(source_module) = &issue.observation.source_module {
+        observation.insert("source_module".to_owned(), json!(source_module));
+    }
+    if let Some(evidence) = &issue.observation.evidence {
+        observation.insert("evidence".to_owned(), source_evidence_value(evidence));
+    }
+    observation.insert(
+        "candidate_targets".to_owned(),
+        json!(issue.observation.candidate_targets),
+    );
+    observation.insert(
+        "candidate_components".to_owned(),
+        json!(issue.observation.candidate_components),
+    );
+    observation.insert(
+        "dependency_kinds".to_owned(),
+        json!(
+            issue
+                .observation
+                .dependency_kinds
+                .iter()
+                .map(|kind| kind.as_str())
+                .collect::<Vec<_>>()
+        ),
+    );
+    json!({
+        "code": issue.code,
+        "reason": issue.reason,
+        "affected_scope": issue.affected_scope,
+        "observation": Value::Object(observation),
+        "policy_impact": {
+            "outcome": issue.policy_impact.outcome.as_str(),
+            "rule_ids": issue.policy_impact.rule_ids,
+        },
     })
 }
 
@@ -293,6 +331,42 @@ pub fn to_text(report: &ValidationReport) -> String {
             "  - {} [{}] {}\n",
             issue.code, issue.affected_scope, issue.reason
         ));
+        output.push_str(&format!(
+            "    observation: {}\n",
+            issue.observation.outcome.as_str()
+        ));
+        if let Some(source_module) = &issue.observation.source_module {
+            output.push_str(&format!("    source_module: {source_module}\n"));
+        }
+        if let Some(evidence) = &issue.observation.evidence {
+            output.push_str(&format!(
+                "    evidence: {}:{}:{}\n",
+                evidence.path, evidence.line, evidence.column
+            ));
+        }
+        output.push_str(&format!(
+            "    candidate_targets: [{}]\n",
+            issue.observation.candidate_targets.join(", ")
+        ));
+        output.push_str(&format!(
+            "    candidate_components: [{}]\n",
+            issue.observation.candidate_components.join(", ")
+        ));
+        output.push_str(&format!(
+            "    dependency_kinds: [{}]\n",
+            issue
+                .observation
+                .dependency_kinds
+                .iter()
+                .map(|kind| kind.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+        output.push_str(&format!(
+            "    policy_impact: {} [{}]\n",
+            issue.policy_impact.outcome.as_str(),
+            issue.policy_impact.rule_ids.join(", ")
+        ));
     }
     output.push_str(&format!(
         "policy_evaluation: dependency={} cycle={} forbidden={} allowed={} circular={}\n",
@@ -347,7 +421,7 @@ mod tests {
     fn should_include_the_decision_in_a_text_report() {
         // Arrange
         let report = ValidationReport {
-            schema_version: "1".to_owned(),
+            schema_version: "2".to_owned(),
             serialization: "text".to_owned(),
             ordering: "canonical".to_owned(),
             analysis_context: AnalysisContext {

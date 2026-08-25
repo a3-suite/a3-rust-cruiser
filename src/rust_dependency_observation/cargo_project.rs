@@ -389,15 +389,22 @@ fn collect_required_feature_issue(
         }
     }
     if !missing.is_empty() {
-        issues.push(AnalysisIssue {
-            code: "analysis.unsupported-analysis-context".to_owned(),
-            reason: format!(
+        issues.push(AnalysisIssue::analysis_context_unresolved(
+            "analysis.unsupported-analysis-context",
+            format!(
                 "target {} requires inactive features: {}",
                 context.compilation_target,
                 missing.join(", ")
             ),
-            affected_scope: context.compilation_target.clone(),
-        });
+            context.compilation_target.clone(),
+            None,
+            None,
+            vec![
+                crate::boundary_validation::DependencyKind::Import,
+                crate::boundary_validation::DependencyKind::ReExport,
+                crate::boundary_validation::DependencyKind::PathReference,
+            ],
+        ));
     }
     Ok(())
 }

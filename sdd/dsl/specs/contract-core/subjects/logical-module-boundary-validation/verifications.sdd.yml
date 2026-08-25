@@ -418,23 +418,62 @@ verifications:
       - id: incomplete-with-observed-violation
         intent_id: decision-precedence
         input:
-          incomplete_analysis: true
+          complete_with_violation: true
+          analysis_issue_policy_impact_possible: true
           observed_violation: true
+        checks:
+          - id: check-non-conformant-decision
+            guarantee_ref: non-conformant-decision
+      - id: unresolved-candidate-without-policy-impact
+        intent_id: analysis-issue-classification
+        input:
+          complete_without_violation: true
+          unresolved_dependency_analysis_issue: true
+          analysis_issue_policy_impact_none: true
+          report_request: true
+        checks:
+          - id: check-conformant-decision
+            guarantee_ref: conformant-decision
+          - id: check-unresolved-observation
+            guarantee_ref: unresolved-dependency-observation
+          - id: check-no-policy-impact
+            guarantee_ref: analysis-issue-has-no-policy-impact
+      - id: dependency-neutral-without-policy-impact
+        intent_id: analysis-issue-classification
+        input:
+          complete_without_violation: true
+          dependency_neutral_analysis_issue: true
+          analysis_issue_policy_impact_none: true
+          report_request: true
+        checks:
+          - id: check-conformant-decision
+            guarantee_ref: conformant-decision
+          - id: check-neutral-policy-impact
+            guarantee_ref: dependency-neutral-has-no-policy-impact
+      - id: unresolved-candidate-with-possible-policy-impact
+        intent_id: analysis-issue-classification
+        input:
+          unresolved_dependency_analysis_issue: true
+          analysis_issue_policy_impact_possible: true
+          report_request: true
         checks:
           - id: check-indeterminate-decision
             guarantee_ref: indeterminate-decision
-      - id: ambiguous-component-attribution-is-indeterminate
+          - id: check-unresolved-observation
+            guarantee_ref: unresolved-dependency-observation
+      - id: ambiguous-component-attribution-is-non-conformant
         intent_id: ambiguous-component-attribution-report
         input:
-          incomplete_analysis:
+          analysis_issue_policy_impact_possible:
             code: analysis.ambiguous-component-attribution
             affected_scope: crate::shared
           ambiguous_component_attribution: true
+          complete_with_violation: true
           report_request: true
           observed_violation: true
         checks:
-          - id: check-indeterminate
-            guarantee_ref: indeterminate-decision
+          - id: check-non-conformant
+            guarantee_ref: non-conformant-decision
           - id: check-analysis-issues
             guarantee_ref: analysis-issues-present
           - id: check-analysis-issue-code
@@ -522,9 +561,9 @@ verifications:
           - id: check-report-violations
             guarantee_ref: report-violations-present
       - id: unresolved-reference-is-indeterminate
-        intent_id: incomplete-analysis-classification
+        intent_id: analysis-issue-classification
         input:
-          incomplete_analysis: true
+          analysis_issue_policy_impact_possible: true
           report_request:
             format: json
           analysis_issue:
@@ -541,10 +580,10 @@ verifications:
           - id: check-analysis-issue-affected-scope
             guarantee_ref: analysis-issue-affected-scope-present
       - id: source-union-unresolved-reference-is-indeterminate
-        intent_id: incomplete-analysis-classification
+        intent_id: analysis-issue-classification
         input:
           analysis_profile: source-union
-          incomplete_analysis: true
+          analysis_issue_policy_impact_possible: true
           report_request:
             format: json
           analysis_issue:
@@ -561,9 +600,9 @@ verifications:
           - id: check-analysis-issue-affected-scope
             guarantee_ref: analysis-issue-affected-scope-present
       - id: unsupported-macro-expansion-is-indeterminate
-        intent_id: incomplete-analysis-classification
+        intent_id: analysis-issue-classification
         input:
-          incomplete_analysis: true
+          analysis_issue_policy_impact_possible: true
           report_request:
             format: json
           analysis_issue:
@@ -580,9 +619,9 @@ verifications:
           - id: check-analysis-issue-affected-scope
             guarantee_ref: analysis-issue-affected-scope-present
       - id: unsupported-name-resolution-is-indeterminate
-        intent_id: incomplete-analysis-classification
+        intent_id: analysis-issue-classification
         input:
-          incomplete_analysis: true
+          analysis_issue_policy_impact_possible: true
           report_request:
             format: json
           analysis_issue:
@@ -599,9 +638,9 @@ verifications:
           - id: check-analysis-issue-affected-scope
             guarantee_ref: analysis-issue-affected-scope-present
       - id: unsupported-syntax-is-indeterminate
-        intent_id: incomplete-analysis-classification
+        intent_id: analysis-issue-classification
         input:
-          incomplete_analysis: true
+          analysis_issue_policy_impact_possible: true
           report_request:
             format: json
           analysis_issue:
@@ -618,9 +657,9 @@ verifications:
           - id: check-analysis-issue-affected-scope
             guarantee_ref: analysis-issue-affected-scope-present
       - id: unsupported-analysis-context-is-indeterminate
-        intent_id: incomplete-analysis-classification
+        intent_id: analysis-issue-classification
         input:
-          incomplete_analysis: true
+          analysis_issue_policy_impact_possible: true
           report_request:
             format: json
           analysis_issue:

@@ -623,12 +623,13 @@ contracts:
 
   - id: contract.logical-module-boundary.validation-report
     summary: >-
-      解析完全性へ影響するAnalysisIssueが1件でもあればindeterminateを最優先し、
-      それ以外でBoundaryViolationが1件でもあれば重大度によらずnon-conformant、
-      どちらもなければconformantとする。JSONとtextは同じ判断、違反、解析問題を表し、
+      BoundaryViolationが1件でもあれば重大度によらずnon-conformantを最優先し、
+      違反がなく現在policyへの影響がpossibleなAnalysisIssueが1件でもあればindeterminate、
+      それ以外はAnalysisIssueが存在してもconformantとする。JSONとtextは同じ判断、違反、解析問題を表し、
       moduleはid、declarationはparent・child・evidence、dependencyはsource・target・kind・evidence、
-      violationはrule_id・source・target・dependency_kind・evidence、analysis issueはcode・affected_scope・reason、
-      excluded scopeは文字列を比較keyとして昇順で出力する。
+      violationはrule_id・source・target・dependency_kind・evidence、analysis issueはcode・affected_scope・reasonに加え、
+      観測結果と現在policyへの影響を独立した型付きfieldで保持する。確定依存と確定違反はAnalysisIssueへ複製しない。
+      候補集合、rule ID、excluded scopeは文字列を比較keyとして昇順かつ重複なしで出力する。
     conditions:
       - id: complete-without-violation
         input_predicate:
@@ -640,10 +641,25 @@ contracts:
           kind: input
           term: input.complete_with_violation
           op: present
-      - id: incomplete-analysis
+      - id: possible-policy-impact
         input_predicate:
           kind: input
-          term: input.incomplete_analysis
+          term: input.analysis_issue_policy_impact_possible
+          op: present
+      - id: dependency-neutral-analysis-issue
+        input_predicate:
+          kind: input
+          term: input.dependency_neutral_analysis_issue
+          op: present
+      - id: unresolved-dependency-analysis-issue
+        input_predicate:
+          kind: input
+          term: input.unresolved_dependency_analysis_issue
+          op: present
+      - id: no-policy-impact-analysis-issue
+        input_predicate:
+          kind: input
+          term: input.analysis_issue_policy_impact_none
           op: present
       - id: ambiguous-component-attribution
         input_predicate:
@@ -690,7 +706,7 @@ contracts:
               values:
                 - non-conformant
       - id: indeterminate-decision
-        when: incomplete-analysis
+        when: possible-policy-impact
         observation_ref: observation.validation.result
         claim:
           kind: value-relation
@@ -716,7 +732,7 @@ contracts:
             right:
               kind: value_set
               values:
-                - "1"
+                - "2"
       - id: analysis-issues-present
         when: report-request-present
         observation_ref: observation.validation.result
@@ -777,6 +793,80 @@ contracts:
           target:
             kind: observation_field
             value: result.analysis_issues.affected_scope
+      - id: analysis-observation-outcome-supported
+        when: report-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.analysis_issues.observation.outcome
+            right:
+              kind: value_set
+              values:
+                - unresolved-dependency-candidate
+                - dependency-neutral
+                - analysis-context-unresolved
+                - component-attribution-unresolved
+      - id: analysis-policy-impact-outcome-supported
+        when: report-request-present
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.analysis_issues.policy_impact.outcome
+            right:
+              kind: value_set
+              values:
+                - none
+                - possible
+      - id: dependency-neutral-has-no-policy-impact
+        when: dependency-neutral-analysis-issue
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.analysis_issues.policy_impact.outcome
+            right:
+              kind: value_set
+              values:
+                - none
+      - id: unresolved-dependency-observation
+        when: unresolved-dependency-analysis-issue
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.analysis_issues.observation.outcome
+            right:
+              kind: value_set
+              values:
+                - unresolved-dependency-candidate
+      - id: analysis-issue-has-no-policy-impact
+        when: no-policy-impact-analysis-issue
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.analysis_issues.policy_impact.outcome
+            right:
+              kind: value_set
+              values:
+                - none
       - id: report-serialization-supported
         when: report-request-present
         observation_ref: observation.validation.result
@@ -833,28 +923,36 @@ contracts:
             value: result.violations
     verification_intents:
       - id: decision-precedence
-        goal: incomplete、violation、conformantの優先順で三状態判断が決まることを確認する
+        goal: violation、policy impact possible、conformantの優先順で三状態判断が決まることを確認する
         guarantee_refs:
           - conformant-decision
           - non-conformant-decision
           - indeterminate-decision
-      - id: incomplete-analysis-classification
-        goal: 各stable codeのAnalysisIssueがindeterminateと理由・影響範囲へ接続されることを確認する
+      - id: analysis-issue-classification
+        goal: 各stable codeのAnalysisIssueが観測結果、現在policyへの影響、理由、影響範囲へ接続されることを確認する
         guarantee_refs:
+          - conformant-decision
           - indeterminate-decision
           - analysis-issues-present
           - analysis-issue-code-supported
           - analysis-issue-reason-present
           - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - dependency-neutral-has-no-policy-impact
+          - unresolved-dependency-observation
+          - analysis-issue-has-no-policy-impact
       - id: ambiguous-component-attribution-report
         goal: >-
           many-to-one moduleのissue code・module scope・決定的に整列したcomponent集合を確認し、
           曖昧なmoduleに関係する違反を生成せず、一対一module間で安全に確定する違反を保持することを確認する
         guarantee_refs:
-          - indeterminate-decision
+          - non-conformant-decision
           - ambiguous-component-attribution-code
           - analysis-issue-reason-present
           - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
           - report-ordering-canonical
           - report-violations-present
       - id: json-report-projection
@@ -865,6 +963,8 @@ contracts:
           - analysis-issue-code-supported
           - analysis-issue-reason-present
           - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
           - report-serialization-supported
           - report-ordering-canonical
           - report-decision-supported
@@ -876,6 +976,8 @@ contracts:
           - analysis-issue-code-supported
           - analysis-issue-reason-present
           - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
           - report-serialization-supported
           - report-ordering-canonical
           - report-decision-supported

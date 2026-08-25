@@ -33,6 +33,15 @@ fn dependency_fixture(label: &str, target: &str) -> TempFixture {
     fixture
 }
 
+fn policy_sensitive_fixture(label: &str) -> TempFixture {
+    let fixture = TempFixture::new(label);
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: possible-crate-cycle\n    kind: circular\n    severity: error\n    modules: [crate, 'crate::**']\n",
+    );
+    fixture
+}
+
 fn forbidden_fixture(label: &str, with_issue: bool) -> TempFixture {
     let fixture = dependency_fixture(label, "infrastructure");
     if with_issue {
@@ -43,7 +52,7 @@ fn forbidden_fixture(label: &str, with_issue: bool) -> TempFixture {
     }
     fixture.write(
         "policy.yaml",
-        "rules:\n  - id: forbidden-application\n    kind: forbidden\n    severity: error\n    from: [crate::application]\n    to: [crate::infrastructure]\n",
+        "rules:\n  - id: forbidden-application\n    kind: forbidden\n    severity: error\n    from: [crate::application]\n    to: [crate::infrastructure]\n  - id: possible-crate-cycle\n    kind: circular\n    severity: error\n    modules: [crate, 'crate::**']\n",
     );
     fixture
 }
@@ -207,7 +216,12 @@ fn assert_issue(report: &Value, code: &str) {
             .as_str()
             .is_some_and(|scope| !scope.is_empty())
     );
-    assert_eq!(report["decision"], "indeterminate");
+    assert!(issue["observation"]["outcome"].is_string());
+    assert!(issue["observation"]["candidate_targets"].is_array());
+    assert!(issue["observation"]["candidate_components"].is_array());
+    assert!(issue["observation"]["dependency_kinds"].is_array());
+    assert!(issue["policy_impact"]["outcome"].is_string());
+    assert!(issue["policy_impact"]["rule_ids"].is_array());
 }
 
 fn array_contains(array: &Value, field: &str, expected: &str) -> bool {

@@ -31,7 +31,7 @@ fn many_to_one_sdd_projection_with_non_rust_nodes_is_accepted() {
     let output = run_sdd_check(&fixture, true);
 
     // Assert
-    assert_completed_output(&output, 2, "indeterminate");
+    assert_completed_output(&output, 1, "non-conformant");
 }
 
 #[test]

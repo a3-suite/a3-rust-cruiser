@@ -14,7 +14,7 @@ observations:
       fields:
         - selector: result.schema_version
           kind: observation_field
-          meaning: JSON契約の版を表す文字列。初版は1
+          meaning: JSON契約のmajor版を表す文字列。型付きAnalysisIssueを持つ版は2
         - selector: result.serialization
           kind: observation_field
           meaning: 共通の検証結果を直列化したtextまたはjson
@@ -131,7 +131,7 @@ observations:
           meaning: allowedとforbiddenから独立して循環を評価したことを表すindependent
         - selector: result.analysis_issues
           kind: observation_field
-          meaning: 解析完全性を妨げたstable code、理由、影響範囲を持つ問題の集合
+          meaning: stable code、理由、影響範囲、観測結果、現在policyへの影響を持つ解析問題の集合
         - selector: result.analysis_issues.code
           kind: observation_field
           meaning: 解析問題を分類するstable code
@@ -141,6 +141,30 @@ observations:
         - selector: result.analysis_issues.affected_scope
           kind: observation_field
           meaning: 判定不能の影響を受けるLogicalModule IDまたはソース範囲
+        - selector: result.analysis_issues.observation.outcome
+          kind: observation_field
+          meaning: unresolved-dependency-candidate、dependency-neutral、analysis-context-unresolved、component-attribution-unresolvedのいずれかで表す観測結果
+        - selector: result.analysis_issues.observation.source_module
+          kind: observation_field
+          meaning: 発生元を追跡可能な場合のLogicalModule ID
+        - selector: result.analysis_issues.observation.evidence
+          kind: observation_field
+          meaning: 発生元を追跡可能な場合のpath、line、column
+        - selector: result.analysis_issues.observation.candidate_targets
+          kind: observation_field
+          meaning: 解決途中で得られた依存先候補をcanonical順に並べた集合
+        - selector: result.analysis_issues.observation.candidate_components
+          kind: observation_field
+          meaning: 帰属候補のlogical component IDをcanonical順に並べた集合
+        - selector: result.analysis_issues.observation.dependency_kinds
+          kind: observation_field
+          meaning: 解析問題が追加または変更し得るdependency kindをcanonical順に並べた集合
+        - selector: result.analysis_issues.policy_impact.outcome
+          kind: observation_field
+          meaning: 現在policyへの影響をnoneまたはpossibleで表す評価結果
+        - selector: result.analysis_issues.policy_impact.rule_ids
+          kind: observation_field
+          meaning: 影響し得る現在policyのrule IDをcanonical順に並べた集合
         - selector: result.decision
           kind: observation_field
           meaning: conformant、non-conformant、indeterminateのいずれかで表すValidationDecision

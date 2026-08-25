@@ -4,8 +4,9 @@ use std::{
 };
 
 use crate::boundary_evaluation::{
-    AnalysisContext, AnalysisIssue, BoundaryPolicy, ObservedDependencyGraph, RuleKind,
-    ValidationResult, decide, evaluate, is_valid_pattern,
+    AnalysisContext, AnalysisIssue, AnalysisObservationOutcome, BoundaryPolicy,
+    ObservedDependencyGraph, PolicyImpactOutcome, RuleKind, ValidationResult, assess_policy_impact,
+    decide, evaluate, is_valid_pattern,
 };
 
 use super::{CruiserError, Result};
@@ -71,8 +72,14 @@ where
     validate_module_patterns(&context.exclude)?;
     let (graph, observation_issues) = observer.observe(project_root, context)?;
     analysis_issues.extend(observation_issues);
+    validate_analysis_issues(&analysis_issues)?;
+    assess_policy_impact(&mut analysis_issues, &policy);
     let (violations, policy_evaluation) = evaluate(&graph, &policy);
-    let decision = decide(analysis_issues.len(), violations.len());
+    let possible_issue_count = analysis_issues
+        .iter()
+        .filter(|issue| issue.policy_impact.outcome == PolicyImpactOutcome::Possible)
+        .count();
+    let decision = decide(possible_issue_count, violations.len());
     Ok(ValidationResult {
         graph,
         violations,
@@ -80,6 +87,28 @@ where
         analysis_issues,
         decision,
     })
+}
+
+fn validate_analysis_issues(issues: &[AnalysisIssue]) -> Result<()> {
+    for issue in issues {
+        if issue.observation.outcome == AnalysisObservationOutcome::DependencyNeutral
+            && issue.policy_impact.outcome != PolicyImpactOutcome::None
+        {
+            return Err(CruiserError::InvalidInput(format!(
+                "dependency-neutral analysis issue {} cannot have possible policy impact",
+                issue.code
+            )));
+        }
+        if issue.policy_impact.outcome == PolicyImpactOutcome::None
+            && !issue.policy_impact.rule_ids.is_empty()
+        {
+            return Err(CruiserError::InvalidInput(format!(
+                "analysis issue {} with no policy impact cannot reference rules",
+                issue.code
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn validate_policy(policy: &BoundaryPolicy) -> Result<()> {
@@ -161,7 +190,7 @@ fn is_kebab_case(value: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{BoundaryPolicyLoader, DependencyObserver, validate};
+    use super::{BoundaryPolicyLoader, DependencyObserver, validate, validate_analysis_issues};
     use crate::boundary_validation::{
         AnalysisContext, AnalysisIssue, BoundaryPolicy, BoundaryRule, ObservedDependencyGraph,
         Result, RuleKind, Severity, ValidationDecision,
@@ -292,6 +321,25 @@ mod tests {
                 path: "unused-policy".into(),
             },
         );
+
+        // Assert
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_reject_possible_policy_impact_for_a_dependency_neutral_issue() {
+        // Arrange
+        let mut issue = AnalysisIssue::dependency_neutral(
+            "analysis.unsupported-syntax",
+            "syntax was proven dependency-neutral",
+            "crate",
+            Some("crate".to_owned()),
+            None,
+        );
+        issue.policy_impact = crate::boundary_evaluation::PolicyImpact::possible(Vec::new());
+
+        // Act
+        let result = validate_analysis_issues(&[issue]);
 
         // Assert
         assert!(result.is_err());

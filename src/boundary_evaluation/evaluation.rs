@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::model::{
-    BoundaryPolicy, BoundaryRule, BoundaryViolation, Dependency, DependencyKind,
-    ObservedDependencyGraph, PolicyEvaluation, RuleKind, ValidationDecision, ViolationKind,
+    AnalysisIssue, AnalysisObservationOutcome, BoundaryPolicy, BoundaryRule, BoundaryViolation,
+    Dependency, DependencyKind, ObservedDependencyGraph, PolicyEvaluation, PolicyImpact, RuleKind,
+    ValidationDecision, ViolationKind,
 };
 use super::pattern::matches_pattern;
 
@@ -94,14 +95,123 @@ pub fn evaluate(
     )
 }
 
-pub fn decide(issue_count: usize, violation_count: usize) -> ValidationDecision {
-    if issue_count > 0 {
-        ValidationDecision::Indeterminate
-    } else if violation_count > 0 {
+pub fn decide(possible_issue_count: usize, violation_count: usize) -> ValidationDecision {
+    if violation_count > 0 {
         ValidationDecision::NonConformant
+    } else if possible_issue_count > 0 {
+        ValidationDecision::Indeterminate
     } else {
         ValidationDecision::Conformant
     }
+}
+
+pub fn assess_policy_impact(issues: &mut [AnalysisIssue], policy: &BoundaryPolicy) {
+    for issue in issues {
+        issue.policy_impact = match issue.observation.outcome {
+            AnalysisObservationOutcome::DependencyNeutral => PolicyImpact::none(),
+            AnalysisObservationOutcome::ComponentAttributionUnresolved => {
+                PolicyImpact::possible(Vec::new())
+            }
+            AnalysisObservationOutcome::UnresolvedDependencyCandidate
+            | AnalysisObservationOutcome::AnalysisContextUnresolved => {
+                let Some(source) = issue.observation.source_module.as_deref() else {
+                    let mut rule_ids = policy
+                        .rules
+                        .iter()
+                        .filter(|rule| issue_kind_can_match(issue, rule))
+                        .map(|rule| rule.id.clone())
+                        .collect::<Vec<_>>();
+                    rule_ids.sort();
+                    rule_ids.dedup();
+                    issue.policy_impact = if rule_ids.is_empty() {
+                        PolicyImpact::none()
+                    } else {
+                        PolicyImpact::possible(rule_ids)
+                    };
+                    continue;
+                };
+                let mut rule_ids = policy_impact_rule_ids(issue, source, policy);
+                rule_ids.sort();
+                rule_ids.dedup();
+                if rule_ids.is_empty() {
+                    PolicyImpact::none()
+                } else {
+                    PolicyImpact::possible(rule_ids)
+                }
+            }
+        };
+    }
+}
+
+fn policy_impact_rule_ids(
+    issue: &AnalysisIssue,
+    source: &str,
+    policy: &BoundaryPolicy,
+) -> Vec<String> {
+    let target_can_match = |patterns: &[String]| {
+        issue.observation.candidate_targets.is_empty()
+            || issue.observation.candidate_targets.iter().any(|target| {
+                patterns
+                    .iter()
+                    .any(|pattern| matches_pattern(pattern, target))
+            })
+    };
+    let mut ids = policy
+        .rules
+        .iter()
+        .filter(|rule| rule.kind == RuleKind::Forbidden)
+        .filter(|rule| matches_source(rule, source) && issue_kind_can_match(issue, rule))
+        .filter(|rule| target_can_match(&rule.to))
+        .map(|rule| rule.id.clone())
+        .collect::<Vec<_>>();
+
+    let allowed = policy
+        .rules
+        .iter()
+        .filter(|rule| rule.kind == RuleKind::Allowed)
+        .filter(|rule| matches_source(rule, source) && issue_kind_can_match(issue, rule))
+        .collect::<Vec<_>>();
+    if !allowed.is_empty() {
+        let allowed_targets = allowed
+            .iter()
+            .flat_map(|rule| rule.to.iter())
+            .collect::<Vec<_>>();
+        let may_be_rejected = issue.observation.candidate_targets.is_empty()
+            || issue.observation.candidate_targets.iter().any(|target| {
+                !allowed_targets
+                    .iter()
+                    .any(|pattern| matches_pattern(pattern, target))
+            });
+        if may_be_rejected {
+            ids.extend(allowed.into_iter().map(|rule| rule.id.clone()));
+        }
+    }
+
+    ids.extend(
+        policy
+            .rules
+            .iter()
+            .filter(|rule| rule.kind == RuleKind::Circular)
+            .filter(|rule| issue_kind_can_match(issue, rule))
+            .filter(|rule| {
+                rule.modules
+                    .iter()
+                    .any(|pattern| matches_pattern(pattern, source))
+                    && target_can_match(&rule.modules)
+            })
+            .map(|rule| rule.id.clone()),
+    );
+    ids
+}
+
+fn issue_kind_can_match(issue: &AnalysisIssue, rule: &BoundaryRule) -> bool {
+    issue.observation.dependency_kinds.is_empty()
+        || rule.dependency_kinds.is_empty()
+        || issue
+            .observation
+            .dependency_kinds
+            .iter()
+            .any(|kind| rule.dependency_kinds.contains(kind))
 }
 
 fn violation(
@@ -218,11 +328,11 @@ fn canonical_cycle(cycle: &[String]) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::super::model::{
-        AnalysisContext, AnalysisProfile, BoundaryPolicy, BoundaryRule, Dependency, DependencyKind,
-        LogicalModule, ObservedDependencyGraph, RuleKind, Severity, SourceEvidence, TargetScope,
-        ValidationDecision, ViolationKind,
+        AnalysisContext, AnalysisIssue, AnalysisProfile, BoundaryPolicy, BoundaryRule, Dependency,
+        DependencyKind, LogicalModule, ObservedDependencyGraph, PolicyImpactOutcome, RuleKind,
+        Severity, SourceEvidence, TargetScope, ValidationDecision, ViolationKind,
     };
-    use super::{decide, evaluate};
+    use super::{assess_policy_impact, decide, evaluate};
 
     #[test]
     fn should_prioritize_forbidden_rule_over_allowed_rule() {
@@ -244,6 +354,37 @@ mod tests {
         assert_eq!(
             decide(0, violations.len()),
             ValidationDecision::NonConformant
+        );
+    }
+
+    #[test]
+    fn should_prioritize_confirmed_violations_over_analysis_issues() {
+        assert_eq!(decide(1, 1), ValidationDecision::NonConformant);
+    }
+
+    #[test]
+    fn should_keep_dependency_neutral_issues_conformant() {
+        // Arrange
+        let mut issues = vec![AnalysisIssue::dependency_neutral(
+            "analysis.unsupported-syntax",
+            "syntax was proven dependency-neutral",
+            "crate",
+            Some("crate".to_owned()),
+            None,
+        )];
+
+        // Act
+        assess_policy_impact(&mut issues, &BoundaryPolicy { rules: Vec::new() });
+        let possible_issue_count = issues
+            .iter()
+            .filter(|issue| issue.policy_impact.outcome == PolicyImpactOutcome::Possible)
+            .count();
+
+        // Assert
+        assert_eq!(issues[0].policy_impact.outcome, PolicyImpactOutcome::None);
+        assert_eq!(
+            decide(possible_issue_count, 0),
+            ValidationDecision::Conformant
         );
     }
 

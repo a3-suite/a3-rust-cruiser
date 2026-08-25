@@ -28,15 +28,15 @@ fn complete_graph_with_violations_is_non_conformant() {
 }
 
 #[test]
-fn incomplete_analysis_is_indeterminate_even_with_violations() {
+fn confirmed_violations_are_non_conformant_even_with_possible_issues() {
     // Arrange
     let fixture = forbidden_fixture("incomplete-with-violation", true);
 
     // Act
-    let report = completed_json(&run_check(&fixture, "json"), 2);
+    let report = completed_json(&run_check(&fixture, "json"), 1);
 
     // Assert
-    assert_eq!(report["decision"], "indeterminate");
+    assert_eq!(report["decision"], "non-conformant");
     assert!(
         !report["violations"]
             .as_array()
@@ -49,18 +49,23 @@ fn incomplete_analysis_is_indeterminate_even_with_violations() {
             .expect("issues array")
             .is_empty()
     );
+    assert!(report["analysis_issues"].as_array().is_some_and(|issues| {
+        issues
+            .iter()
+            .any(|issue| issue["policy_impact"]["outcome"] == "possible")
+    }));
 }
 
 #[test]
-fn ambiguous_component_attribution_is_indeterminate_without_ambiguous_violations() {
+fn ambiguous_component_attribution_retains_safe_violations_as_non_conformant() {
     // Arrange
     let fixture = many_to_one_sdd_fixture();
 
     // Act
-    let report = completed_json(&run_sdd_check(&fixture, true), 2);
+    let report = completed_json(&run_sdd_check(&fixture, true), 1);
 
     // Assert
-    assert_eq!(report["decision"], "indeterminate");
+    assert_eq!(report["decision"], "non-conformant");
     assert_eq!(report["ordering"], "canonical");
     assert_issue(&report, "analysis.ambiguous-component-attribution");
     assert_eq!(
@@ -88,17 +93,17 @@ fn json_report_projects_common_validation_result() {
     let fixture = forbidden_fixture("json-report", true);
 
     // Act
-    let report = completed_json(&run_check(&fixture, "json"), 2);
+    let report = completed_json(&run_check(&fixture, "json"), 1);
 
     // Assert
-    assert_eq!(report["schema_version"], "1");
+    assert_eq!(report["schema_version"], "2");
     assert_eq!(report["serialization"], "json");
     assert_eq!(report["ordering"], "canonical");
     assert_eq!(
         report["analysis_context"]["analysis_profile"],
         "compilation"
     );
-    assert_eq!(report["decision"], "indeterminate");
+    assert_eq!(report["decision"], "non-conformant");
     assert!(
         !report["violations"]
             .as_array()
@@ -121,6 +126,11 @@ fn json_report_projects_common_validation_result() {
             .as_str()
             .is_some_and(|scope| !scope.is_empty())
     );
+    assert_eq!(
+        issue["observation"]["outcome"],
+        "unresolved-dependency-candidate"
+    );
+    assert_eq!(issue["policy_impact"]["outcome"], "possible");
 }
 
 #[test]
@@ -130,22 +140,57 @@ fn text_report_projects_common_validation_result() {
 
     // Act
     let output = run_check(&fixture, "text");
-    let payload = completed_text(&output, 2);
+    let payload = completed_text(&output, 1);
 
     // Assert
-    assert!(payload.contains("schema_version: 1"));
+    assert!(payload.contains("schema_version: 2"));
     assert!(payload.contains("serialization: text"));
     assert!(payload.contains("ordering: canonical"));
     assert!(payload.contains("analysis_profile: compilation"));
-    assert!(payload.contains("decision: indeterminate"));
+    assert!(payload.contains("decision: non-conformant"));
     assert!(payload.contains("violations:\n  - forbidden-application forbidden"));
     assert!(payload.contains("analysis_issues:\n  - analysis."));
+    assert!(payload.contains("observation: unresolved-dependency-candidate"));
+    assert!(payload.contains("policy_impact: possible [possible-crate-cycle]"));
+}
+
+#[test]
+fn unresolved_candidate_outside_the_policy_is_conformant() {
+    // Arrange
+    let fixture = TempFixture::new("unresolved-policy-none");
+    fixture.write(
+        "src/main.rs",
+        "mod domain;\nfn consume(_: crate::domain::Missing) {}\nfn main() {}\n",
+    );
+    fixture.write("src/domain.rs", "pub struct Present;\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbidden-infrastructure\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: ['crate::infrastructure']\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_issue(&report, "analysis.unresolved-reference");
+    let issue = &report["analysis_issues"][0];
+    assert_eq!(
+        issue["observation"]["outcome"],
+        "unresolved-dependency-candidate"
+    );
+    assert_eq!(issue["policy_impact"]["outcome"], "none");
+    assert_eq!(issue["policy_impact"]["rule_ids"], serde_json::json!([]));
+    assert_eq!(
+        issue["observation"]["candidate_targets"],
+        serde_json::json!(["crate::domain"])
+    );
 }
 
 #[test]
 fn unresolved_reference_is_indeterminate() {
     // Arrange
-    let fixture = TempFixture::new("unresolved-reference");
+    let fixture = policy_sensitive_fixture("unresolved-reference");
     fixture.write(
         "src/main.rs",
         "mod domain;\nfn consume(_: crate::domain::Missing) {}\nfn main() {}\n",
@@ -157,12 +202,18 @@ fn unresolved_reference_is_indeterminate() {
 
     // Assert
     assert_issue(&report, "analysis.unresolved-reference");
+    let issue = &report["analysis_issues"][0];
+    assert_eq!(issue["policy_impact"]["outcome"], "possible");
+    assert_eq!(
+        issue["policy_impact"]["rule_ids"],
+        serde_json::json!(["possible-crate-cycle"])
+    );
 }
 
 #[test]
 fn unresolved_single_segment_type_is_indeterminate() {
     // Arrange
-    let fixture = TempFixture::new("unresolved-single-segment");
+    let fixture = policy_sensitive_fixture("unresolved-single-segment");
     fixture.write("src/main.rs", "fn consume(_: Missing) {}\nfn main() {}\n");
 
     // Act
@@ -175,7 +226,7 @@ fn unresolved_single_segment_type_is_indeterminate() {
 #[test]
 fn block_scoped_use_is_indeterminate_until_scope_resolution_is_supported() {
     // Arrange
-    let fixture = TempFixture::new("block-scoped-use");
+    let fixture = policy_sensitive_fixture("block-scoped-use");
     fixture.write(
         "src/main.rs",
         "mod forbidden;\nfn main() { use crate::forbidden::run as invoke; invoke(); }\n",
@@ -199,8 +250,8 @@ fn repeated_json_report_is_byte_stable() {
     let second = run_check(&fixture, "json");
 
     // Assert
-    assert_eq!(first.status.code(), Some(2));
-    assert_eq!(second.status.code(), Some(2));
+    assert_eq!(first.status.code(), Some(1));
+    assert_eq!(second.status.code(), Some(1));
     assert_eq!(first.stdout, second.stdout);
     assert!(first.stderr.is_empty());
     assert!(second.stderr.is_empty());
@@ -209,7 +260,7 @@ fn repeated_json_report_is_byte_stable() {
 #[test]
 fn unsupported_macro_expansion_is_indeterminate() {
     // Arrange
-    let fixture = TempFixture::new("unsupported-macro");
+    let fixture = policy_sensitive_fixture("unsupported-macro");
     fixture.write("src/main.rs", "fn main() { println!(\"hello\"); }\n");
 
     // Act
@@ -222,7 +273,7 @@ fn unsupported_macro_expansion_is_indeterminate() {
 #[test]
 fn source_union_keeps_unresolved_internal_references_indeterminate() {
     // Arrange
-    let fixture = TempFixture::new("source-union-unresolved-internal");
+    let fixture = policy_sensitive_fixture("source-union-unresolved-internal");
     fixture.write(
         "src/main.rs",
         "fn main() { let _ = crate::missing::Thing; }\n",
@@ -250,7 +301,7 @@ fn source_union_keeps_unresolved_internal_references_indeterminate() {
 #[test]
 fn unsupported_derive_macro_is_indeterminate() {
     // Arrange
-    let fixture = TempFixture::new("unsupported-derive");
+    let fixture = policy_sensitive_fixture("unsupported-derive");
     fixture.write(
         "src/main.rs",
         "#[derive(Debug)]\nstruct Value;\nfn main() {}\n",
@@ -266,7 +317,7 @@ fn unsupported_derive_macro_is_indeterminate() {
 #[test]
 fn unsupported_name_resolution_is_indeterminate() {
     // Arrange
-    let fixture = TempFixture::new("unsupported-name-resolution");
+    let fixture = policy_sensitive_fixture("unsupported-name-resolution");
     fixture.write(
         "src/main.rs",
         "use missing_crate::Thing;\nfn main() { let _ = core::mem::size_of::<Thing>(); }\n",
@@ -282,7 +333,7 @@ fn unsupported_name_resolution_is_indeterminate() {
 #[test]
 fn unsupported_expression_name_resolution_is_indeterminate() {
     // Arrange
-    let fixture = TempFixture::new("unsupported-expression-resolution");
+    let fixture = policy_sensitive_fixture("unsupported-expression-resolution");
     fixture.write(
         "src/main.rs",
         "fn main() { let _ = missing_module::Thing; }\n",
@@ -298,7 +349,7 @@ fn unsupported_expression_name_resolution_is_indeterminate() {
 #[test]
 fn unsupported_syntax_is_indeterminate() {
     // Arrange
-    let fixture = TempFixture::new("unsupported-syntax");
+    let fixture = policy_sensitive_fixture("unsupported-syntax");
     fixture.write("src/main.rs", "fn main( {\n");
 
     // Act
@@ -311,7 +362,7 @@ fn unsupported_syntax_is_indeterminate() {
 #[test]
 fn unsupported_analysis_context_is_indeterminate() {
     // Arrange
-    let fixture = TempFixture::new("unsupported-context");
+    let fixture = policy_sensitive_fixture("unsupported-context");
     fixture.write(
         "src/main.rs",
         "#[cfg(feature = \"optional\")]\nmod gated { pub fn run() {} }\nfn main() {}\n",
@@ -327,7 +378,7 @@ fn unsupported_analysis_context_is_indeterminate() {
 #[test]
 fn missing_target_required_feature_is_indeterminate() {
     // Arrange
-    let fixture = TempFixture::new("missing-target-feature");
+    let fixture = policy_sensitive_fixture("missing-target-feature");
     fixture.write_manifest(
         "[[bin]]\nname = \"tool\"\npath = \"src/bin/tool.rs\"\nrequired-features = [\"cli\"]\n",
     );
@@ -343,7 +394,7 @@ fn missing_target_required_feature_is_indeterminate() {
 #[test]
 fn dev_dependency_is_unavailable_to_binary_target() {
     // Arrange
-    let fixture = TempFixture::new("binary-target-dependencies");
+    let fixture = policy_sensitive_fixture("binary-target-dependencies");
     fixture.write_manifest("[dev-dependencies]\ntest-only = \"1\"\n[target.x86_64-unknown-linux-gnu.dependencies]\ntarget-only = \"1\"\n");
     fixture.write("src/main.rs", "use test_only;\nfn main() {}\n");
 
@@ -357,7 +408,7 @@ fn dev_dependency_is_unavailable_to_binary_target() {
 #[test]
 fn cfg_selected_dependency_is_indeterminate_without_cfg_evaluation() {
     // Arrange
-    let fixture = TempFixture::new("cfg-dependency");
+    let fixture = policy_sensitive_fixture("cfg-dependency");
     fixture.write_manifest("[target.'cfg(unix)'.dependencies]\ncfg-only = \"1\"\n");
     fixture.write("src/main.rs", "use cfg_only;\nfn main() {}\n");
 
@@ -371,7 +422,7 @@ fn cfg_selected_dependency_is_indeterminate_without_cfg_evaluation() {
 #[test]
 fn optional_dependency_is_indeterminate_without_feature_evaluation() {
     // Arrange
-    let fixture = TempFixture::new("optional-dependency");
+    let fixture = policy_sensitive_fixture("optional-dependency");
     fixture
         .write_manifest("[dependencies]\noptional-crate = { version = \"1\", optional = true }\n");
     fixture.write("src/main.rs", "use optional_crate;\nfn main() {}\n");

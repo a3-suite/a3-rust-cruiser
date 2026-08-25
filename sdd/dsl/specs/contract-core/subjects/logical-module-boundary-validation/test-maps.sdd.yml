@@ -279,16 +279,41 @@ test_maps:
     case_id: incomplete-with-observed-violation
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: incomplete_analysis_is_indeterminate_even_with_violations
+        symbol: confirmed_violations_are_non_conformant_even_with_possible_issues
         check_refs:
-          - check-indeterminate-decision
+          - check-non-conformant-decision
   - verification_id: verification.logical-module-boundary.validation-report
-    case_id: ambiguous-component-attribution-is-indeterminate
+    case_id: unresolved-candidate-without-policy-impact
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: ambiguous_component_attribution_is_indeterminate_without_ambiguous_violations
+        symbol: unresolved_candidate_outside_the_policy_is_conformant
         check_refs:
-          - check-indeterminate
+          - check-conformant-decision
+          - check-unresolved-observation
+          - check-no-policy-impact
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: dependency-neutral-without-policy-impact
+    tests:
+      - path: src/boundary_evaluation/evaluation.rs
+        symbol: should_keep_dependency_neutral_issues_conformant
+        check_refs:
+          - check-conformant-decision
+          - check-neutral-policy-impact
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: unresolved-candidate-with-possible-policy-impact
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: unresolved_reference_is_indeterminate
+        check_refs:
+          - check-indeterminate-decision
+          - check-unresolved-observation
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: ambiguous-component-attribution-is-non-conformant
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: ambiguous_component_attribution_retains_safe_violations_as_non_conformant
+        check_refs:
+          - check-non-conformant
           - check-analysis-issues
           - check-analysis-issue-code
           - check-analysis-issue-reason

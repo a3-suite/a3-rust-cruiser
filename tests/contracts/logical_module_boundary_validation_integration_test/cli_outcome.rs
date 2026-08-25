@@ -88,7 +88,7 @@ fn non_conformant_result_exits_with_one() {
 #[test]
 fn indeterminate_result_exits_with_two() {
     // Arrange
-    let fixture = TempFixture::new("indeterminate-exit");
+    let fixture = policy_sensitive_fixture("indeterminate-exit");
     fixture.write("src/main.rs", "fn main() { println!(\"hello\"); }\n");
 
     // Act

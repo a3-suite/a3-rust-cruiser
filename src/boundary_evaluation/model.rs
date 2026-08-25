@@ -27,7 +27,7 @@ pub struct AnalysisContext {
     pub exclude: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SourceEvidence {
     pub path: String,
     pub line: usize,
@@ -171,6 +171,201 @@ pub struct AnalysisIssue {
     pub code: String,
     pub reason: String,
     pub affected_scope: String,
+    pub observation: AnalysisObservation,
+    pub policy_impact: PolicyImpact,
+}
+
+impl AnalysisIssue {
+    pub fn unresolved_dependency_candidate(
+        code: impl Into<String>,
+        reason: impl Into<String>,
+        affected_scope: impl Into<String>,
+        source_module: String,
+        evidence: SourceEvidence,
+        candidate_targets: Vec<String>,
+        dependency_kinds: Vec<DependencyKind>,
+    ) -> Self {
+        Self {
+            code: code.into(),
+            reason: reason.into(),
+            affected_scope: affected_scope.into(),
+            observation: AnalysisObservation {
+                outcome: AnalysisObservationOutcome::UnresolvedDependencyCandidate,
+                source_module: Some(source_module),
+                evidence: Some(evidence),
+                candidate_targets,
+                candidate_components: Vec::new(),
+                dependency_kinds,
+            },
+            policy_impact: PolicyImpact::possible(Vec::new()),
+        }
+    }
+
+    pub fn analysis_context_unresolved(
+        code: impl Into<String>,
+        reason: impl Into<String>,
+        affected_scope: impl Into<String>,
+        source_module: Option<String>,
+        evidence: Option<SourceEvidence>,
+        dependency_kinds: Vec<DependencyKind>,
+    ) -> Self {
+        Self {
+            code: code.into(),
+            reason: reason.into(),
+            affected_scope: affected_scope.into(),
+            observation: AnalysisObservation {
+                outcome: AnalysisObservationOutcome::AnalysisContextUnresolved,
+                source_module,
+                evidence,
+                candidate_targets: Vec::new(),
+                candidate_components: Vec::new(),
+                dependency_kinds,
+            },
+            policy_impact: PolicyImpact::possible(Vec::new()),
+        }
+    }
+
+    pub fn component_attribution_unresolved(
+        code: impl Into<String>,
+        reason: impl Into<String>,
+        affected_scope: impl Into<String>,
+        candidate_components: Vec<String>,
+    ) -> Self {
+        Self {
+            code: code.into(),
+            reason: reason.into(),
+            affected_scope: affected_scope.into(),
+            observation: AnalysisObservation {
+                outcome: AnalysisObservationOutcome::ComponentAttributionUnresolved,
+                source_module: None,
+                evidence: None,
+                candidate_targets: Vec::new(),
+                candidate_components,
+                dependency_kinds: Vec::new(),
+            },
+            policy_impact: PolicyImpact::possible(Vec::new()),
+        }
+    }
+
+    // A producer must call this only after proving that the observed syntax cannot alter an edge.
+    #[allow(dead_code)]
+    pub fn dependency_neutral(
+        code: impl Into<String>,
+        reason: impl Into<String>,
+        affected_scope: impl Into<String>,
+        source_module: Option<String>,
+        evidence: Option<SourceEvidence>,
+    ) -> Self {
+        Self {
+            code: code.into(),
+            reason: reason.into(),
+            affected_scope: affected_scope.into(),
+            observation: AnalysisObservation {
+                outcome: AnalysisObservationOutcome::DependencyNeutral,
+                source_module,
+                evidence,
+                candidate_targets: Vec::new(),
+                candidate_components: Vec::new(),
+                dependency_kinds: Vec::new(),
+            },
+            policy_impact: PolicyImpact::none(),
+        }
+    }
+
+    pub(crate) fn canonical_cmp(&self, other: &Self) -> Ordering {
+        (
+            self.code.as_str(),
+            self.affected_scope.as_str(),
+            self.reason.as_str(),
+            self.observation.outcome,
+            self.observation.source_module.as_deref(),
+            self.observation.evidence.as_ref(),
+            self.observation.candidate_targets.as_slice(),
+            self.observation.candidate_components.as_slice(),
+            self.observation.dependency_kinds.as_slice(),
+            self.policy_impact.outcome,
+            self.policy_impact.rule_ids.as_slice(),
+        )
+            .cmp(&(
+                other.code.as_str(),
+                other.affected_scope.as_str(),
+                other.reason.as_str(),
+                other.observation.outcome,
+                other.observation.source_module.as_deref(),
+                other.observation.evidence.as_ref(),
+                other.observation.candidate_targets.as_slice(),
+                other.observation.candidate_components.as_slice(),
+                other.observation.dependency_kinds.as_slice(),
+                other.policy_impact.outcome,
+                other.policy_impact.rule_ids.as_slice(),
+            ))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnalysisObservation {
+    pub outcome: AnalysisObservationOutcome,
+    pub source_module: Option<String>,
+    pub evidence: Option<SourceEvidence>,
+    pub candidate_targets: Vec<String>,
+    pub candidate_components: Vec<String>,
+    pub dependency_kinds: Vec<DependencyKind>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum AnalysisObservationOutcome {
+    UnresolvedDependencyCandidate,
+    DependencyNeutral,
+    AnalysisContextUnresolved,
+    ComponentAttributionUnresolved,
+}
+
+impl AnalysisObservationOutcome {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::UnresolvedDependencyCandidate => "unresolved-dependency-candidate",
+            Self::DependencyNeutral => "dependency-neutral",
+            Self::AnalysisContextUnresolved => "analysis-context-unresolved",
+            Self::ComponentAttributionUnresolved => "component-attribution-unresolved",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PolicyImpact {
+    pub outcome: PolicyImpactOutcome,
+    pub rule_ids: Vec<String>,
+}
+
+impl PolicyImpact {
+    pub fn none() -> Self {
+        Self {
+            outcome: PolicyImpactOutcome::None,
+            rule_ids: Vec::new(),
+        }
+    }
+
+    pub fn possible(rule_ids: Vec<String>) -> Self {
+        Self {
+            outcome: PolicyImpactOutcome::Possible,
+            rule_ids,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PolicyImpactOutcome {
+    None,
+    Possible,
+}
+
+impl PolicyImpactOutcome {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Possible => "possible",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
