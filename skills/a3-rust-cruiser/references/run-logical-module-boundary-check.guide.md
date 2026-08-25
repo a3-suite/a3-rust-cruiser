@@ -40,12 +40,37 @@
 - 終了コード `3`: 引数、入力、解析、または出力処理のエラーとして標準エラーを報告する。
 - 終了コードと `decision` が対応しない場合は、結果を採用せず契約不整合として報告する。
 
+## 問題・エラー時の切り分け
+
+最初に、実行コマンド、終了コード、`decision`、標準エラー、JSONの `analysis_issues`、package・target・target triple・feature・cfg・include・excludeを記録する。問題の分類を推測だけで確定せず、次の順で調査する。
+
+| 観測結果 | 先に調べる場所 | 修正候補 |
+| --- | --- | --- |
+| コマンド未検出、version不一致、platform非対応、checksum・PATH・install directoryエラー | `references/setup-release.guide.md`、実行ファイルのversion・実体・PATH | セットアップまたは実行環境。boundary policyやSDDは変更しない |
+| 終了コード `3`、policy/SDDの欠落・形式不正・引数不正 | 指定した入力パス、YAML boundary policy、SDDの3正本、package/target指定 | 入力定義または実行指定。正しい入力をツールが拒否する場合だけツールの入力検証を修正候補にする |
+| `non-conformant` と `violations` | 違反のrule ID、依存元・依存先、証拠位置、policyのfrom/to、SDD projection | 依存方向が意図に反するなら対象ソースまたは設計を修正し、ruleや帰属が意図と違うならpolicy/SDDを修正する |
+| `indeterminate` と `analysis.unsupported-analysis-context` | target triple、Cargo feature、rustc cfg、target dependency、`analysis_issues`のaffected scope | 実行コンテキストが不足していれば呼び出し側の指定を修正し、指定済みの有効条件をツールが評価できないならツールの解析境界を修正候補にする |
+| `indeterminate` と unsupported macro/name/syntax issue | issue code、reason、affected scope、evidence、`policy_impact`、対象ソースの構文 | 依存を生じないことが契約上証明できる構文ならツールの分類不足を修正候補にし、依存先を変え得る未対応構文は適合へ読み替えず対象ソースまたは解析境界を見直す |
+| `conformant` だが期待と異なる | package/target、include/exclude、policy scope、SDD projection、JSONの modules/dependencies | 対象範囲や定義が誤っていれば入力定義を修正し、同一の正しい入力を最小fixtureでも誤判定するならツールを修正候補にする |
+| 終了コードと `decision` の不一致、JSON schema・orderingの破損 | CLI report、終了コード契約、同一入力の再実行結果 | ツールまたは公開契約の不整合。policy/SDDの変更で隠さない |
+
+各問題は、次の形式で報告する。
+
+- 事象: コマンド、終了コード、`decision`、主要なissue/violation。
+- 原因分類: `tool`、`input-definition`、`target-source`、`environment`、`undetermined` のいずれか。
+- 調査先: 実行ファイル、解析コンテキスト、policy/SDD、対象ソースの具体的なパス。
+- 修正対象: ツール、入力定義、対象ソース、実行指定のいずれか。まだ確定できない場合は無理に修正しない。
+- 再検証: 同じ解析コンテキストでの再実行、または原因を分離する最小fixtureと回帰テスト。
+
+`violations` が空であること、issue件数が減ったこと、`--exclude` で問題が消えたことだけを修正完了の根拠にしない。
+
 ## 出力/完了条件
 
 - 実行した解析コンテキストを package、target、target triple、analysis profile とともに示す。
 - 使用したpolicy入力をYAMLまたはSDDとして示す。SDD入力では3つの正本パスを示し、派生policyを永続成果物として作らない。
 - `non-conformant` では rule ID、依存元、依存先、根拠位置を示す。
 - `indeterminate` では analysis issue code、理由、影響範囲を示す。
+- 問題やエラーがある場合は、原因分類、調査先、修正対象、再検証方法を示す。
 - 対象としたすべての解析コンテキストが `conformant` の場合だけ、検証完了とする。
 
 ## 注意

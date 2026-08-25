@@ -47,4 +47,5 @@ description: GitHub Releaseの固定版a3-rust-cruiser CLIをセットアップ�
 
 - `decision`、`violations`、`analysis_issues`、解析コンテキストを確認する。
 - `non-conformant`、`indeterminate`、実行エラーをそれぞれ区別して未解決事項を報告する。
+- 問題やエラーがある場合は、ツール、入力定義、対象ソース、実行環境のどれが原因候補かを切り分け、調査先、修正対象、再検証方法を示す。
 - 参照: references/run-logical-module-boundary-check.guide.md
