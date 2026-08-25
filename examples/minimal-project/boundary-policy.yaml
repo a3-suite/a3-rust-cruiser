@@ -1,1 +1,15 @@
-rules: []
+rules:
+  - id: allow-application-to-domain
+    kind: allowed
+    severity: error
+    from: [crate::application]
+    to: [crate, crate::domain]
+  - id: forbid-domain-to-application
+    kind: forbidden
+    severity: error
+    from: [crate::domain]
+    to: [crate::application]
+  - id: prevent-component-cycles
+    kind: circular
+    severity: error
+    modules: [crate::application, crate::domain]

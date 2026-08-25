@@ -17,7 +17,8 @@ description: a3-rust-cruiser の clone 済みソースを開発環境へロー�
 - 実行入口は `scripts/install-local.sh` とする。
 - install root の解決、Cargo install、smoke test の実装は同スクリプトを正本とする。
 - 一時 install root で検証に合格してから、通常の install root へ導入する。
-- 同じバージョンが導入済みでも、現在の checkout で置き換える。
+- 通常のローカルインストールでは、同じバージョンが導入済みでも現在の checkout で置き換える。
+- `--verify-installed` では通常のinstall rootにある既存CLIの実体、PATH、smoke testだけを確認し、置き換えない。
 
 ## 注意
 
@@ -35,3 +36,9 @@ description: a3-rust-cruiser の clone 済みソースを開発環境へロー�
 - スクリプトが報告する実行ファイルパス、コマンド名による解決、smoke test の `decision: conformant` を確認する。
 - toolchain または Cargo が不足している場合は前提不足として報告する。
 - Cargo install、コマンド解決、実行ファイル確認、smoke test のどこで失敗したかを分けて報告し、別の install root へ暗黙に切り替えない。
+
+### 既存インストールの検証
+
+- 実行ファイルへ影響する入力が変わらない場合は、`bash {skill-root}/scripts/install-local.sh --verify-installed`を実行する。
+- 通常のinstall rootにCLIが存在し、コマンド名で同じ実体へ解決され、smoke testが`conformant`になることを確認する。
+- CLIが未導入または別の実体でshadowされている場合は失敗し、別のinstall rootや再インストールへ暗黙に切り替えない。

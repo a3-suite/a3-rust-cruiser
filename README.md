@@ -1,6 +1,23 @@
 # a3-rust-cruiser
 
-Cargo package と compilation target を1つずつ解析し、Rust の論理モジュール境界を検証する CLI です。
+JavaScript/TypeScript向けの[dependency-cruiser](https://github.com/sverweij/dependency-cruiser)に着想を得て、Rust版dependency-cruiserを目指している論理モジュール境界検証CLIです。Cargo packageとcompilation targetを1つずつ解析し、依存方向と循環依存をプロジェクト固有のポリシーに対して検証します。
+
+## できること
+
+- Rustの内部モジュールと、`use`、re-export、パス参照による依存を検出する
+- `allowed`、`forbidden`、`circular`の3種類のルールで依存方向と循環依存を検証する
+- `*`と`**`を使った論理モジュールパターンでルールの対象を指定する
+- feature、cfg、target triple、解析対象モジュールを実行単位ごとに指定する
+- 検証結果をtextまたはJSONで出力し、`conformant`、`non-conformant`、`indeterminate`を区別する
+- YAMLポリシーを直接使用するほか、SDD設計を管理しているプロジェクトでは3つの設計入力から直接検証する
+
+## できないこと
+
+- crate間またはworkspace package間の依存を検証する
+- 複数のCargo packageやcompilation targetを1回の実行でまとめて検証する
+- 依存グラフを画像や対話的な図として可視化する
+- macro expansionやcfg条件をRustコンパイラと同等に完全解決する。既定の`compilation` profileでは解析範囲外の構造を検出すると`indeterminate`になる。`source-union` profileは同じ判定保証を提供しない
+- dependency-cruiserの設定ファイルやルールとの互換性を提供する
 
 ## 前提
 
@@ -16,6 +33,45 @@ a3-rust-cruiser check --help
 
 GitHub Releaseの固定版セットアップとchecksum検証は、`skills/a3-rust-cruiser`の公開スキルを使用します。
 
+## ポリシーの作成
+
+通常のRustプロジェクトでは、YAML形式のboundary policyをプロジェクト内に作成します。SDDの導入やSDDファイルの配置は必要ありません。
+
+1. `crate::application`や`crate::domain`のように、検証する論理モジュール境界を決めます。
+2. 許可する依存方向、禁止する依存方向、循環を禁止する範囲を決めます。
+3. 決定した境界を`boundary-policy.yaml`へ記述します。
+
+```yaml
+rules:
+  - id: allow-application-to-domain
+    kind: allowed
+    severity: error
+    from: [crate::application]
+    to: [crate, crate::domain]
+  - id: forbid-domain-to-application
+    kind: forbidden
+    severity: error
+    from: [crate::domain]
+    to: [crate::application]
+  - id: prevent-component-cycles
+    kind: circular
+    severity: error
+    modules: [crate::application, crate::domain]
+```
+
+- `allowed`: `from`に一致するモジュールから、`to`に一致するモジュールへの依存だけを許可します。
+- `forbidden`: `from`から`to`への依存を禁止します。`allowed`にも一致する場合は`forbidden`を優先します。
+- `circular`: `modules`に一致するモジュール間の循環依存を禁止します。
+- `id`: ポリシー内で重複しない小文字kebab-caseを指定します。
+- `allowed`と`forbidden`には`from`と`to`を指定し、`modules`は指定しません。`circular`には`modules`を指定し、`from`と`to`は指定しません。
+- `severity`: `error`または`warning`を指定します。どちらも違反があれば`non-conformant`になり、severityはレポート上の分類として使用されます。
+- `dependency_kinds`: 必要な場合だけ`import`、`re-export`、`path-reference`から対象とする依存種別を指定します。
+- モジュールパターンの`*`は1階層、`**`は0階層以上に一致します。
+
+同じポリシーは[examples/minimal-project/boundary-policy.yaml](examples/minimal-project/boundary-policy.yaml)にもあります。
+
+`--logical-structure`、`--projection`、`--directory-structure`は、SDD設計を正本として管理しているプロジェクト向けの任意入力です。
+
 ## 最短実行
 
 同梱の最小プロジェクトを検証します。
@@ -30,15 +86,6 @@ cargo run -- check examples/minimal-project \
 ```
 
 `decision: conformant` と終了コード `0` が返れば成功です。
-
-## 正本
-
-- 要求: [requirement.sdd.yml](sdd/dsl/requirements/items/requirements/validate-rust-logical-module-boundaries/requirement.sdd.yml)
-- CLI仕様: [cli-command-manifest.sdd.yml](sdd/dsl/specs/cli/cli-command-manifest.sdd.yml)
-- 検証契約: [observations.sdd.yml](sdd/dsl/specs/contract-core/subjects/logical-module-boundary-validation/observations.sdd.yml)
-- DDD分析メモ: [logical-module-boundary-ddd-analysis.md](docs/notes/logical-module-boundary-ddd-analysis.md)
-
-要求・仕様・設計の判断は SDD の DSL を正本とし、README では再定義しません。
 
 ## ライセンス
 

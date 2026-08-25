@@ -6,7 +6,7 @@ usage() {
   cat <<'EOF'
 Usage: .agents/skills/commit-gate/scripts/run-commit-gate.sh [--help]
 
-Validate and persistently install the staged snapshot.
+Validate the staged snapshot and install it only when the CLI can change.
 
 Exit codes:
   0  commit allowed
@@ -29,9 +29,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-skill_root="$(cd "$script_dir/.." && pwd)"
-repo_root="$(cd "$skill_root/../../.." && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+skill_root="$(cd "$script_dir/.." && pwd -P)"
+repo_root="$(cd "$skill_root/../../.." && pwd -P)"
 temporary_root=""
 
 cleanup() {
@@ -67,15 +67,17 @@ if [[ "$resolved_git_root" != "$repo_root" ]]; then
   exit 2
 fi
 
-if git -C "$repo_root" diff --cached --quiet --exit-code; then
+head_tree="$(git -C "$repo_root" rev-parse 'HEAD^{tree}' 2>/dev/null)" || {
+  echo "Failed to resolve the HEAD tree" >&2
+  exit 2
+}
+staged_tree="$(git -C "$repo_root" write-tree)" || {
+  echo "Failed to capture the staged tree" >&2
+  exit 2
+}
+if [[ "$staged_tree" == "$head_tree" ]]; then
   echo "No staged changes; commit gate stopped" >&2
   exit 2
-else
-  staged_status=$?
-  if [[ $staged_status -ne 1 ]]; then
-    echo "Failed to inspect the staged snapshot" >&2
-    exit 2
-  fi
 fi
 
 temporary_root="$(mktemp -d "${TMPDIR:-/tmp}/a3-rust-cruiser-commit-gate.XXXXXX")" || {
@@ -83,9 +85,15 @@ temporary_root="$(mktemp -d "${TMPDIR:-/tmp}/a3-rust-cruiser-commit-gate.XXXXXX"
   exit 2
 }
 workspace_root="$temporary_root/workspace"
+snapshot_index="$temporary_root/staged.index"
+changed_paths="$temporary_root/changed-paths"
 mkdir -p "$workspace_root"
 
-if ! git -C "$repo_root" checkout-index --all --force --prefix="$workspace_root/"; then
+if ! GIT_INDEX_FILE="$snapshot_index" git -C "$repo_root" read-tree "$staged_tree"; then
+  echo "Failed to prepare the staged tree index" >&2
+  exit 2
+fi
+if ! GIT_INDEX_FILE="$snapshot_index" git -C "$repo_root" checkout-index --all --force --prefix="$workspace_root/"; then
   echo "Failed to materialize the staged snapshot" >&2
   exit 2
 fi
@@ -96,10 +104,50 @@ if [[ ! -f "$local_install" ]]; then
   exit 2
 fi
 
-echo "Validating and installing the staged snapshot"
-if ! bash "$local_install"; then
-  echo "Commit gate failed: local-install validation did not pass" >&2
-  exit 1
+install_required="false"
+if ! git -C "$repo_root" diff-tree --no-commit-id --name-only --no-renames -z -r "$head_tree" "$staged_tree" > "$changed_paths"; then
+  echo "Failed to classify the staged tree" >&2
+  exit 2
 fi
+while IFS= read -r -d '' staged_path; do
+  case "$staged_path" in
+    README.md|CHANGELOG.md|CONTRIBUTING.md|SECURITY.md|LICENSE|docs/*|examples/*|tests/*|skills/*|sdd/*|.ci/*|.github/*|.gitignore|.gitattributes|.agents/skills/local-install/SKILL.md|.agents/skills/commit-gate/*)
+      ;;
+    *)
+      install_required="true"
+      break
+      ;;
+  esac
+done < "$changed_paths"
+
+verify_staged_tree_unchanged() {
+  local current_tree
+  current_tree="$(git -C "$repo_root" write-tree)" || {
+    echo "Failed to recapture the staged tree" >&2
+    return 1
+  }
+  [[ "$current_tree" == "$staged_tree" ]] || {
+    echo "The staged tree changed while the commit gate was running" >&2
+    return 1
+  }
+}
+
+verify_staged_tree_unchanged || exit 2
+
+if [[ "$install_required" == "true" ]]; then
+  echo "Validating and installing the staged snapshot"
+  if ! bash "$local_install"; then
+    echo "Commit gate failed: local-install validation did not pass" >&2
+    exit 1
+  fi
+else
+  echo "CLI inputs are unchanged; verifying the existing installation"
+  if ! bash "$local_install" --verify-installed; then
+    echo "Commit gate failed: local-install validation did not pass" >&2
+    exit 1
+  fi
+fi
+
+verify_staged_tree_unchanged || exit 2
 
 echo "Commit gate passed"

@@ -7,13 +7,14 @@ description: a3-rust-cruiser でコミット前に staged snapshot の変更を�
 
 ## 目的
 
-- staged snapshot から CLI をローカルインストールし、導入後も利用できることを確認してコミット可否を判定する。
+- staged snapshotでCLIへ影響する変更を判定し、必要な場合だけローカルインストールしたうえで利用可能性を確認する。
 
 ## 原則
 
 - 検証対象は worktree ではなく staged snapshot とする。
-- インストールと smoke test の内容は local-install スキルへ委譲し、このスキルでは再定義しない。
-- local-install スキルが解決した通常の Cargo install root へ導入し、ゲート終了後も CLI を残す。
+- インストールとsmoke testの内容はlocal-installスキルへ委譲し、このスキルでは再定義しない。
+- 既知の非バイナリ変更だけなら既存CLIを検証し、実行ファイルへ影響する変更または未知のパスを含む場合は通常のCargo install rootへ導入する。
+- 影響判定は安全側とし、判定できない変更をインストール不要として扱わない。
 
 ## 関連スキル
 

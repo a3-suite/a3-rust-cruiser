@@ -8,13 +8,13 @@
 ## 前提条件
 
 - `a3-rust-cruiser` コマンドが利用できること。利用できない場合はインストールを自動実行せず、その不足を報告する。
-- 対象プロジェクトが所有する YAML boundary policy、または SDD の logical-structure、projection、directory-structure の3パスを確認できること。どちらも確認できない場合は入力を推測または新規作成せず、入力不足として停止する。
+- 対象プロジェクトが所有する YAML boundary policy、または SDD の logical-structure、projection、directory-structure の3パスを確認できること。YAML入力にSDDは不要とし、どちらも確認できない場合は入力を推測または新規作成せず、入力不足として停止する。
 
 ## 検証フロー
 
 1. 対象プロジェクトから project root、policy入力、package、compilation target を確認する。policy入力はYAML 1ファイル、またはSDD 3ファイルのどちらか一方に固定する。
 2. 対象ツールチェーンから target triple を確認する。
-3. 既定の `compilation` profile で次の形式のコマンドを実行する。機械判定が必要な場合は JSON を選ぶ。
+3. SDDを使用しない標準的な検証では、既定の `compilation` profileでYAML boundary policyを直接指定する。機械判定が必要な場合はJSONを選ぶ。
 
    ```shell
    a3-rust-cruiser check <project-root> --policy <boundary-policy-path> --package <package> --target <target-kind>:<target-name> --target-triple <target-triple> --format json

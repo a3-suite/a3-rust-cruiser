@@ -15,6 +15,7 @@ description: GitHub Releaseの固定版a3-rust-cruiser CLIをセットアップ�
 
 - 解析対象は、1回の実行につき1つの Cargo package と compilation target に限定する。
 - policy入力、package、target、target triple は推測せず、対象プロジェクトとツールチェーンから確認する。
+- YAML boundary policyはSDDに依存しない標準入力として扱い、対象プロジェクトがSDD設計を所有しない場合にSDD入力を要求しない。
 - セットアップでは固定versionだけを使用し、`latest`やbranchから取得しない。
 - `indeterminate` と実行エラーを適合として扱わない。
 - 除外指定を、違反を隠して適合させる目的で追加しない。
