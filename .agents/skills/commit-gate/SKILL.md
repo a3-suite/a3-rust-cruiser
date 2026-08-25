@@ -25,7 +25,7 @@ description: a3-rust-cruiser でコミット前に staged snapshot の変更を�
 
 - staged 変更が無い場合は停止する。
 - staged snapshot を分離できない場合や一時領域を安全に後始末できない場合は、コミット可能と判定しない。
-- local-install スキルが定める外部書き込みの承認条件を満たしてから実行する。
+- local-install スキルが定める install 条件を満たしてから実行する。
 - Cargo が利用する既存の registry cache は、Cargo 自身の管理境界とする。
 
 ## トリガー＆アクション

@@ -2,8 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::model::{
     AnalysisIssue, AnalysisObservationOutcome, BoundaryPolicy, BoundaryRule, BoundaryViolation,
-    Dependency, DependencyKind, ObservedDependencyGraph, PolicyEvaluation, PolicyImpact, RuleKind,
-    ValidationDecision, ViolationKind,
+    ComponentAttributionModel, Dependency, DependencyKind, ObservedDependencyGraph,
+    PolicyEvaluation, PolicyImpact, RuleKind, Severity, TargetScope, ValidationDecision,
+    ViolationKind,
 };
 use super::pattern::matches_pattern;
 
@@ -105,12 +106,127 @@ pub fn decide(possible_issue_count: usize, violation_count: usize) -> Validation
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct AttributedDependency {
+    source: String,
+    target: String,
+    kind: DependencyKind,
+}
+
+#[derive(Debug, Default)]
+struct AttributionPresence {
+    possible: bool,
+    definite: bool,
+}
+
+pub fn assess_component_attribution(
+    issues: &mut [AnalysisIssue],
+    graph: &ObservedDependencyGraph,
+    model: &ComponentAttributionModel,
+) -> Vec<BoundaryRule> {
+    let candidates = graph
+        .modules
+        .iter()
+        .filter_map(|module| {
+            let module_candidates = component_candidates(&module.id, model);
+            (!module_candidates.is_empty()).then_some((module.id.clone(), module_candidates))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let (definite_violations, invariant) = analyze_component_attribution(graph, model, &candidates);
+    if invariant {
+        for issue in issues.iter_mut().filter(|issue| {
+            issue.observation.outcome == AnalysisObservationOutcome::ComponentAttributionUnresolved
+        }) {
+            issue.policy_impact = PolicyImpact::none();
+        }
+    }
+
+    definite_violations
+        .into_iter()
+        .enumerate()
+        .map(|(index, dependency)| BoundaryRule {
+            id: format!("sdd-attribution-forbidden-{:04}", index + 1),
+            kind: RuleKind::Forbidden,
+            severity: Severity::Error,
+            from: vec![dependency.source],
+            to: vec![dependency.target],
+            modules: Vec::new(),
+            dependency_kinds: vec![dependency.kind],
+        })
+        .collect()
+}
+
+fn analyze_component_attribution(
+    graph: &ObservedDependencyGraph,
+    model: &ComponentAttributionModel,
+    candidates: &BTreeMap<String, Vec<String>>,
+) -> (BTreeSet<AttributedDependency>, bool) {
+    let has_ambiguous_module = candidates.values().any(|values| values.len() > 1);
+    let mut presence = BTreeMap::<AttributedDependency, AttributionPresence>::new();
+    for dependency in graph
+        .dependencies
+        .iter()
+        .filter(|dependency| dependency.target_scope == TargetScope::InternalModule)
+    {
+        let Some(source_components) = candidates.get(&dependency.source) else {
+            continue;
+        };
+        let Some(target_components) = candidates.get(&dependency.target) else {
+            continue;
+        };
+        if source_components.len() == 1 && target_components.len() == 1 {
+            continue;
+        }
+        let mut any = false;
+        let mut all = true;
+        for source_component in source_components {
+            for target_component in target_components {
+                let violation = source_component != target_component
+                    && !model
+                        .declared_dependencies
+                        .contains(&(source_component.clone(), target_component.clone()));
+                any |= violation;
+                all &= violation;
+            }
+        }
+        if !any {
+            continue;
+        }
+        let key = AttributedDependency {
+            source: dependency.source.clone(),
+            target: dependency.target.clone(),
+            kind: dependency.kind,
+        };
+        let entry = presence.entry(key).or_default();
+        entry.possible |= any;
+        entry.definite |= all;
+    }
+    let invariant = has_ambiguous_module
+        && presence
+            .values()
+            .all(|value| value.possible == value.definite);
+    let definite = presence
+        .into_iter()
+        .filter_map(|(dependency, value)| value.definite.then_some(dependency))
+        .collect();
+    (definite, invariant)
+}
+
+fn component_candidates(module: &str, model: &ComponentAttributionModel) -> Vec<String> {
+    model
+        .component_modules
+        .iter()
+        .filter(|(_, root)| module == root.as_str() || module.starts_with(&format!("{root}::")))
+        .map(|(component, _)| component.clone())
+        .collect()
+}
+
 pub fn assess_policy_impact(issues: &mut [AnalysisIssue], policy: &BoundaryPolicy) {
     for issue in issues {
         issue.policy_impact = match issue.observation.outcome {
             AnalysisObservationOutcome::DependencyNeutral => PolicyImpact::none(),
             AnalysisObservationOutcome::ComponentAttributionUnresolved => {
-                PolicyImpact::possible(Vec::new())
+                issue.policy_impact.clone()
             }
             AnalysisObservationOutcome::UnresolvedDependencyCandidate
             | AnalysisObservationOutcome::AnalysisContextUnresolved => {

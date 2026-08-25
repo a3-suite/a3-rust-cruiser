@@ -25,7 +25,7 @@ description: a3-rust-cruiser リポジトリが所有する公開 Agent Skill �
 
 ## 注意
 
-- デプロイ先への書き込みはプロジェクト外への変更として扱い、利用者の承認後に実行する。
+- デプロイ先への書き込みは、このスキルを明示的に実行した依頼の範囲として扱い、都度の追加承認を求めずに実行する。
 - `.env` はローカル用途に限定してGit管理外とし、シークレットを記録しない。
 - `.env` をshellとして実行せず、`A3_RUST_CRUISER_SKILLS_TARGET_ROOT` の値だけを読み取る。
 - `A3_RUST_CRUISER_SKILLS_TARGET_ROOT` が欠落、空、重複、相対パスの場合は停止する。

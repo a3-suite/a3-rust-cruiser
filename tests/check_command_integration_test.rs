@@ -184,14 +184,14 @@ fn check_reports_forbidden_dependency_as_json_and_returns_one() {
 }
 
 #[test]
-fn unsupported_macro_makes_the_decision_indeterminate() {
+fn unknown_macro_makes_the_decision_indeterminate() {
     // Arrange
     let fixture = TempFixture::new();
     fixture.write(
         "Cargo.toml",
         "[package]\nname = \"macro-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
     );
-    fixture.write("src/main.rs", "fn main() { println!(\"hello\"); }\n");
+    fixture.write("src/main.rs", "fn main() { custom_macro!(); }\n");
     fixture.write(
         "policy.yaml",
         "rules:\n  - id: possible-crate-cycle\n    kind: circular\n    severity: error\n    modules: [crate, 'crate::**']\n",

@@ -11,9 +11,11 @@ use syn::{File, Item, ItemUse};
 
 use super::{
     cargo_project,
+    cfg_context::{CfgContext, CfgDecision},
     rust_syntax::{
-        PathVisitor, UseAlias, declared_item_names, flatten_use_tree, has_path_attribute,
-        path_to_string, syn_path_segments, use_aliases,
+        PathVisitor, UseAlias, declared_external_crate_aliases, declared_item_names,
+        declared_macro_bindings, flatten_use_tree, has_no_implicit_prelude, has_path_attribute,
+        item_attributes, path_to_string, syn_path_segments, use_aliases,
     },
 };
 
@@ -51,10 +53,20 @@ struct ModuleVariant {
     ast: File,
     declared_items: BTreeSet<String>,
     use_aliases: BTreeMap<String, Vec<UseAlias>>,
+    external_crate_aliases: BTreeSet<String>,
+    no_implicit_prelude: bool,
+}
+
+struct PathResolutionContext<'a> {
+    source_module: &'a str,
+    source_variant: &'a ModuleVariant,
+    aliases: &'a BTreeMap<String, Vec<UseAlias>>,
+    all_modules: &'a BTreeSet<String>,
 }
 
 struct Observer {
     project_root: PathBuf,
+    cfg_context: CfgContext,
     external_crates: BTreeSet<String>,
     context_dependent_crates: BTreeSet<String>,
     records: BTreeMap<String, ModuleRecord>,
@@ -71,11 +83,13 @@ fn observe(
     context.cfg.sort();
     context.cfg.dedup();
     let manifest = cargo_project::load_manifest(project_root)?;
+    let cfg_context = CfgContext::resolve(&context);
     let (entry, target_issues) = cargo_project::target_entry(project_root, &manifest, &context)?;
     let (external_crates, context_dependent_crates) =
-        cargo_project::declared_external_crates(&manifest, &context)?;
+        cargo_project::declared_external_crates(&manifest, &context, &cfg_context)?;
     let mut observer = Observer {
         project_root: project_root.to_path_buf(),
+        cfg_context,
         external_crates,
         context_dependent_crates,
         records: BTreeMap::new(),
@@ -202,8 +216,10 @@ impl Observer {
         let variant = ModuleVariant {
             path: path.to_path_buf(),
             module_directory: module_directory(path),
-            declared_items: declared_item_names(&ast),
-            use_aliases: use_aliases(&ast),
+            declared_items: declared_item_names(&ast, &self.cfg_context),
+            use_aliases: use_aliases(&ast, &self.cfg_context),
+            external_crate_aliases: declared_external_crate_aliases(&ast, &self.cfg_context),
+            no_implicit_prelude: has_no_implicit_prelude(&ast),
             ast,
         };
         let parent_path = variant.path.clone();
@@ -228,21 +244,49 @@ impl Observer {
         items: Vec<Item>,
     ) -> Result<()> {
         for item in items {
-            let Item::Mod(module) = item else { continue };
+            let cfg_decision = self.cfg_context.evaluate_attributes(item_attributes(&item));
+            if cfg_decision == CfgDecision::Inactive {
+                continue;
+            }
+            let Item::Mod(module) = item else {
+                if cfg_decision == CfgDecision::Unknown {
+                    self.issues.push(AnalysisIssue::analysis_context_unresolved(
+                        "analysis.unsupported-analysis-context",
+                        "unable to evaluate cfg condition for module declaration",
+                        parent_id,
+                        Some(parent_id.to_owned()),
+                        Some(self.evidence(parent_path, item.span().start())),
+                        all_dependency_kinds(),
+                    ));
+                }
+                continue;
+            };
             let child_id = format!("{parent_id}::{}", module.ident);
             let evidence = self.evidence(parent_path, module.span().start());
+            if cfg_decision == CfgDecision::Unknown {
+                self.issues.push(AnalysisIssue::analysis_context_unresolved(
+                    "analysis.unsupported-analysis-context",
+                    "unable to evaluate cfg condition for module declaration",
+                    child_id.clone(),
+                    Some(child_id.clone()),
+                    Some(evidence.clone()),
+                    all_dependency_kinds(),
+                ));
+            }
             self.declarations.push(ModuleDeclaration {
                 declaration_id: format!("decl:{parent_id}:{}", module.ident),
                 parent: parent_id.to_owned(),
                 child: child_id.clone(),
                 evidence: evidence.clone(),
             });
-            if has_path_attribute(&module.attrs) {
+            if cfg_decision != CfgDecision::Unknown
+                && has_path_attribute(&module.attrs, &self.cfg_context)
+            {
                 self.issues.push(AnalysisIssue::analysis_context_unresolved(
                     "analysis.unsupported-syntax",
                     "#[path] module declarations are not supported in the MVP",
                     child_id.clone(),
-                    Some(parent_id.to_owned()),
+                    Some(child_id.clone()),
                     Some(evidence),
                     all_dependency_kinds(),
                 ));
@@ -251,7 +295,12 @@ impl Observer {
             if let Some((_, inline_items)) = module.content {
                 let inline_file = File {
                     shebang: None,
-                    attrs: Vec::new(),
+                    attrs: module
+                        .attrs
+                        .iter()
+                        .filter(|attribute| attribute.path().is_ident("no_implicit_prelude"))
+                        .cloned()
+                        .collect(),
                     items: inline_items,
                 };
                 let child_items = inline_file.items.clone();
@@ -259,8 +308,13 @@ impl Observer {
                 let variant = ModuleVariant {
                     path: parent_path.to_path_buf(),
                     module_directory: child_module_directory.clone(),
-                    declared_items: declared_item_names(&inline_file),
-                    use_aliases: use_aliases(&inline_file),
+                    declared_items: declared_item_names(&inline_file, &self.cfg_context),
+                    use_aliases: use_aliases(&inline_file, &self.cfg_context),
+                    external_crate_aliases: declared_external_crate_aliases(
+                        &inline_file,
+                        &self.cfg_context,
+                    ),
+                    no_implicit_prelude: has_no_implicit_prelude(&inline_file),
                     ast: inline_file,
                 };
                 if let Some(existing) = self.records.get_mut(&child_id) {
@@ -333,21 +387,49 @@ impl Observer {
         issues: &mut Vec<AnalysisIssue>,
     ) {
         for item in &variant.ast.items {
-            if let Item::Use(use_item) = item {
-                let (use_dependencies, use_issues) =
-                    self.collect_use(source_id, variant, use_item, selected, all_modules);
+            if let Item::Use(use_item) = item
+                && self.cfg_context.evaluate_attributes(&use_item.attrs) != CfgDecision::Inactive
+            {
+                let (use_dependencies, use_issues) = self.collect_use(
+                    source_id,
+                    variant,
+                    use_item,
+                    &variant.use_aliases,
+                    selected,
+                    all_modules,
+                );
                 dependencies.extend(use_dependencies);
                 issues.extend(use_issues);
             }
         }
         let mut visitor = PathVisitor {
+            cfg_context: &self.cfg_context,
+            external_crates: &self.external_crates,
             paths: Vec::new(),
+            scoped_uses: Vec::new(),
+            local_bindings: BTreeSet::new(),
+            aliases: variant.use_aliases.clone(),
+            macro_bindings: declared_macro_bindings(&variant.ast, &self.cfg_context),
+            inactive_expr_cfg: false,
+            in_expr: false,
             macro_spans: Vec::new(),
             cfg_spans: Vec::new(),
             strict_path_spans: Vec::new(),
             use_spans: Vec::new(),
         };
         visitor.visit_file(&variant.ast);
+        for scoped_use in &visitor.scoped_uses {
+            let (use_dependencies, use_issues) = self.collect_use(
+                source_id,
+                variant,
+                &scoped_use.item,
+                &scoped_use.aliases,
+                selected,
+                all_modules,
+            );
+            dependencies.extend(use_dependencies);
+            issues.extend(use_issues);
+        }
         let strict_path_spans = visitor.strict_path_spans.clone();
         let top_level_use_spans: Vec<LineColumn> = variant
             .ast
@@ -358,19 +440,11 @@ impl Observer {
                 _ => None,
             })
             .collect();
-        for use_span in visitor.use_spans {
-            if !top_level_use_spans.contains(&use_span) {
-                issues.push(AnalysisIssue::unresolved_dependency_candidate(
-                    "analysis.unsupported-name-resolution",
-                    "block-scoped use declarations are outside the MVP name-resolution boundary",
-                    format!("{source_id}:{}", use_span.line),
-                    source_id.to_owned(),
-                    self.evidence(&variant.path, use_span),
-                    Vec::new(),
-                    vec![DependencyKind::Import],
-                ));
-            }
-        }
+        let _block_scoped_use_spans = visitor
+            .use_spans
+            .iter()
+            .filter(|span| !top_level_use_spans.contains(span))
+            .collect::<Vec<_>>();
         if analysis_profile == AnalysisProfile::Compilation {
             for macro_span in visitor.macro_spans {
                 issues.push(AnalysisIssue::unresolved_dependency_candidate(
@@ -394,16 +468,32 @@ impl Observer {
                 ));
             }
         }
-        for path in visitor.paths {
+        for observed_path in visitor.paths {
+            let path = observed_path.path;
             let strict_single_segment = strict_path_spans.contains(&path.span().start());
             let path_segments = syn_path_segments(&path);
+            if path_segments
+                .first()
+                .is_some_and(|first| observed_path.local_bindings.contains(first))
+            {
+                continue;
+            }
             let resolved = self.resolve_path(
                 source_id,
                 variant,
+                &observed_path.aliases,
                 &path_segments,
                 path.leading_colon.is_some(),
                 all_modules,
             );
+            if resolved.is_empty()
+                && path_segments.first().is_some_and(|first| {
+                    known_language_name(first)
+                        || (!variant.no_implicit_prelude && known_prelude_name(first))
+                })
+            {
+                continue;
+            }
             if resolved.is_empty() {
                 let explicit_relative_path = matches!(
                     path_segments.first().map(String::as_str),
@@ -413,7 +503,7 @@ impl Observer {
                     && (path_segments.len() > 1 || strict_single_segment);
                 let may_reference_internal = self.may_reference_internal_module(
                     source_id,
-                    variant,
+                    &observed_path.aliases,
                     &path_segments,
                     all_modules,
                     0,
@@ -436,6 +526,7 @@ impl Observer {
                     let candidate_targets = self.candidate_targets_for_path(
                         source_id,
                         variant,
+                        &observed_path.aliases,
                         &path_segments,
                         path.leading_colon.is_some(),
                         all_modules,
@@ -487,7 +578,7 @@ impl Observer {
     fn may_reference_internal_module(
         &self,
         source_module: &str,
-        source_variant: &ModuleVariant,
+        aliases: &BTreeMap<String, Vec<UseAlias>>,
         path: &[String],
         all_modules: &BTreeSet<String>,
         alias_depth: usize,
@@ -499,15 +590,15 @@ impl Observer {
             return true;
         }
         if alias_depth <= self.records.len()
-            && let Some(aliases) = source_variant.use_aliases.get(first)
+            && let Some(candidates) = aliases.get(first)
         {
-            return aliases.iter().any(|alias| {
+            return candidates.iter().any(|alias| {
                 let mut expanded = alias.path.clone();
                 expanded.extend_from_slice(&path[1..]);
                 !alias.absolute_external
                     && self.may_reference_internal_module(
                         source_module,
-                        source_variant,
+                        aliases,
                         &expanded,
                         all_modules,
                         alias_depth + 1,
@@ -529,6 +620,7 @@ impl Observer {
         source_id: &str,
         source_variant: &ModuleVariant,
         use_item: &ItemUse,
+        aliases: &BTreeMap<String, Vec<UseAlias>>,
         selected: &BTreeSet<String>,
         all_modules: &BTreeSet<String>,
     ) -> (Vec<Dependency>, Vec<AnalysisIssue>) {
@@ -545,6 +637,7 @@ impl Observer {
             let mut resolved = self.resolve_path(
                 source_id,
                 source_variant,
+                aliases,
                 &path,
                 use_item.leading_colon.is_some(),
                 all_modules,
@@ -576,6 +669,7 @@ impl Observer {
                 let candidate_targets = self.candidate_targets_for_path(
                     source_id,
                     source_variant,
+                    aliases,
                     &path,
                     use_item.leading_colon.is_some(),
                     all_modules,
@@ -627,6 +721,7 @@ impl Observer {
         &self,
         source_id: &str,
         source_variant: &ModuleVariant,
+        aliases: &BTreeMap<String, Vec<UseAlias>>,
         path: &[String],
         leading_colon: bool,
         all_modules: &BTreeSet<String>,
@@ -636,6 +731,7 @@ impl Observer {
             for (target, scope) in self.resolve_path(
                 source_id,
                 source_variant,
+                aliases,
                 &path[..end],
                 leading_colon,
                 all_modules,
@@ -655,27 +751,25 @@ impl Observer {
         &self,
         source_module: &str,
         source_variant: &ModuleVariant,
+        aliases: &BTreeMap<String, Vec<UseAlias>>,
         path: &[String],
         absolute_external: bool,
         all_modules: &BTreeSet<String>,
     ) -> Vec<(String, TargetScope)> {
-        self.resolve_path_inner(
+        let context = PathResolutionContext {
             source_module,
             source_variant,
-            path,
-            absolute_external,
+            aliases,
             all_modules,
-            0,
-        )
+        };
+        self.resolve_path_inner(&context, path, absolute_external, 0)
     }
 
     fn resolve_path_inner(
         &self,
-        source_module: &str,
-        source_variant: &ModuleVariant,
+        context: &PathResolutionContext<'_>,
         path: &[String],
         absolute_external: bool,
-        all_modules: &BTreeSet<String>,
         alias_depth: usize,
     ) -> Vec<(String, TargetScope)> {
         if path.is_empty() {
@@ -692,18 +786,16 @@ impl Observer {
         if alias_depth > self.records.len() {
             return Vec::new();
         }
-        if let Some(aliases) = source_variant.use_aliases.get(&path[0]) {
-            return aliases
+        if let Some(candidates) = context.aliases.get(&path[0]) {
+            return candidates
                 .iter()
                 .flat_map(|alias| {
                     let mut expanded = alias.path.clone();
                     expanded.extend_from_slice(&path[1..]);
                     self.resolve_path_inner(
-                        source_module,
-                        source_variant,
+                        context,
                         &expanded,
                         alias.absolute_external,
-                        all_modules,
                         alias_depth + 1,
                     )
                 })
@@ -711,9 +803,9 @@ impl Observer {
         }
         let (base, remainder) = match path[0].as_str() {
             "crate" => ("crate".to_owned(), &path[1..]),
-            "self" => (source_module.to_owned(), &path[1..]),
+            "self" => (context.source_module.to_owned(), &path[1..]),
             "super" => {
-                let mut current = source_module.split("::").collect::<Vec<_>>();
+                let mut current = context.source_module.split("::").collect::<Vec<_>>();
                 let super_count = path
                     .iter()
                     .take_while(|segment| segment.as_str() == "super")
@@ -725,25 +817,41 @@ impl Observer {
                 (current.join("::"), &path[super_count..])
             }
             first => {
-                let source_parts = source_module.split("::").collect::<Vec<_>>();
+                let source_parts = context.source_module.split("::").collect::<Vec<_>>();
                 let candidates = if source_parts.len() > 1 {
                     vec![
-                        format!("{source_module}::{first}"),
+                        format!("{}::{first}", context.source_module),
                         format!("crate::{first}"),
                     ]
                 } else {
                     vec![format!("crate::{first}")]
                 };
                 if let Some(local) = candidates.into_iter().find(|candidate| {
-                    all_modules.iter().any(|module| {
+                    context.all_modules.iter().any(|module| {
                         module == candidate || module.starts_with(&(candidate.clone() + "::"))
                     })
                 }) {
                     (local, &path[1..])
+                } else if path.len() > 1
+                    && context
+                        .source_variant
+                        .external_crate_aliases
+                        .contains(first)
+                {
+                    return vec![(first.to_owned(), TargetScope::ExternalCrate)];
+                } else if first == "Self" || context.source_variant.declared_items.contains(first) {
+                    return vec![(
+                        context.source_module.to_owned(),
+                        TargetScope::InternalModule,
+                    )];
                 } else {
-                    if path.len() == 1
-                        || !(known_external_crate(first) || self.external_crates.contains(first))
-                    {
+                    let is_external_crate = known_external_crate(first)
+                        || self.external_crates.contains(first)
+                        || context
+                            .source_variant
+                            .external_crate_aliases
+                            .contains(first);
+                    if path.len() == 1 || !is_external_crate {
                         return Vec::new();
                     }
                     return vec![(first.to_owned(), TargetScope::ExternalCrate)];
@@ -751,21 +859,22 @@ impl Observer {
             }
         };
         let mut candidate = base;
-        if all_modules.contains(&candidate) {
+        if context.all_modules.contains(&candidate) {
             for (index, segment) in remainder.iter().enumerate() {
                 let next = format!("{candidate}::{segment}");
-                if all_modules.contains(&next) {
+                if context.all_modules.contains(&next) {
                     candidate = next;
                 } else {
                     if segment == "self" && index + 1 == remainder.len() {
                         break;
                     }
-                    return if self.records.get(&candidate).is_some_and(|record| {
+                    let declared_item = self.records.get(&candidate).is_some_and(|record| {
                         record
                             .variants
                             .iter()
                             .any(|variant| variant.declared_items.contains(segment))
-                    }) {
+                    });
+                    return if declared_item || alias_depth > 0 {
                         vec![(candidate, TargetScope::InternalModule)]
                     } else {
                         Vec::new()
@@ -821,6 +930,69 @@ fn all_dependency_kinds() -> Vec<DependencyKind> {
 
 fn known_external_crate(name: &str) -> bool {
     matches!(name, "alloc" | "core" | "proc_macro" | "std" | "test")
+}
+
+fn known_language_name(name: &str) -> bool {
+    matches!(
+        name,
+        "bool"
+            | "char"
+            | "f32"
+            | "f64"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
+            | "str"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+    )
+}
+
+fn known_prelude_name(name: &str) -> bool {
+    matches!(
+        name,
+        "Box"
+            | "AsRef"
+            | "Clone"
+            | "Copy"
+            | "Default"
+            | "DoubleEndedIterator"
+            | "Drop"
+            | "Eq"
+            | "ExactSizeIterator"
+            | "Fn"
+            | "FnMut"
+            | "FnOnce"
+            | "From"
+            | "Into"
+            | "IntoIterator"
+            | "Iterator"
+            | "None"
+            | "Ok"
+            | "Option"
+            | "Ord"
+            | "PartialEq"
+            | "PartialOrd"
+            | "Result"
+            | "Send"
+            | "Sized"
+            | "Some"
+            | "String"
+            | "Sync"
+            | "ToOwned"
+            | "ToString"
+            | "TryFrom"
+            | "TryInto"
+            | "Unpin"
+            | "Vec"
+    )
 }
 
 fn candidate_id(

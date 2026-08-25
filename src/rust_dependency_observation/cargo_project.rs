@@ -8,6 +8,8 @@ use crate::boundary_validation::{
     AnalysisContext, AnalysisIssue, AnalysisProfile, CruiserError, Result,
 };
 
+use super::cfg_context::{CfgContext, CfgDecision};
+
 pub(super) fn load_manifest(project_root: &Path) -> Result<toml::Value> {
     let manifest_path = project_root.join("Cargo.toml");
     let content = fs::read_to_string(manifest_path)?;
@@ -19,19 +21,23 @@ pub(super) fn load_manifest(project_root: &Path) -> Result<toml::Value> {
 pub(super) fn declared_external_crates(
     manifest: &toml::Value,
     context: &AnalysisContext,
+    cfg_context: &CfgContext,
 ) -> Result<(BTreeSet<String>, BTreeSet<String>)> {
     validate_manifest_dependency_shapes(manifest)?;
+    let active_features = active_features(manifest, &context.features)?;
     let mut crates = BTreeSet::new();
     let mut context_dependent = BTreeSet::new();
     let mut source_union_candidates = BTreeSet::new();
     collect_dependency_names(
         dependency_table(manifest.get("dependencies"), "dependencies")?,
+        Some(&active_features),
         &mut crates,
         &mut context_dependent,
     )?;
     if is_dev_compilation_target(&context.compilation_target) {
         collect_dependency_names(
             dependency_table(manifest.get("dev-dependencies"), "dev-dependencies")?,
+            Some(&active_features),
             &mut crates,
             &mut context_dependent,
         )?;
@@ -55,6 +61,7 @@ pub(super) fn declared_external_crates(
                         target.get("dependencies"),
                         &format!("target.{selector}.dependencies"),
                     )?,
+                    Some(&active_features),
                     &mut crates,
                     &mut context_dependent,
                 )?;
@@ -64,6 +71,7 @@ pub(super) fn declared_external_crates(
                             target.get("dev-dependencies"),
                             &format!("target.{selector}.dev-dependencies"),
                         )?,
+                        Some(&active_features),
                         &mut crates,
                         &mut context_dependent,
                     )?;
@@ -74,11 +82,24 @@ pub(super) fn declared_external_crates(
                         .cloned(),
                 );
             } else if selector.starts_with("cfg(") {
-                collect_all_dependency_names(target, selector, &mut context_dependent)?;
+                match cfg_context.evaluate_selector(selector) {
+                    CfgDecision::Active => collect_runtime_dependency_names(
+                        target,
+                        selector,
+                        is_dev_compilation_target(&context.compilation_target),
+                        Some(&active_features),
+                        &mut crates,
+                    )?,
+                    CfgDecision::Inactive => {}
+                    CfgDecision::Unknown => {
+                        collect_all_dependency_names(target, selector, &mut context_dependent)?;
+                    }
+                }
                 collect_runtime_dependency_names(
                     target,
                     selector,
                     is_dev_compilation_target(&context.compilation_target),
+                    None,
                     &mut source_union_candidates,
                 )?;
             }
@@ -98,8 +119,52 @@ fn is_dev_compilation_target(target: &str) -> bool {
     )
 }
 
+fn active_features(manifest: &toml::Value, requested: &[String]) -> Result<BTreeSet<String>> {
+    let feature_table = match manifest.get("features") {
+        Some(value) => Some(value.as_table().ok_or_else(|| {
+            CruiserError::InvalidInput("Cargo.toml features must be a table".to_owned())
+        })?),
+        None => None,
+    };
+    let mut active = requested.iter().cloned().collect::<BTreeSet<_>>();
+    if feature_table.is_some_and(|features| features.contains_key("default")) {
+        active.insert("default".to_owned());
+    }
+    let mut pending = active.iter().cloned().collect::<Vec<_>>();
+    while let Some(feature) = pending.pop() {
+        let Some(entries) = feature_table.and_then(|features| features.get(&feature)) else {
+            continue;
+        };
+        let entries = entries.as_array().ok_or_else(|| {
+            CruiserError::InvalidInput(format!("Cargo.toml feature {feature} must be an array"))
+        })?;
+        for entry in entries {
+            let entry = entry.as_str().ok_or_else(|| {
+                CruiserError::InvalidInput(format!(
+                    "Cargo.toml feature {feature} entries must be text"
+                ))
+            })?;
+            let local = entry
+                .strip_prefix("dep:")
+                .or_else(|| {
+                    entry
+                        .split_once('/')
+                        .map(|(name, _)| name.trim_end_matches('?'))
+                })
+                .unwrap_or(entry);
+            if active.insert(entry.to_owned()) {
+                pending.push(entry.to_owned());
+            }
+            active.insert(local.to_owned());
+            active.insert(local.replace('-', "_"));
+        }
+    }
+    Ok(active)
+}
+
 fn collect_dependency_names(
     table: Option<&toml::value::Table>,
+    active_features: Option<&BTreeSet<String>>,
     active: &mut BTreeSet<String>,
     context_dependent: &mut BTreeSet<String>,
 ) -> Result<()> {
@@ -120,7 +185,13 @@ fn collect_dependency_names(
             })?,
             None => false,
         };
-        if optional {
+        let feature_active = active_features.is_some_and(|features| {
+            features.contains(name)
+                || features.contains(&normalized)
+                || features.contains(&format!("dep:{name}"))
+                || features.contains(&format!("dep:{normalized}"))
+        });
+        if optional && !feature_active {
             context_dependent.insert(normalized);
         } else {
             active.insert(normalized);
@@ -138,7 +209,7 @@ fn collect_all_dependency_names(
         let table = dependency_table(target.get(section), &format!("target.{selector}.{section}"))?;
         let mut active = BTreeSet::new();
         let mut conditional = BTreeSet::new();
-        collect_dependency_names(table, &mut active, &mut conditional)?;
+        collect_dependency_names(table, None, &mut active, &mut conditional)?;
         names.extend(active);
         names.extend(conditional);
     }
@@ -149,6 +220,7 @@ fn collect_runtime_dependency_names(
     target: &toml::value::Table,
     selector: &str,
     include_dev_dependencies: bool,
+    active_features: Option<&BTreeSet<String>>,
     names: &mut BTreeSet<String>,
 ) -> Result<()> {
     let sections = if include_dev_dependencies {
@@ -160,9 +232,11 @@ fn collect_runtime_dependency_names(
         let table = dependency_table(target.get(section), &format!("target.{selector}.{section}"))?;
         let mut active = BTreeSet::new();
         let mut conditional = BTreeSet::new();
-        collect_dependency_names(table, &mut active, &mut conditional)?;
+        collect_dependency_names(table, active_features, &mut active, &mut conditional)?;
         names.extend(active);
-        names.extend(conditional);
+        if active_features.is_none() {
+            names.extend(conditional);
+        }
     }
     Ok(())
 }
@@ -186,6 +260,7 @@ fn validate_manifest_dependency_shapes(manifest: &toml::Value) -> Result<()> {
         let mut conditional = BTreeSet::new();
         collect_dependency_names(
             dependency_table(manifest.get(section), section)?,
+            None,
             &mut active,
             &mut conditional,
         )?;

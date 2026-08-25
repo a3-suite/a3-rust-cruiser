@@ -6,7 +6,8 @@ use std::{
 use serde::Deserialize;
 
 use crate::boundary_validation::{
-    AnalysisIssue, BoundaryPolicy, BoundaryRule, CruiserError, Result, RuleKind, Severity,
+    AnalysisIssue, BoundaryPolicy, BoundaryRule, ComponentAttributionModel, CruiserError,
+    LoadedBoundaryPolicy, Result, RuleKind, Severity,
 };
 
 pub(super) fn load(
@@ -15,7 +16,7 @@ pub(super) fn load(
     directory_structure_path: &Path,
     project_root: &Path,
     target_source: &Path,
-) -> Result<(BoundaryPolicy, Vec<AnalysisIssue>)> {
+) -> Result<LoadedBoundaryPolicy> {
     let logical: LogicalStructure = read_yaml(logical_structure_path, "logical-structure")?;
     let projection: Projection = read_yaml(projection_path, "projection")?;
     let directories: DirectoryStructure =
@@ -166,7 +167,16 @@ pub(super) fn load(
             }
         }
     }
-    Ok((BoundaryPolicy { rules }, analysis_issues))
+    Ok(LoadedBoundaryPolicy {
+        policy: BoundaryPolicy { rules },
+        analysis_issues,
+        component_attribution: (!ambiguous_components.is_empty()).then_some(
+            ComponentAttributionModel {
+                component_modules,
+                declared_dependencies,
+            },
+        ),
+    })
 }
 
 fn validate_acyclic_dependencies(

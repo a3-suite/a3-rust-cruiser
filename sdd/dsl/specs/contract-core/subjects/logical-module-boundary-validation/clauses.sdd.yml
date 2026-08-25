@@ -6,7 +6,10 @@ contracts:
     summary: >-
       1回の解析はcompilationまたはsource-unionを持つ一意なAnalysisContextを使い、ModuleDeclarationを利用依存から分離し、
       import、re-export、解決済みpath-referenceだけをDependencyEdgeとして観測する。
-      compilationは選択したcompile条件を観測範囲とし、未対応のmacro展開、cfg評価、名前解決が境界判定へ影響し得る場合は解析未完了とする。
+      compilationはCargo manifest、選択feature、target tripleに対するrustc cfgを組み合わせたcompile条件を観測範囲とし、
+      有効・無効を確定できるcfg、Cargo target dependency、optional dependencyを選別する。字句scope内のuse alias、local binding、
+      同一moduleの宣言名、既知の依存中立macroとserdeを正規提供元とするderive、既知macroの引数内pathを解決し、それでも未対応のmacro展開、cfg評価、名前解決が
+      境界判定へ影響し得る場合だけ解析未完了とする。
       source-unionはsourceに記述された全cfg分岐を和集合として観測し、macroまたはattribute展開だけが生成する依存を観測範囲外とするが、明示的な内部参照を解決できない場合は解析未完了とする。
       includeとexcludeはBoundaryPolicyと同じLogicalModule ID patternを使い、include省略時は全moduleを候補とし、excludeを優先する。
       選択済みmoduleを依存元とし、内部依存先も選択済みの辺だけを保持するが、外部crate依存先は依存元が選択済みなら保持する。
@@ -167,9 +170,11 @@ contracts:
       projectionとdirectory nodeを介してRust logical moduleへ対応付ける。Rust module解析対象外と確定できる正規source nodeは
       入力不正または解析不能とせず、BoundaryPolicy導出対象から除外する。複数componentが同じdirectory nodeへ対応する場合、
       またはcomponentのRust module scopeが親子関係で重なる場合は、component帰属が曖昧な有効入力として扱う。1つのdirectory nodeへ複数componentを
-      対応付けるmany-to-oneは有効入力として受理するが、そのRust logical moduleに関係するcomponent帰属を
-      一意に解析できないため、対象moduleとcomponent集合を伴うAnalysisIssueを返す。曖昧なcomponent組から
-      forbidden ruleを生成せず、一対一で対応するcomponent間では宣言済み依存以外をerrorのforbidden ruleへ投影する。
+      対応付けるmany-to-oneは有効入力として受理し、対象moduleとcomponent集合を伴うAnalysisIssueを返す。
+      全component帰属候補を列挙し、各候補でlogical dependency graphの直接辺に基づく許可・禁止を評価する。
+      全候補で評価が同一ならpolicy impactをnoneとして確定判断し、全候補で禁止される依存だけを確定違反へ投影する。
+      各候補は検証済み宣言DAGの部分graphとして評価し、候補間で評価が異なる場合、または帰属候補を完全列挙できない場合は
+      policy impactをpossibleとして判定不能にする。一対一で対応するcomponent間では宣言済み依存以外をerrorのforbidden ruleへ投影する。
       logical-structureの宣言依存graphは非循環でなければならず、宣言外依存を禁止することで実装上のcomponent間循環を防ぐ。
       YAMLとSDDの同時指定、SDD三入力の欠落、未知のcomponent/node参照、component IDまたはnode IDの重複、
       1つのcomponentから複数nodeへの投影、異なるdirectory nodeから同一Rust logical moduleへの
@@ -626,6 +631,8 @@ contracts:
       BoundaryViolationが1件でもあれば重大度によらずnon-conformantを最優先し、
       違反がなく現在policyへの影響がpossibleなAnalysisIssueが1件でもあればindeterminate、
       それ以外はAnalysisIssueが存在してもconformantとする。JSONとtextは同じ判断、違反、解析問題を表し、
+      曖昧なcomponent帰属は全実行可能な帰属候補の評価が不変な場合だけpolicy impact noneとし、候補間差分、
+      完全列挙不能、または宣言DAGと矛盾する候補を含む場合はpossibleとする。
       moduleはid、declarationはparent・child・evidence、dependencyはsource・target・kind・evidence、
       violationはrule_id・source・target・dependency_kind・evidence、analysis issueはcode・affected_scope・reasonに加え、
       観測結果と現在policyへの影響を独立した型付きfieldで保持する。確定依存と確定違反はAnalysisIssueへ複製しない。
@@ -645,6 +652,11 @@ contracts:
         input_predicate:
           kind: input
           term: input.analysis_issue_policy_impact_possible
+          op: present
+      - id: path-module-analysis-issue
+        input_predicate:
+          kind: input
+          term: input.path_module_analysis_issue
           op: present
       - id: dependency-neutral-analysis-issue
         input_predicate:
@@ -719,6 +731,38 @@ contracts:
               kind: value_set
               values:
                 - indeterminate
+      - id: analysis-issue-has-possible-policy-impact
+        when: possible-policy-impact
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.analysis_issues.policy_impact.outcome
+            right:
+              kind: value_set
+              values:
+                - possible
+      - id: path-module-source-module-present
+        when: path-module-analysis-issue
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.analysis_issues.observation.source_module
+      - id: path-module-policy-rule-ids-present
+        when: path-module-analysis-issue
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.analysis_issues.policy_impact.rule_ids
       - id: json-schema-version-present
         when: json-report-request
         observation_ref: observation.validation.result

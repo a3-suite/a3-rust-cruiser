@@ -16,7 +16,7 @@ JavaScript/TypeScript向けの[dependency-cruiser](https://github.com/sverweij/d
 - crate間またはworkspace package間の依存を検証する
 - 複数のCargo packageやcompilation targetを1回の実行でまとめて検証する
 - 依存グラフを画像や対話的な図として可視化する
-- macro expansionやcfg条件をRustコンパイラと同等に完全解決する。既定の`compilation` profileでは解析範囲外の構造を検出すると`indeterminate`になる。`source-union` profileは同じ判定保証を提供しない
+- macro expansionや名前解決をRustコンパイラと同等に完全解決する。既定の`compilation` profileではCargo feature、target dependency、rustcのtarget cfg、既知macroと字句scopeを解析し、残る解析範囲外の構造が境界判定へ影響し得る場合だけ`indeterminate`になる。`source-union` profileは同じ判定保証を提供しない
 - dependency-cruiserの設定ファイルやルールとの互換性を提供する
 
 ## 前提
@@ -72,7 +72,7 @@ rules:
 
 `--logical-structure`、`--projection`、`--directory-structure`は、SDD設計を正本として管理しているプロジェクト向けの任意入力です。
 project全体のprojectionに含まれる正規source nodeのうち、Rust module解析対象外と確定できるnodeは入力不正とせず、boundary policyの導出対象から除外します。
-複数のlogical componentが同じdirectory nodeへ投影されるmany-to-one、またはcomponentのRust module scopeが親子関係で重なるprojectionは有効入力ですが、Rust moduleからcomponentを一意に帰属できないため、終了コード`2` / `decision: indeterminate`と`analysis.ambiguous-component-attribution`を返します。
+複数のlogical componentが同じdirectory nodeへ投影されるmany-to-one、またはcomponentのRust module scopeが親子関係で重なるprojectionは有効入力です。`analysis.ambiguous-component-attribution`で帰属候補を報告しつつ、検証済み宣言DAGの部分graphとして実行可能な全component帰属候補を評価し、許可・禁止の評価が同じなら確定判断します。候補間で評価が異なる場合、または候補を完全列挙できない場合は、終了コード`2` / `decision: indeterminate`を返します。
 
 ## 最短実行
 

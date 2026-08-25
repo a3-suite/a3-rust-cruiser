@@ -282,7 +282,7 @@ fn source_union_preserves_conditional_dependency_kind_boundaries() {
         "crate",
         "cfg_build"
     ));
-    assert_issue(&binary_report, "analysis.unsupported-analysis-context");
+    assert_issue(&binary_report, "analysis.unsupported-name-resolution");
 
     assert!(dependency_target_exists(
         &test_report,
@@ -295,7 +295,7 @@ fn source_union_preserves_conditional_dependency_kind_boundaries() {
         "crate",
         "cfg_build"
     ));
-    assert_issue(&test_report, "analysis.unsupported-analysis-context");
+    assert_issue(&test_report, "analysis.unsupported-name-resolution");
 }
 
 #[test]
@@ -488,7 +488,7 @@ fn declared_item_kinds_support_complete_path_resolution() {
     );
 
     // Act
-    let report = completed_json(&run_check(&fixture, "json"), 2);
+    let report = completed_json(&run_check(&fixture, "json"), 0);
 
     // Assert
     assert!(dependency_exists(

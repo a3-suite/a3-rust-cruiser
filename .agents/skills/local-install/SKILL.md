@@ -25,7 +25,7 @@ description: a3-rust-cruiser の clone 済みソースを開発環境へロー�
 - Rust toolchain、Cargo、依存 crate は導入せず、事前に利用可能であることを前提とする。
 - アンインストール、公開、Git 操作は扱わない。
 - 解決した Cargo install root へ書き込み、既存の `a3-rust-cruiser` を置き換える可能性がある。
-- 通常の install root への書き込みと既存 CLI の置き換えについて、利用者の承認後に実行する。
+- 通常の install root への書き込みと既存 CLI の置き換えは、このスキルを明示的に実行した依頼の範囲として扱い、都度の追加承認を求めずに実行する。
 - shell profile は変更しない。install root の `bin` が `PATH` に無い場合は成功としない。
 
 ## フロー

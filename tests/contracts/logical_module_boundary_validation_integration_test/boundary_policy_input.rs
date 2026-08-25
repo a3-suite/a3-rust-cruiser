@@ -101,7 +101,7 @@ fn cargo_target_root_component_projections_are_rejected() {
 }
 
 #[test]
-fn overlapping_rust_module_projections_are_indeterminate() {
+fn overlapping_rust_module_projections_remain_indeterminate_when_unobserved() {
     // Arrange
     let fixture = TempFixture::new("overlapping-rust-module-sdd-policy-input");
     write_sdd_policy_input(&fixture);
@@ -115,7 +115,12 @@ fn overlapping_rust_module_projections_are_indeterminate() {
 
     // Assert
     let report = completed_json(&output, 2);
+    assert_eq!(report["decision"], "indeterminate");
     assert_issue(&report, "analysis.ambiguous-component-attribution");
+    assert_eq!(
+        report["analysis_issues"][0]["policy_impact"]["outcome"],
+        "possible"
+    );
 }
 
 #[test]

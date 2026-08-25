@@ -89,7 +89,7 @@ fn non_conformant_result_exits_with_one() {
 fn indeterminate_result_exits_with_two() {
     // Arrange
     let fixture = policy_sensitive_fixture("indeterminate-exit");
-    fixture.write("src/main.rs", "fn main() { println!(\"hello\"); }\n");
+    fixture.write("src/main.rs", "fn main() { custom_macro!(); }\n");
 
     // Act
     let output = run_check(&fixture, "json");

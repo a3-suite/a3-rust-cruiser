@@ -164,13 +164,13 @@ test_maps:
         check_refs:
           - check-valid-sdd-policy-with-non-rust-node-accepted
   - verification_id: verification.logical-module-boundary.boundary-policy-input
-    case_id: overlapping-rust-module-projections-are-indeterminate
+    case_id: overlapping-rust-module-projections-are-evaluated
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: overlapping_rust_module_projections_are_indeterminate
+        symbol: overlapping_rust_module_projections_are_conformant_when_all_assignments_agree
         check_refs:
           - check-overlapping-rust-module-projection-accepted
-          - check-overlapping-rust-module-projection-indeterminate
+          - check-overlapping-rust-module-projection-attribution
   - verification_id: verification.logical-module-boundary.boundary-policy-input
     case_id: incomplete-sdd-design-input-is-rejected
     tests:
@@ -321,6 +321,104 @@ test_maps:
           - check-canonical-ordering
           - check-safe-violations-remain-observable
   - verification_id: verification.logical-module-boundary.validation-report
+    case_id: invariant-allowed-component-assignments-are-conformant
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: invariant_allowed_component_assignments_are_conformant
+        check_refs:
+          - check-conformant-decision
+          - check-analysis-issue-code
+          - check-no-policy-impact
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: invariant-forbidden-component-assignments-are-non-conformant
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: invariant_forbidden_component_assignments_are_non_conformant
+        check_refs:
+          - check-non-conformant-decision
+          - check-analysis-issue-code
+          - check-safe-violations-remain-observable
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: assignment-dependent-component-outcomes-are-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: assignment_dependent_component_outcomes_remain_indeterminate_without_safe_violations
+        check_refs:
+          - check-indeterminate-decision
+          - check-analysis-issue-code
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: component-assignment-proof-exhaustion-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: component_assignment_proof_exhaustion_remains_indeterminate
+        check_refs:
+          - check-indeterminate-decision
+          - check-analysis-issue-code
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: known-compilation-context-is-resolved
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: cfg_selected_dependency_uses_the_rustc_target_context
+        check_refs:
+          - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: selected_optional_dependency_uses_the_cargo_feature_context
+        check_refs:
+          - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: inactive_cfg_items_are_excluded_before_dependency_observation
+        check_refs:
+          - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: block_scoped_use_is_resolved_within_its_lexical_scope
+        check_refs:
+          - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: local_binding_shadowing_does_not_create_a_module_dependency
+        check_refs:
+          - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: dependency_neutral_standard_macro_is_conformant
+        check_refs:
+          - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: dependency_neutral_builtin_derive_is_conformant
+        check_refs:
+          - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: external_derive_macros_with_proven_crate_identity_are_conformant
+        check_refs:
+          - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: standard_macro_arguments_are_observed_recursively
+        check_refs:
+          - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: inactive_cfg_attr_path_module_is_ignored
+        check_refs:
+          - check-conformant-decision
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: path-module-unsupported-syntax-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: path_module_declaration_is_indeterminate_for_child_policy
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issue-code
+          - check-analysis-issue-affected-scope
+          - check-path-module-source-module
+          - check-path-module-policy-impact
+          - check-path-module-policy-rule-ids
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: active_cfg_attr_path_module_is_indeterminate_for_child_policy
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issue-code
+          - check-analysis-issue-affected-scope
+          - check-path-module-source-module
+          - check-path-module-policy-impact
+          - check-path-module-policy-rule-ids
+  - verification_id: verification.logical-module-boundary.validation-report
     case_id: json-report
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
@@ -405,6 +503,30 @@ test_maps:
           - check-analysis-issue-code
           - check-analysis-issue-reason
           - check-analysis-issue-affected-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: unknown_external_derive_macro_is_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: unknown_external_single_segment_derive_alias_is_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: mixed_external_derive_alias_candidates_are_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: unsupported-name-resolution-is-indeterminate
     tests:
@@ -418,14 +540,6 @@ test_maps:
           - check-analysis-issue-affected-scope
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: unresolved_single_segment_type_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: block_scoped_use_is_indeterminate_until_scope_resolution_is_supported
         check_refs:
           - check-indeterminate
           - check-analysis-issues
@@ -472,22 +586,6 @@ test_maps:
           - check-analysis-issue-affected-scope
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: missing_target_required_feature_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: cfg_selected_dependency_is_indeterminate_without_cfg_evaluation
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: optional_dependency_is_indeterminate_without_feature_evaluation
         check_refs:
           - check-indeterminate
           - check-analysis-issues

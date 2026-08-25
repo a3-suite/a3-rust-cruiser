@@ -1,4 +1,7 @@
-use std::cmp::Ordering;
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, BTreeSet},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnalysisProfile {
@@ -92,6 +95,19 @@ pub struct ObservedDependencyGraph {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryPolicy {
     pub rules: Vec<BoundaryRule>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoadedBoundaryPolicy {
+    pub policy: BoundaryPolicy,
+    pub analysis_issues: Vec<AnalysisIssue>,
+    pub component_attribution: Option<ComponentAttributionModel>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComponentAttributionModel {
+    pub component_modules: BTreeMap<String, String>,
+    pub declared_dependencies: BTreeSet<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

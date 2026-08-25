@@ -47,7 +47,7 @@ fn forbidden_fixture(label: &str, with_issue: bool) -> TempFixture {
     if with_issue {
         fixture.write(
             "src/main.rs",
-            "mod application;\nmod infrastructure;\nfn main() { println!(\"incomplete\"); }\n",
+            "mod application;\nmod infrastructure;\nfn main() { custom_macro!(); }\n",
         );
     }
     fixture.write(
@@ -205,7 +205,7 @@ fn assert_issue(report: &Value, code: &str) {
     let issue = issues
         .iter()
         .find(|issue| issue["code"] == code)
-        .expect("expected issue code");
+        .unwrap_or_else(|| panic!("expected issue code {code} in {issues:?}"));
     assert!(
         issue["reason"]
             .as_str()

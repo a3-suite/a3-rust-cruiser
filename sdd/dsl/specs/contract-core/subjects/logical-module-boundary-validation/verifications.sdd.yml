@@ -164,7 +164,7 @@ verifications:
         checks:
           - id: check-valid-sdd-policy-with-non-rust-node-accepted
             guarantee_ref: valid-sdd-boundary-policy-input-accepted
-      - id: overlapping-rust-module-projections-are-indeterminate
+      - id: overlapping-rust-module-projections-are-evaluated
         intent_id: sdd-boundary-policy-input-acceptance
         input:
           valid_sdd_boundary_policy:
@@ -172,7 +172,7 @@ verifications:
         checks:
           - id: check-overlapping-rust-module-projection-accepted
             guarantee_ref: valid-sdd-boundary-policy-input-accepted
-          - id: check-overlapping-rust-module-projection-indeterminate
+          - id: check-overlapping-rust-module-projection-attribution
             guarantee_ref: ambiguous-component-attribution-code
       - id: incomplete-sdd-design-input-is-rejected
         intent_id: sdd-boundary-policy-input-rejection
@@ -486,6 +486,107 @@ verifications:
             guarantee_ref: report-ordering-canonical
           - id: check-safe-violations-remain-observable
             guarantee_ref: report-violations-present
+      - id: invariant-allowed-component-assignments-are-conformant
+        intent_id: ambiguous-component-attribution-report
+        input:
+          complete_without_violation: true
+          ambiguous_component_attribution: true
+          analysis_issue_policy_impact_none: true
+          component_assignment_outcome: invariant-allowed
+          report_request: true
+        checks:
+          - id: check-conformant-decision
+            guarantee_ref: conformant-decision
+          - id: check-analysis-issue-code
+            guarantee_ref: ambiguous-component-attribution-code
+          - id: check-no-policy-impact
+            guarantee_ref: analysis-issue-has-no-policy-impact
+      - id: invariant-forbidden-component-assignments-are-non-conformant
+        intent_id: ambiguous-component-attribution-report
+        input:
+          complete_with_violation: true
+          ambiguous_component_attribution: true
+          analysis_issue_policy_impact_none: true
+          component_assignment_outcome: invariant-forbidden
+          report_request: true
+        checks:
+          - id: check-non-conformant-decision
+            guarantee_ref: non-conformant-decision
+          - id: check-analysis-issue-code
+            guarantee_ref: ambiguous-component-attribution-code
+          - id: check-safe-violations-remain-observable
+            guarantee_ref: report-violations-present
+      - id: assignment-dependent-component-outcomes-are-indeterminate
+        intent_id: ambiguous-component-attribution-report
+        input:
+          ambiguous_component_attribution: true
+          analysis_issue_policy_impact_possible: true
+          component_assignment_outcome: assignment-dependent
+          report_request: true
+        checks:
+          - id: check-indeterminate-decision
+            guarantee_ref: indeterminate-decision
+          - id: check-analysis-issue-code
+            guarantee_ref: ambiguous-component-attribution-code
+      - id: component-assignment-proof-exhaustion-is-indeterminate
+        intent_id: ambiguous-component-attribution-report
+        input:
+          ambiguous_component_attribution: true
+          analysis_issue_policy_impact_possible: true
+          component_assignment_outcome: proof-exhausted
+          report_request: true
+        checks:
+          - id: check-indeterminate-decision
+            guarantee_ref: indeterminate-decision
+          - id: check-analysis-issue-code
+            guarantee_ref: ambiguous-component-attribution-code
+      - id: known-compilation-context-is-resolved
+        intent_id: analysis-issue-classification
+        input:
+          complete_without_violation: true
+          resolved_context:
+            - rustc-target-cfg
+            - cargo-optional-dependency-feature
+            - inactive-cfg-item
+            - lexical-use-and-local-binding
+            - dependency-neutral-standard-macro-and-derive
+            - standard-macro-arguments
+          report_request: true
+        checks:
+          - id: check-conformant-decision
+            guarantee_ref: conformant-decision
+      - id: inactive-cfg-attr-path-module-is-ignored
+        intent_id: analysis-issue-classification
+        input:
+          complete_without_violation: true
+          resolved_context:
+            - inactive-cfg-attr-path-module
+          report_request: true
+        checks:
+          - id: check-conformant-decision
+            guarantee_ref: conformant-decision
+      - id: path-module-unsupported-syntax-is-indeterminate
+        intent_id: analysis-issue-classification
+        input:
+          analysis_issue_policy_impact_possible: true
+          path_module_analysis_issue: true
+          report_request:
+            format: json
+          analysis_issue:
+            code: analysis.unsupported-syntax
+        checks:
+          - id: check-indeterminate
+            guarantee_ref: indeterminate-decision
+          - id: check-analysis-issue-code
+            guarantee_ref: analysis-issue-code-supported
+          - id: check-analysis-issue-affected-scope
+            guarantee_ref: analysis-issue-affected-scope-present
+          - id: check-path-module-source-module
+            guarantee_ref: path-module-source-module-present
+          - id: check-path-module-policy-impact
+            guarantee_ref: analysis-issue-has-possible-policy-impact
+          - id: check-path-module-policy-rule-ids
+            guarantee_ref: path-module-policy-rule-ids-present
       - id: json-report
         intent_id: json-report-projection
         input:
