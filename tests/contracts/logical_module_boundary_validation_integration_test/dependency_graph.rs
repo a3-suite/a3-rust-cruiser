@@ -807,3 +807,73 @@ fn exact_target_dependency_is_active_for_the_selected_triple() {
         "external-crate"
     ));
 }
+
+#[test]
+fn serde_function_path_observes_explicit_internal_dependency() {
+    // Arrange
+    let fixture = TempFixture::new("serde-explicit-internal-function-path");
+    fixture.write(
+        "src/main.rs",
+        "mod forbidden;\nstruct Model {\n    #[serde(deserialize_with = \"crate::forbidden::decode\")]\n    value: usize,\n}\nfn main() {}\n",
+    );
+    fixture.write("src/forbidden.rs", "pub fn decode() -> usize { 1 }\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-serde-helper\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::forbidden]\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+
+    // Assert
+    let dependency = report["dependencies"]
+        .as_array()
+        .and_then(|dependencies| {
+            dependencies.iter().find(|dependency| {
+                dependency["source"] == "crate"
+                    && dependency["target"] == "crate::forbidden"
+                    && dependency["kind"] == "path-reference"
+            })
+        })
+        .expect("serde helper dependency");
+    assert_eq!(dependency["evidence"]["line"], 3);
+    assert_eq!(report["violations"][0]["rule_id"], "forbid-serde-helper");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn source_union_does_not_observe_serde_function_path_dependency() {
+    // Arrange
+    let fixture = TempFixture::new("source-union-serde-function-path");
+    fixture.write(
+        "src/main.rs",
+        "mod forbidden;\nstruct Model {\n    #[serde(deserialize_with = \"crate::forbidden::decode\")]\n    value: usize,\n}\nfn main() {}\n",
+    );
+    fixture.write("src/forbidden.rs", "pub fn decode() -> usize { 1 }\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-serde-helper\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::forbidden]\n",
+    );
+
+    // Act
+    let report = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        0,
+    );
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert!(!dependency_exists(
+        &report,
+        "crate",
+        "crate::forbidden",
+        "path-reference",
+        "internal-module"
+    ));
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}

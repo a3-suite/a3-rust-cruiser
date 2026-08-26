@@ -13,11 +13,13 @@ use super::{
     cargo_project,
     cfg_context::{CfgContext, CfgDecision},
     rust_syntax::{
-        PathVisitor, UseAlias, UseBinding, declared_external_crate_aliases, declared_item_names,
-        declared_macro_bindings, declared_self_crate_aliases, flatten_use_tree, glob_imports,
+        PathVisitor, SupportedItemMacroDefinition, UseAlias, UseBinding,
+        declared_external_crate_aliases, declared_item_names, declared_macro_bindings,
+        declared_self_crate_aliases, expand_supported_item_macro, flatten_use_tree, glob_imports,
         has_no_implicit_prelude, has_path_attribute, is_crate_visible, item_attributes,
-        local_macro_bindings, path_to_string, public_glob_imports, public_item_names,
-        public_use_bindings, syn_path_segments, use_aliases,
+        local_macro_bindings, local_macro_safety_bindings, path_to_string, public_glob_imports,
+        public_item_names, public_use_bindings, supported_item_macro_definition, syn_path_segments,
+        use_aliases,
     },
 };
 
@@ -91,6 +93,17 @@ struct Observer {
     issues: Vec<AnalysisIssue>,
 }
 
+#[derive(Clone)]
+struct RegisteredItemMacro {
+    module_id: String,
+    definition: SupportedItemMacroDefinition,
+}
+
+struct ItemMacroRegistry {
+    definitions: BTreeMap<(String, String), Vec<RegisteredItemMacro>>,
+    exports: BTreeSet<(String, String)>,
+}
+
 fn observe(
     project_root: &Path,
     mut context: AnalysisContext,
@@ -127,6 +140,9 @@ fn observe(
         issues: target_issues,
     };
     observer.discover_module("crate", &entry)?;
+    if context.analysis_profile == AnalysisProfile::Compilation {
+        observer.expand_supported_item_macros();
+    }
     observer.self_crate_aliases = observer
         .records
         .get("crate")
@@ -227,6 +243,19 @@ fn observe(
 }
 
 impl Observer {
+    fn expand_supported_item_macros(&mut self) {
+        let registry = ItemMacroRegistry::collect(&self.records, &self.cfg_context);
+        let external_crates = self.external_crates.clone();
+        for (module_id, record) in &mut self.records {
+            for variant in &mut record.variants {
+                let items = std::mem::take(&mut variant.ast.items);
+                variant.ast.items =
+                    expand_module_items(module_id, variant, items, &registry, &external_crates);
+                refresh_variant_indexes(variant, &self.cfg_context);
+            }
+        }
+    }
+
     fn discover_module(&mut self, id: &str, path: &Path) -> Result<()> {
         if self.records.contains_key(id) {
             return Ok(());
@@ -460,18 +489,32 @@ impl Observer {
                 issues.extend(use_issues);
             }
         }
+        let macro_bindings = declared_macro_bindings(&variant.ast, &self.cfg_context);
+        let (safe_local_macro_bindings, observing_local_macro_bindings) =
+            local_macro_safety_bindings(
+                &variant.ast,
+                &self.cfg_context,
+                &variant.declared_items,
+                variant.no_implicit_prelude,
+            );
         let mut visitor = PathVisitor {
             cfg_context: &self.cfg_context,
             external_crates: &self.external_crates,
+            observe_attribute_paths: analysis_profile == AnalysisProfile::Compilation,
             paths: Vec::new(),
             scoped_uses: Vec::new(),
             local_bindings: BTreeSet::new(),
             aliases: variant.use_aliases.clone(),
             glob_imports: variant.glob_imports.clone(),
-            macro_bindings: declared_macro_bindings(&variant.ast, &self.cfg_context),
+            macro_bindings,
             local_macro_bindings: variant.local_macro_bindings.clone(),
+            safe_local_macro_bindings,
+            observing_local_macro_bindings,
             inactive_expr_cfg: false,
             in_expr: false,
+            in_item_macro: false,
+            cfg_guarded_macro: false,
+            no_implicit_prelude: variant.no_implicit_prelude,
             macro_spans: Vec::new(),
             cfg_spans: Vec::new(),
             strict_path_spans: Vec::new(),
@@ -533,6 +576,8 @@ impl Observer {
             }
         }
         for observed_path in visitor.paths {
+            let evidence_span = observed_path.evidence_span;
+            let requires_complete_resolution = observed_path.requires_complete_resolution;
             let path = observed_path.path;
             let strict_single_segment = strict_path_spans.contains(&path.span().start());
             let path_segments = syn_path_segments(&path);
@@ -540,6 +585,21 @@ impl Observer {
                 .first()
                 .is_some_and(|first| observed_path.local_bindings.contains(first))
             {
+                if requires_complete_resolution && analysis_profile == AnalysisProfile::Compilation
+                {
+                    issues.push(AnalysisIssue::unresolved_dependency_candidate(
+                        "analysis.unsupported-name-resolution",
+                        format!(
+                            "unable to resolve attribute path {} because its root is shadowed",
+                            path_to_string(&path_segments)
+                        ),
+                        source_id,
+                        source_id.to_owned(),
+                        self.evidence(&variant.path, evidence_span),
+                        Vec::new(),
+                        vec![DependencyKind::PathReference],
+                    ));
+                }
                 continue;
             }
             let observed_scope = ResolutionScope {
@@ -554,11 +614,20 @@ impl Observer {
                 path.leading_colon.is_some(),
                 all_modules,
             );
+            let may_reference_internal = self.may_reference_internal_module(
+                source_id,
+                &observed_path.aliases,
+                &observed_path.glob_imports,
+                &path_segments,
+                all_modules,
+                0,
+            );
             if resolved.is_empty()
                 && path_segments.first().is_some_and(|first| {
                     known_language_name(first)
                         || (!variant.no_implicit_prelude && known_prelude_name(first))
                 })
+                && (!requires_complete_resolution || !may_reference_internal)
             {
                 continue;
             }
@@ -568,15 +637,9 @@ impl Observer {
                     Some("crate" | "self" | "super")
                 );
                 let requires_complete_resolution = analysis_profile == AnalysisProfile::Compilation
-                    && (path_segments.len() > 1 || strict_single_segment);
-                let may_reference_internal = self.may_reference_internal_module(
-                    source_id,
-                    &observed_path.aliases,
-                    &observed_path.glob_imports,
-                    &path_segments,
-                    all_modules,
-                    0,
-                );
+                    && (requires_complete_resolution
+                        || path_segments.len() > 1
+                        || strict_single_segment);
                 if explicit_relative_path || requires_complete_resolution || may_reference_internal
                 {
                     let code = if path_segments
@@ -591,7 +654,7 @@ impl Observer {
                     };
                     let reason =
                         format!("unable to resolve path {}", path_to_string(&path_segments));
-                    let evidence = self.evidence(&variant.path, path.span().start());
+                    let evidence = self.evidence(&variant.path, evidence_span);
                     let candidate_targets = self.candidate_targets_for_path(
                         source_id,
                         variant,
@@ -623,8 +686,55 @@ impl Observer {
                 }
                 continue;
             }
+            let declared_item_shadow = requires_complete_resolution
+                && path_segments.len() > 1
+                && path.leading_colon.is_none()
+                && path_segments.first().is_some_and(|first| {
+                    !matches!(first.as_str(), "crate" | "self" | "super")
+                        && !observed_path.aliases.contains_key(first)
+                        && variant.declared_items.contains(first)
+                })
+                && resolved.iter().all(|(target, scope)| {
+                    *scope == TargetScope::InternalModule && target == source_id
+                });
+            let mut distinct_resolutions = resolved.clone();
+            distinct_resolutions.sort_by(|left, right| {
+                left.0.cmp(&right.0).then_with(|| {
+                    let rank = |scope| match scope {
+                        TargetScope::InternalModule => 0,
+                        TargetScope::ExternalCrate => 1,
+                    };
+                    rank(left.1).cmp(&rank(right.1))
+                })
+            });
+            distinct_resolutions.dedup();
+            if requires_complete_resolution
+                && analysis_profile == AnalysisProfile::Compilation
+                && (declared_item_shadow || distinct_resolutions.len() > 1)
+            {
+                let candidate_targets = distinct_resolutions
+                    .iter()
+                    .filter_map(|(target, scope)| {
+                        (*scope == TargetScope::InternalModule && target != source_id)
+                            .then_some(target.clone())
+                    })
+                    .collect();
+                issues.push(AnalysisIssue::unresolved_dependency_candidate(
+                    "analysis.unsupported-name-resolution",
+                    format!(
+                        "unable to prove a unique resolution for attribute path {}",
+                        path_to_string(&path_segments)
+                    ),
+                    source_id,
+                    source_id.to_owned(),
+                    self.evidence(&variant.path, evidence_span),
+                    candidate_targets,
+                    vec![DependencyKind::PathReference],
+                ));
+                continue;
+            }
             let kind = DependencyKind::PathReference;
-            let evidence = self.evidence(&variant.path, path.span().start());
+            let evidence = self.evidence(&variant.path, evidence_span);
             for (target, scope) in resolved {
                 if scope == TargetScope::InternalModule && target == source_id {
                     continue;
@@ -1208,6 +1318,269 @@ impl Observer {
             column,
         }
     }
+}
+
+impl ItemMacroRegistry {
+    fn collect(records: &BTreeMap<String, ModuleRecord>, cfg_context: &CfgContext) -> Self {
+        let mut definitions: BTreeMap<(String, String), Vec<RegisteredItemMacro>> = BTreeMap::new();
+        for (module_id, record) in records {
+            for variant in &record.variants {
+                for item in &variant.ast.items {
+                    let Item::Macro(item_macro) = item else {
+                        continue;
+                    };
+                    let Some(name) = item_macro.ident.as_ref().map(ToString::to_string) else {
+                        continue;
+                    };
+                    let Some(definition) = supported_item_macro_definition(item_macro, cfg_context)
+                    else {
+                        continue;
+                    };
+                    definitions
+                        .entry((module_id.clone(), name))
+                        .or_default()
+                        .push(RegisteredItemMacro {
+                            module_id: module_id.clone(),
+                            definition,
+                        });
+                }
+            }
+        }
+        let mut exports = BTreeSet::new();
+        for (module_id, record) in records {
+            for variant in &record.variants {
+                for binding in &variant.public_use_bindings {
+                    if binding.path.len() == 1
+                        && definitions.contains_key(&(module_id.clone(), binding.path[0].clone()))
+                    {
+                        exports.insert((module_id.clone(), binding.name.clone()));
+                    }
+                }
+            }
+        }
+        Self {
+            definitions,
+            exports,
+        }
+    }
+
+    fn resolve(
+        &self,
+        current_module: &str,
+        variant: &ModuleVariant,
+        path: &syn::Path,
+    ) -> Option<&RegisteredItemMacro> {
+        if path.leading_colon.is_some() {
+            return None;
+        }
+        let segments = syn_path_segments(path);
+        let name = segments.last()?.clone();
+        let mut candidates = Vec::new();
+        if segments.len() == 1 {
+            if self
+                .definitions
+                .contains_key(&(current_module.to_owned(), name.clone()))
+            {
+                candidates.push((current_module.to_owned(), name.clone()));
+            }
+            for alias in variant.use_aliases.get(&name).into_iter().flatten() {
+                if alias.absolute_external || alias.path.len() < 2 {
+                    continue;
+                }
+                let macro_name = alias.path.last()?.clone();
+                let target_module =
+                    resolve_macro_module(current_module, &alias.path[..alias.path.len() - 1])?;
+                if self
+                    .exports
+                    .contains(&(target_module.clone(), macro_name.clone()))
+                    && self
+                        .definitions
+                        .contains_key(&(target_module.clone(), macro_name.clone()))
+                {
+                    candidates.push((target_module, macro_name));
+                }
+            }
+        } else {
+            let target_module =
+                resolve_macro_module(current_module, &segments[..segments.len() - 1])?;
+            if target_module != current_module
+                && !self
+                    .exports
+                    .contains(&(target_module.clone(), name.clone()))
+            {
+                return None;
+            }
+            candidates.push((target_module, name));
+        }
+        let [candidate] = candidates.as_slice() else {
+            return None;
+        };
+        let definitions = self.definitions.get(candidate)?;
+        (definitions.len() == 1).then_some(&definitions[0])
+    }
+}
+
+fn resolve_macro_module(current_module: &str, path: &[String]) -> Option<String> {
+    if path.is_empty() {
+        return Some(current_module.to_owned());
+    }
+    let mut module = current_module
+        .split("::")
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+    let mut index = 0;
+    match path.first().map(String::as_str) {
+        Some("crate") => {
+            module.truncate(1);
+            index = 1;
+        }
+        Some("self") => index = 1,
+        Some("super") => {
+            while path.get(index).is_some_and(|segment| segment == "super") {
+                if module.len() == 1 {
+                    return None;
+                }
+                module.pop();
+                index += 1;
+            }
+        }
+        _ => return None,
+    }
+    module.extend(path[index..].iter().cloned());
+    Some(module.join("::"))
+}
+
+fn expand_module_items(
+    module_id: &str,
+    variant: &ModuleVariant,
+    items: Vec<Item>,
+    registry: &ItemMacroRegistry,
+    external_crates: &BTreeSet<String>,
+) -> Vec<Item> {
+    let mut expanded = Vec::new();
+    for item in items {
+        let Item::Macro(invocation) = &item else {
+            expanded.push(item);
+            continue;
+        };
+        if invocation.mac.path.is_ident("macro_rules")
+            || !invocation.attrs.is_empty()
+            || invocation.ident.is_some()
+        {
+            expanded.push(item);
+            continue;
+        }
+        let mut stack = Vec::new();
+        if let Some(generated) = expand_item_macro_invocation(
+            module_id,
+            variant,
+            invocation,
+            registry,
+            external_crates,
+            invocation.span().start(),
+            &mut stack,
+        ) {
+            expanded.extend(generated);
+        } else {
+            expanded.push(item);
+        }
+    }
+    expanded
+}
+
+fn expand_item_macro_invocation(
+    module_id: &str,
+    variant: &ModuleVariant,
+    invocation: &syn::ItemMacro,
+    registry: &ItemMacroRegistry,
+    external_crates: &BTreeSet<String>,
+    _outer_span: LineColumn,
+    stack: &mut Vec<(String, String)>,
+) -> Option<Vec<Item>> {
+    let resolved = registry.resolve(module_id, variant, &invocation.mac.path)?;
+    let name = invocation.mac.path.segments.last()?.ident.to_string();
+    let identity = (resolved.module_id.clone(), name);
+    if stack.contains(&identity) {
+        return None;
+    }
+    stack.push(identity);
+    let generated = expand_supported_item_macro(
+        &resolved.definition,
+        invocation.mac.tokens.clone(),
+        invocation.span(),
+    )?;
+    let generated_names = generated
+        .iter()
+        .filter_map(generated_item_name)
+        .collect::<BTreeSet<_>>();
+    let mut fully_expanded = Vec::new();
+    for item in generated {
+        if matches!(item, Item::Mod(_) | Item::Use(_))
+            || item_attributes(&item).iter().any(|attribute| {
+                attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
+            })
+        {
+            return None;
+        }
+        if let Item::Macro(nested) = &item {
+            let path = syn_path_segments(&nested.mac.path);
+            if path == ["inventory", "submit"] {
+                let submitted = nested.mac.tokens.clone().into_iter().collect::<Vec<_>>();
+                let [proc_macro2::TokenTree::Ident(slot)] = submitted.as_slice() else {
+                    return None;
+                };
+                if !external_crates.contains("inventory")
+                    || !generated_names.contains(&slot.to_string())
+                {
+                    return None;
+                }
+                fully_expanded.push(item);
+                continue;
+            }
+            let nested_items = expand_item_macro_invocation(
+                module_id,
+                variant,
+                nested,
+                registry,
+                external_crates,
+                _outer_span,
+                stack,
+            )?;
+            fully_expanded.extend(nested_items);
+        } else {
+            fully_expanded.push(item);
+        }
+    }
+    stack.pop();
+    Some(fully_expanded)
+}
+
+fn generated_item_name(item: &Item) -> Option<String> {
+    match item {
+        Item::Const(item) => Some(item.ident.to_string()),
+        Item::Enum(item) => Some(item.ident.to_string()),
+        Item::Fn(item) => Some(item.sig.ident.to_string()),
+        Item::Static(item) => Some(item.ident.to_string()),
+        Item::Struct(item) => Some(item.ident.to_string()),
+        Item::Trait(item) => Some(item.ident.to_string()),
+        Item::TraitAlias(item) => Some(item.ident.to_string()),
+        Item::Type(item) => Some(item.ident.to_string()),
+        Item::Union(item) => Some(item.ident.to_string()),
+        _ => None,
+    }
+}
+
+fn refresh_variant_indexes(variant: &mut ModuleVariant, cfg_context: &CfgContext) {
+    variant.declared_items = declared_item_names(&variant.ast, cfg_context);
+    variant.public_items = public_item_names(&variant.ast, cfg_context);
+    variant.public_use_bindings = public_use_bindings(&variant.ast, cfg_context);
+    variant.use_aliases = use_aliases(&variant.ast, cfg_context);
+    variant.glob_imports = glob_imports(&variant.ast, cfg_context);
+    variant.public_glob_imports = public_glob_imports(&variant.ast, cfg_context);
+    variant.local_macro_bindings = local_macro_bindings(&variant.ast, cfg_context);
+    variant.external_crate_aliases = declared_external_crate_aliases(&variant.ast, cfg_context);
+    variant.self_crate_aliases = declared_self_crate_aliases(&variant.ast, cfg_context);
+    variant.no_implicit_prelude = has_no_implicit_prelude(&variant.ast);
 }
 
 fn all_dependency_kinds() -> Vec<DependencyKind> {

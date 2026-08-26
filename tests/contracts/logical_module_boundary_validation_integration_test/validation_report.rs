@@ -451,6 +451,187 @@ fn known_dependency_observing_macros_and_safe_serde_attributes_are_conformant() 
 }
 
 #[test]
+fn serde_function_paths_to_same_module_helpers_are_conformant() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("serde-same-module-function-paths");
+    fixture.write(
+        "src/main.rs",
+        "struct Model {\n    #[serde(deserialize_with = \"deserialize_value\", serialize_with = \"serialize_value\", default = \"default_value\")]\n    value: usize,\n}\nfn deserialize_value() -> usize { 1 }\nfn serialize_value() -> usize { 1 }\nfn default_value() -> usize { 1 }\nfn main() {}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn serde_prelude_function_path_is_conformant() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("serde-prelude-function-path");
+    fixture.write(
+        "src/main.rs",
+        "struct Model {\n    #[serde(skip_serializing_if = \"Option::is_none\")]\n    value: Option<usize>,\n}\nfn main() {}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn serde_function_path_observes_aliased_internal_dependency() {
+    // Arrange
+    let fixture = TempFixture::new("serde-aliased-internal-function-path");
+    fixture.write(
+        "src/main.rs",
+        "mod forbidden;\nuse crate::forbidden as serde_helper;\nstruct Model { #[serde(default = \"serde_helper::default_value\")] value: usize }\nfn main() {}\n",
+    );
+    fixture.write(
+        "src/forbidden.rs",
+        "pub fn default_value() -> usize { 1 }\n",
+    );
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-aliased-serde-helper\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::forbidden]\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+
+    // Assert
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "crate::forbidden",
+        "path-reference",
+        "internal-module"
+    ));
+    assert_eq!(
+        report["violations"][0]["rule_id"],
+        "forbid-aliased-serde-helper"
+    );
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn serde_function_path_with_shadowed_prelude_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("serde-shadowed-prelude-path");
+    fixture.write(
+        "src/main.rs",
+        "struct Option;\nstruct Model { #[serde(skip_serializing_if = \"Option::is_none\")] value: usize }\nfn main() {}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-name-resolution");
+}
+
+#[test]
+fn serde_function_path_without_implicit_prelude_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("serde-no-implicit-prelude-path");
+    fixture.write(
+        "src/main.rs",
+        "#![no_implicit_prelude]\nstruct Model { #[serde(skip_serializing_if = \"Option::is_none\")] value: usize }\nfn main() {}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-name-resolution");
+}
+
+#[test]
+fn serde_function_path_with_unknown_alias_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("serde-unknown-alias-path");
+    fixture.write(
+        "src/main.rs",
+        "struct Model { #[serde(deserialize_with = \"missing::decode\")] value: usize }\nfn main() {}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-name-resolution");
+}
+
+#[test]
+fn serde_function_path_with_ambiguous_glob_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("serde-ambiguous-glob-path");
+    fixture.write(
+        "src/main.rs",
+        "mod left;\nmod right;\nuse crate::left::*;\nuse crate::right::*;\nstruct Model { #[serde(default = \"default_value\")] value: usize }\nfn main() {}\n",
+    );
+    fixture.write("src/left.rs", "pub fn default_value() -> usize { 1 }\n");
+    fixture.write("src/right.rs", "pub fn default_value() -> usize { 1 }\n");
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-name-resolution");
+    assert!(!dependency_exists(
+        &report,
+        "crate",
+        "crate::left",
+        "path-reference",
+        "internal-module"
+    ));
+    assert!(!dependency_exists(
+        &report,
+        "crate",
+        "crate::right",
+        "path-reference",
+        "internal-module"
+    ));
+}
+
+#[test]
+fn invalid_serde_function_path_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("serde-invalid-function-path");
+    fixture.write(
+        "src/main.rs",
+        "struct Model { #[serde(deserialize_with = \"decode()\")] value: usize }\nfn main() {}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn unsupported_serde_function_path_shape_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("serde-generic-function-path");
+    fixture.write(
+        "src/main.rs",
+        "struct Model { #[serde(deserialize_with = \"decode::<usize>\")] value: usize }\nfn main() {}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
 fn repeated_json_report_is_byte_stable() {
     // Arrange
     let fixture = forbidden_fixture("stable-json", true);
@@ -479,6 +660,621 @@ fn dependency_neutral_standard_macro_is_conformant() {
     // Assert
     assert_eq!(report["decision"], "conformant");
     assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+fn exact_runtime_macro_definitions() -> &'static str {
+    r#"
+pub(crate) fn no_language_agnostic_snapshot_extractor() -> Option<crate::foundation::plugin::language_agnostic_snapshot_extractor::LanguageAgnosticSnapshotExtractor> { None }
+pub(crate) fn no_contextual_snapshot_materializer() -> Option<crate::foundation::plugin::contextual_snapshot_materializer::ContextualSnapshotMaterializer> { None }
+
+macro_rules! declare_builtin_language_runtime {
+    (
+        slot = $slot:ident,
+        agnostic_fn = $agnostic_fn:ident,
+        contextual_fn = $contextual_fn:ident,
+        agnostic_for_fn = $agnostic_for_fn:ident,
+        contextual_for_fn = $contextual_for_fn:ident,
+        source_view_resolver = $source_view_resolver:path,
+        language = $language:literal,
+        provider = $provider:literal,
+        agnostic_provider = $agnostic_provider:path,
+        contextual_provider = $contextual_provider:path
+    ) => {
+        pub(crate) const LANGUAGE: &str = $language;
+        pub(crate) const PROVIDER_NAME: &str = $provider;
+        pub(crate) const $slot: crate::foundation::plugin::provider::LanguagePluginProviderSlot =
+            crate::foundation::plugin::provider::LanguagePluginProviderSlot {
+                name: PROVIDER_NAME,
+                language: LANGUAGE,
+                language_agnostic_snapshot_extractor_for: $agnostic_for_fn,
+                contextual_snapshot_materializer_for: $contextual_for_fn,
+                source_view_resolver: $source_view_resolver,
+            };
+        inventory::submit! { $slot }
+        pub(crate) fn $agnostic_fn() -> Option<crate::foundation::plugin::language_agnostic_snapshot_extractor::LanguageAgnosticSnapshotExtractor> { $agnostic_provider() }
+        pub(crate) fn $contextual_fn() -> Option<crate::foundation::plugin::contextual_snapshot_materializer::ContextualSnapshotMaterializer> { $contextual_provider() }
+        fn $agnostic_for_fn(language: &str,) -> Option<crate::foundation::plugin::language_agnostic_snapshot_extractor::LanguageAgnosticSnapshotExtractor> { if language == LANGUAGE { $agnostic_fn() } else { None } }
+        fn $contextual_for_fn(language: &str,) -> Option<crate::foundation::plugin::contextual_snapshot_materializer::ContextualSnapshotMaterializer> { if language == LANGUAGE { $contextual_fn() } else { None } }
+    };
+}
+
+macro_rules! declare_policy_only_language_runtime {
+    (
+        slot = $slot:ident,
+        agnostic_fn = $agnostic_fn:ident,
+        contextual_fn = $contextual_fn:ident,
+        agnostic_for_fn = $agnostic_for_fn:ident,
+        contextual_for_fn = $contextual_for_fn:ident,
+        source_view_resolver = $source_view_resolver:path,
+        language = $language:literal,
+        provider = $provider:literal
+    ) => {
+        crate::foundation::plugin::policy_only::declare_builtin_language_runtime! {
+            slot = $slot,
+            agnostic_fn = $agnostic_fn,
+            contextual_fn = $contextual_fn,
+            agnostic_for_fn = $agnostic_for_fn,
+            contextual_for_fn = $contextual_for_fn,
+            source_view_resolver = $source_view_resolver,
+            language = $language,
+            provider = $provider,
+            agnostic_provider = crate::foundation::plugin::policy_only::no_language_agnostic_snapshot_extractor,
+            contextual_provider = crate::foundation::plugin::policy_only::no_contextual_snapshot_materializer
+        }
+    };
+}
+
+pub(crate) use declare_builtin_language_runtime;
+pub(crate) use declare_policy_only_language_runtime;
+"#
+}
+
+fn runtime_item_macro_fixture(name: &str, definitions: &str) -> TempFixture {
+    let fixture = TempFixture::new(name);
+    fixture.write_manifest("[dependencies]\ninventory = \"0.3\"\n");
+    fixture.write(
+        "src/main.rs",
+        "mod forbidden;\nmod foundation;\nfn main() {}\n",
+    );
+    fixture.write("src/forbidden.rs", "pub fn resolve() {}\n");
+    fixture.write("src/foundation.rs", "pub(crate) mod plugin;\n");
+    fixture.write(
+        "src/foundation/plugin.rs",
+        "pub(crate) mod contextual_snapshot_materializer;\npub(crate) mod language_agnostic_snapshot_extractor;\npub(crate) mod policy_only;\npub(crate) mod provider;\npub(crate) mod runtime;\n",
+    );
+    fixture.write(
+        "src/foundation/plugin/contextual_snapshot_materializer.rs",
+        "pub(crate) struct ContextualSnapshotMaterializer;\n",
+    );
+    fixture.write(
+        "src/foundation/plugin/language_agnostic_snapshot_extractor.rs",
+        "pub(crate) struct LanguageAgnosticSnapshotExtractor;\n",
+    );
+    fixture.write(
+        "src/foundation/plugin/provider.rs",
+        "pub(crate) struct LanguagePluginProviderSlot;\n",
+    );
+    fixture.write("src/foundation/plugin/policy_only.rs", definitions);
+    fixture.write(
+        "src/foundation/plugin/runtime.rs",
+        "crate::foundation::plugin::policy_only::declare_policy_only_language_runtime! {\n    slot = SLOT,\n    agnostic_fn = agnostic,\n    contextual_fn = contextual,\n    agnostic_for_fn = agnostic_for,\n    contextual_for_fn = contextual_for,\n    source_view_resolver = crate::forbidden::resolve,\n    language = \"fixture\",\n    provider = \"fixture-provider\"\n}\npub(crate) fn provider_name() -> &'static str { PROVIDER_NAME }\n",
+    );
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-generated-runtime-dependency\n    kind: forbidden\n    severity: error\n    from: [crate::foundation::plugin::runtime]\n    to: [crate::forbidden]\n",
+    );
+    fixture
+}
+
+#[test]
+fn exact_policy_runtime_item_macro_observes_generated_dependencies() {
+    // Arrange
+    let fixture = runtime_item_macro_fixture(
+        "exact-policy-runtime-item-macro",
+        exact_runtime_macro_definitions(),
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+
+    // Assert
+    assert!(dependency_exists(
+        &report,
+        "crate::foundation::plugin::runtime",
+        "crate::forbidden",
+        "path-reference",
+        "internal-module"
+    ));
+    assert!(dependency_exists(
+        &report,
+        "crate::foundation::plugin::runtime",
+        "crate::foundation::plugin::provider",
+        "path-reference",
+        "internal-module"
+    ));
+    assert!(
+        report["dependencies"]
+            .as_array()
+            .is_some_and(|dependencies| {
+                dependencies.iter().any(|dependency| {
+                    dependency["source"] == "crate::foundation::plugin::runtime"
+                        && dependency["target"] == "crate::forbidden"
+                        && dependency["evidence"]["line"] == 1
+                        && dependency["evidence"]["column"] == 1
+                })
+            })
+    );
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert_eq!(
+        report["violations"][0]["rule_id"],
+        "forbid-generated-runtime-dependency"
+    );
+}
+
+#[test]
+fn altered_runtime_item_macro_definition_is_indeterminate() {
+    // Arrange
+    let altered = exact_runtime_macro_definitions().replace(
+        "source_view_resolver: $source_view_resolver,",
+        "source_view_resolver: $source_view_resolver, unexpected: LANGUAGE,",
+    );
+    let fixture = runtime_item_macro_fixture("altered-runtime-item-macro", &altered);
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+    assert_eq!(report["violations"], serde_json::json!([]));
+}
+
+#[test]
+fn ambiguous_runtime_macro_import_is_indeterminate() {
+    // Arrange
+    let fixture = runtime_item_macro_fixture(
+        "ambiguous-runtime-macro-import",
+        exact_runtime_macro_definitions(),
+    );
+    fixture.write(
+        "src/foundation/plugin.rs",
+        "pub(crate) mod contextual_snapshot_materializer;\npub(crate) mod language_agnostic_snapshot_extractor;\npub(crate) mod policy_copy;\npub(crate) mod policy_only;\npub(crate) mod provider;\npub(crate) mod runtime;\n",
+    );
+    fixture.write(
+        "src/foundation/plugin/policy_copy.rs",
+        exact_runtime_macro_definitions(),
+    );
+    fixture.write(
+        "src/foundation/plugin/runtime.rs",
+        "use crate::foundation::plugin::policy_copy::declare_builtin_language_runtime;\nuse crate::foundation::plugin::policy_only::declare_builtin_language_runtime;\ndeclare_builtin_language_runtime! {\n    slot = SLOT,\n    agnostic_fn = agnostic,\n    contextual_fn = contextual,\n    agnostic_for_fn = agnostic_for,\n    contextual_for_fn = contextual_for,\n    source_view_resolver = crate::forbidden::resolve,\n    language = \"fixture\",\n    provider = \"fixture-provider\",\n    agnostic_provider = crate::foundation::plugin::policy_only::no_language_agnostic_snapshot_extractor,\n    contextual_provider = crate::foundation::plugin::policy_only::no_contextual_snapshot_materializer\n}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+    assert_eq!(report["violations"], serde_json::json!([]));
+}
+
+#[test]
+fn source_union_does_not_expand_exact_runtime_item_macro() {
+    // Arrange
+    let fixture = runtime_item_macro_fixture(
+        "source-union-runtime-item-macro",
+        exact_runtime_macro_definitions(),
+    );
+
+    // Act
+    let report = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        0,
+    );
+
+    // Assert
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert_eq!(report["violations"], serde_json::json!([]));
+    assert!(!dependency_exists(
+        &report,
+        "crate::foundation::plugin::runtime",
+        "crate::forbidden",
+        "path-reference",
+        "internal-module"
+    ));
+}
+
+#[test]
+fn safe_local_single_arm_macro_is_conformant() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("safe-local-macro");
+    fixture.write(
+        "src/main.rs",
+        "macro_rules! validate { ($value:expr) => { let _ = &$value; }; }\nfn main() { validate!(1); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn safe_local_macro_observes_internal_paths_in_arguments() {
+    // Arrange
+    let fixture = TempFixture::new("safe-local-macro-path");
+    fixture.write(
+        "src/main.rs",
+        "mod forbidden;\nmacro_rules! validate { ($value:expr) => { let _ = &$value; }; }\nfn main() { validate!(crate::forbidden::value()); }\n",
+    );
+    fixture.write("src/forbidden.rs", "pub fn value() {}\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbidden-macro-argument\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::forbidden]\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+
+    // Assert
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "crate::forbidden",
+        "path-reference",
+        "internal-module"
+    ));
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert_eq!(
+        report["violations"][0]["rule_id"],
+        "forbidden-macro-argument"
+    );
+}
+
+#[test]
+fn local_macro_with_internal_path_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("local-macro-internal-path");
+    fixture.write(
+        "src/main.rs",
+        "mod internal;\nmacro_rules! value { () => { crate::internal::value() }; }\nfn main() { let _ = value!(); }\n",
+    );
+    fixture.write("src/internal.rs", "pub fn value() {}\n");
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn inner_local_macro_shadowing_preserves_fail_closed_behavior() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("shadowed-local-macro");
+    fixture.write(
+        "src/main.rs",
+        "mod internal;\nmacro_rules! value { () => { let _ = 1; }; }\nfn main() {\n    macro_rules! value { () => { crate::internal::value() }; }\n    value!();\n}\n",
+    );
+    fixture.write("src/internal.rs", "pub fn value() {}\n");
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn safe_local_macro_allows_known_nested_macro() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("safe-local-nested-macro");
+    fixture.write(
+        "src/main.rs",
+        "macro_rules! validate { ($value:expr) => { println!(\"value: {}\", $value); }; }\nfn main() { validate!(1); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn exact_require_contract_value_macro_is_conformant() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("exact-require-contract-value-macro");
+    fixture.write(
+        "src/main.rs",
+        "macro_rules! require_contract_value { ($actual:expr, $expected:expr, $label:literal) => { if $actual != $expected { return Err(format!(\"{} must be {}\", $label, $expected)); } }; }\nfn validate() -> Result<(), String> { require_contract_value!(1, 1, \"value\"); Ok(()) }\nfn main() { let _ = validate(); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn exact_require_shape_macro_is_conformant() {
+    // Arrange
+    let fixture = TempFixture::new("exact-require-shape-macro");
+    fixture.write(
+        "src/main.rs",
+        "use std::path::Path;\nmacro_rules! require_shape { ($path:expr, $actual:expr, $expected:expr, $field:literal) => { if $actual != $expected { return Err(format!(\"{} {} does not match the authoritative schema\", $path.display(), $field)); } }; }\nfn validate(path: &Path) -> Result<(), String> { require_shape!(path, 1, 1, \"value\"); Ok(()) }\nfn main() { let _ = validate(Path::new(\"value\")); }\n",
+    );
+    fixture.write("policy.yaml", "rules: []\n");
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn exact_require_shape_macro_observes_internal_path_argument() {
+    // Arrange
+    let fixture = TempFixture::new("exact-require-shape-macro-path");
+    fixture.write(
+        "src/main.rs",
+        "use std::path::Path;\nmod forbidden;\nmacro_rules! require_shape { ($path:expr, $actual:expr, $expected:expr, $field:literal) => { if $actual != $expected { return Err(format!(\"{} {} does not match the authoritative schema\", $path.display(), $field)); } }; }\nfn validate(path: &Path) -> Result<(), String> { require_shape!(path, crate::forbidden::actual(), 1, \"value\"); Ok(()) }\nfn main() { let _ = validate(Path::new(\"value\")); }\n",
+    );
+    fixture.write("src/forbidden.rs", "pub fn actual() -> usize { 1 }\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-internal\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::forbidden]\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+
+    // Assert
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "crate::forbidden",
+        "path-reference",
+        "internal-module"
+    ));
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert_eq!(report["violations"][0]["rule_id"], "forbid-internal");
+}
+
+#[test]
+fn exact_require_macro_with_shadowed_err_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("exact-require-shadowed-err");
+    fixture.write(
+        "src/main.rs",
+        "struct Err;\nmacro_rules! require_contract_value { ($actual:expr, $expected:expr, $label:literal) => { if $actual != $expected { return Err(format!(\"{} must be {}\", $label, $expected)); } }; }\nfn validate() -> Result<(), String> { require_contract_value!(1, 1, \"value\"); Ok(()) }\nfn main() { let _ = validate(); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn exact_require_macro_with_shadowed_format_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("exact-require-shadowed-format");
+    fixture.write(
+        "src/main.rs",
+        "macro_rules! format { ($value:expr) => { $value }; }\nmacro_rules! require_contract_value { ($actual:expr, $expected:expr, $label:literal) => { if $actual != $expected { return Err(format!(\"{} must be {}\", $label, $expected)); } }; }\nfn validate() -> Result<(), String> { require_contract_value!(1, 1, \"value\"); Ok(()) }\nfn main() { let _ = validate(); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn exact_require_macro_with_block_shadowing_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("exact-require-block-shadowing");
+    fixture.write(
+        "src/main.rs",
+        "fn validate() -> Result<(), String> { let Err = 1; macro_rules! require_contract_value { ($actual:expr, $expected:expr, $label:literal) => { if $actual != $expected { return Err(format!(\"{} must be {}\", $label, $expected)); } }; } require_contract_value!(1, 1, \"value\"); Ok(()) }\nfn main() { let _ = validate(); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn exact_require_macro_with_block_item_shadowing_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("exact-require-block-item-shadowing");
+    fixture.write(
+        "src/main.rs",
+        "fn validate() -> Result<(), String> { struct Err; macro_rules! require_contract_value { ($actual:expr, $expected:expr, $label:literal) => { if $actual != $expected { return Err(format!(\"{} must be {}\", $label, $expected)); } }; } require_contract_value!(1, 1, \"value\"); Ok(()) }\nfn main() { let _ = validate(); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn require_shape_macro_with_unknown_method_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("require-shape-unknown-method");
+    fixture.write(
+        "src/main.rs",
+        "macro_rules! require_shape { ($path:expr, $actual:expr, $expected:expr, $field:literal) => { if $actual != $expected { return Err(format!(\"{} {} does not match the authoritative schema\", $path.len(), $field)); } }; }\nfn validate() -> Result<(), String> { require_shape!(\"value\", 1, 1, \"value\"); Ok(()) }\nfn main() { let _ = validate(); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn shadowed_nested_macro_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("shadowed-nested-macro");
+    fixture.write(
+        "src/main.rs",
+        "mod internal;\nmacro_rules! println { () => { crate::internal::value() }; }\nmacro_rules! wrapper { () => { println!() }; }\nfn main() { wrapper!(); }\n",
+    );
+    fixture.write("src/internal.rs", "pub fn value() {}\n");
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn safe_local_macro_ignores_token_neutral_nested_arguments() {
+    // Arrange
+    let fixture = TempFixture::new("token-neutral-nested-macro");
+    fixture.write(
+        "src/main.rs",
+        "mod internal;\nmacro_rules! stringify_value { ($value:expr) => { stringify!($value) }; }\nfn main() { let _ = stringify_value!(crate::internal::value()); }\n",
+    );
+    fixture.write("src/internal.rs", "pub fn value() {}\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-internal\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::internal]\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert_eq!(report["violations"], serde_json::json!([]));
+    assert!(!dependency_exists(
+        &report,
+        "crate",
+        "crate::internal",
+        "path-reference",
+        "internal-module"
+    ));
+}
+
+#[test]
+fn safe_local_macro_allows_cfg_expression() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("safe-local-cfg-macro");
+    fixture.write(
+        "src/main.rs",
+        "macro_rules! platform_check { () => { cfg!(feature = \"x\") }; }\nfn main() { let _ = platform_check!(); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn multi_arm_local_macro_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("multi-arm-local-macro");
+    fixture.write(
+        "src/main.rs",
+        "macro_rules! validate { ($value:expr) => { let _ = &$value; }; ($value:literal) => { let _ = &$value; }; }\nfn main() { validate!(1); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn cfg_expression_macro_is_dependency_neutral() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("cfg-expression-macro");
+    fixture.write(
+        "src/main.rs",
+        "fn main() { if cfg!(unix) { println!(\"ok\"); } }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn cfg_guarded_local_macro_is_not_safe() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("cfg-guarded-local-macro");
+    fixture.write(
+        "src/main.rs",
+        "#[cfg(unix)]\nmacro_rules! validate { ($value:expr) => { let _ = &$value; }; }\nfn main() { validate!(1); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn unknown_cfg_guarded_local_macro_is_not_safe() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("unknown-cfg-guarded-local-macro");
+    fixture.write(
+        "src/main.rs",
+        "#[cfg(custom_predicate(value))]\nmacro_rules! validate { ($value:expr) => { let _ = &$value; }; }\nfn main() { validate!(1); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+    assert_issue(&report, "analysis.unsupported-analysis-context");
+}
+
+#[test]
+fn safe_local_macro_at_item_position_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("item-position-local-macro");
+    fixture.write(
+        "src/main.rs",
+        "macro_rules! value { () => { 1 }; }\nvalue!();\nfn main() {}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
 }
 
 #[test]

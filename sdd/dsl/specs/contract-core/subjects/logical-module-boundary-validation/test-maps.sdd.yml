@@ -101,6 +101,42 @@ test_maps:
           - check-analysis-profile
           - check-source-union-profile
           - check-dependency-edges
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: source_union_does_not_expand_exact_runtime_item_macro
+        check_refs:
+          - check-analysis-context
+          - check-analysis-profile
+          - check-source-union-profile
+          - check-dependency-edges
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
+        symbol: source_union_does_not_observe_serde_function_path_dependency
+        check_refs:
+          - check-analysis-context
+          - check-analysis-profile
+          - check-source-union-profile
+          - check-dependency-edges
+  - verification_id: verification.logical-module-boundary.dependency-graph
+    case_id: exact-runtime-item-macro-generated-dependencies
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: exact_policy_runtime_item_macro_observes_generated_dependencies
+        check_refs:
+          - check-analysis-context
+          - check-analysis-profile
+          - check-dependency-edges
+          - check-dependency-kind
+          - check-dependency-target-scope
+  - verification_id: verification.logical-module-boundary.dependency-graph
+    case_id: serde-function-path-generated-dependencies
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
+        symbol: serde_function_path_observes_explicit_internal_dependency
+        check_refs:
+          - check-analysis-context
+          - check-analysis-profile
+          - check-dependency-edges
+          - check-dependency-kind
+          - check-dependency-target-scope
   - verification_id: verification.logical-module-boundary.boundary-policy-input
     case_id: documented-policy-shape-is-accepted
     tests:
@@ -397,6 +433,14 @@ test_maps:
         symbol: inactive_cfg_attr_path_module_is_ignored
         check_refs:
           - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: safe_local_single_arm_macro_is_conformant
+        check_refs:
+          - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: serde_function_paths_to_same_module_helpers_are_conformant
+        check_refs:
+          - check-conformant-decision
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: path-module-unsupported-syntax-is-indeterminate
     tests:
@@ -504,6 +548,22 @@ test_maps:
           - check-analysis-issue-reason
           - check-analysis-issue-affected-scope
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: altered_runtime_item_macro_definition_is_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: ambiguous_runtime_macro_import_is_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: unknown_external_derive_macro_is_indeterminate
         check_refs:
           - check-indeterminate
@@ -521,6 +581,14 @@ test_maps:
           - check-analysis-issue-affected-scope
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: mixed_external_derive_alias_candidates_are_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: local_macro_with_internal_path_is_indeterminate
         check_refs:
           - check-indeterminate
           - check-analysis-issues
@@ -556,6 +624,14 @@ test_maps:
           - check-analysis-issue-affected-scope
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: dev_dependency_is_unavailable_to_binary_target
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: serde_function_path_with_unknown_alias_is_indeterminate
         check_refs:
           - check-indeterminate
           - check-analysis-issues

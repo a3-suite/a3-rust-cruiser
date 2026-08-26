@@ -8,7 +8,7 @@ contracts:
       import、re-export、解決済みpath-referenceだけをDependencyEdgeとして観測する。
       compilationはCargo manifest、選択feature、target tripleに対するrustc cfgを組み合わせたcompile条件を観測範囲とし、
       有効・無効を確定できるcfg、Cargo target dependency、optional dependencyを選別する。字句scope内のuse alias、local binding、
-      同一moduleの宣言名、既知の依存中立macroとserdeを正規提供元とするderive、既知macroの引数内pathを解決し、それでも未対応のmacro展開、cfg評価、名前解決が
+      同一moduleの宣言名、既知の依存中立macroとserdeを正規提供元とするderive、定義形状とmacro namespaceを一意に証明できる限定local macro、既知macroの引数内path、serdeの既知関数path属性、および同じ証明条件を満たす限定item macroの生成itemとpathを解決し、それでも未対応のmacro展開、cfg評価、名前解決が
       境界判定へ影響し得る場合だけ解析未完了とする。
       source-unionはsourceに記述された全cfg分岐を和集合として観測し、macroまたはattribute展開だけが生成する依存を観測範囲外とするが、明示的な内部参照を解決できない場合は解析未完了とする。
       includeとexcludeはBoundaryPolicyと同じLogicalModule ID patternを使い、include省略時は全moduleを候補とし、excludeを優先する。
