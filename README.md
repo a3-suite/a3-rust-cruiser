@@ -21,7 +21,7 @@ JavaScript/TypeScript向けの[dependency-cruiser](https://github.com/sverweij/d
 
 ## 前提
 
-- Rust 2024 edition に対応した Rust toolchain
+- 開発・CIで検証するRust toolchainは1.98.0（`rustc` / `cargo` 1.98.0、`rust-toolchain.toml`で固定）。これはMSRVの宣言ではありません
 
 ## CLI情報
 
