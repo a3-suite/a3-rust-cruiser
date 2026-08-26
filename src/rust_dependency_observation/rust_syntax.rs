@@ -14,17 +14,26 @@ pub(super) struct UseAlias {
     pub(super) absolute_external: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct UseBinding {
+    pub(super) name: String,
+    pub(super) path: Vec<String>,
+    pub(super) absolute_external: bool,
+}
+
 #[derive(Clone)]
 pub(super) struct ObservedPath {
     pub(super) path: syn::Path,
     pub(super) local_bindings: BTreeSet<String>,
     pub(super) aliases: BTreeMap<String, Vec<UseAlias>>,
+    pub(super) glob_imports: Vec<UseAlias>,
 }
 
 #[derive(Clone)]
 pub(super) struct ScopedUse {
     pub(super) item: ItemUse,
     pub(super) aliases: BTreeMap<String, Vec<UseAlias>>,
+    pub(super) glob_imports: Vec<UseAlias>,
 }
 
 fn known_builtin_attribute(path: &syn::Path) -> bool {
@@ -34,6 +43,7 @@ fn known_builtin_attribute(path: &syn::Path) -> bool {
             "allow"
                 | "cold"
                 | "deprecated"
+                | "default"
                 | "deny"
                 | "doc"
                 | "export_name"
@@ -72,7 +82,9 @@ pub(super) struct PathVisitor<'a> {
     pub(super) scoped_uses: Vec<ScopedUse>,
     pub(super) local_bindings: BTreeSet<String>,
     pub(super) aliases: BTreeMap<String, Vec<UseAlias>>,
+    pub(super) glob_imports: Vec<UseAlias>,
     pub(super) macro_bindings: BTreeSet<String>,
+    pub(super) local_macro_bindings: BTreeSet<String>,
     pub(super) inactive_expr_cfg: bool,
     pub(super) in_expr: bool,
     pub(super) macro_spans: Vec<LineColumn>,
@@ -100,6 +112,7 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
             CfgDecision::Unknown => self.cfg_spans.push(local.span().start()),
             CfgDecision::Active => {}
         }
+        collect_pattern_bindings(&local.pat, &mut self.local_bindings);
         syn::visit::visit_local(self, local);
     }
 
@@ -116,10 +129,18 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
         if self.inactive_expr_cfg {
             return;
         }
+        if path.segments.len() == 1
+            && path
+                .get_ident()
+                .is_some_and(|name| self.macro_bindings.contains(&name.to_string()))
+        {
+            return;
+        }
         self.paths.push(ObservedPath {
             path: path.clone(),
             local_bindings: self.local_bindings.clone(),
             aliases: self.aliases.clone(),
+            glob_imports: self.glob_imports.clone(),
         });
         syn::visit::visit_path(self, path);
     }
@@ -127,7 +148,9 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
     fn visit_block(&mut self, block: &'ast syn::Block) {
         let outer_bindings = self.local_bindings.clone();
         let outer_aliases = self.aliases.clone();
+        let outer_glob_imports = self.glob_imports.clone();
         let outer_macro_bindings = self.macro_bindings.clone();
+        let outer_local_macro_bindings = self.local_macro_bindings.clone();
         for statement in &block.stmts {
             if let Stmt::Item(item) = statement
                 && self.cfg_context.evaluate_attributes(item_attributes(item))
@@ -140,12 +163,19 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
                         item.leading_colon.is_some(),
                         &mut self.aliases,
                     );
+                    collect_use_glob_imports(
+                        &item.tree,
+                        Vec::new(),
+                        item.leading_colon.is_some(),
+                        &mut self.glob_imports,
+                    );
                     collect_use_bindings(&item.tree, Vec::new(), &mut self.macro_bindings);
                 }
                 if let Item::Macro(item) = item
                     && let Some(ident) = &item.ident
                 {
                     self.macro_bindings.insert(ident.to_string());
+                    self.local_macro_bindings.insert(ident.to_string());
                 }
                 if let Some(name) = declared_item_name(item) {
                     self.local_bindings.insert(name);
@@ -159,6 +189,7 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
                         self.scoped_uses.push(ScopedUse {
                             item: item.clone(),
                             aliases: self.aliases.clone(),
+                            glob_imports: self.glob_imports.clone(),
                         });
                     }
                 }
@@ -171,7 +202,9 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
         }
         self.local_bindings = outer_bindings;
         self.aliases = outer_aliases;
+        self.glob_imports = outer_glob_imports;
         self.macro_bindings = outer_macro_bindings;
+        self.local_macro_bindings = outer_local_macro_bindings;
     }
 
     fn visit_expr(&mut self, expression: &'ast syn::Expr) {
@@ -185,6 +218,38 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
         syn::visit::visit_expr(self, expression);
         self.in_expr = outer_in_expr;
         self.inactive_expr_cfg = outer_inactive;
+    }
+
+    fn visit_expr_closure(&mut self, closure: &'ast syn::ExprClosure) {
+        let outer_bindings = self.local_bindings.clone();
+        for input in &closure.inputs {
+            collect_pattern_bindings(input, &mut self.local_bindings);
+        }
+        syn::visit::visit_expr_closure(self, closure);
+        self.local_bindings = outer_bindings;
+    }
+
+    fn visit_expr_for_loop(&mut self, expression: &'ast syn::ExprForLoop) {
+        let outer_bindings = self.local_bindings.clone();
+        collect_pattern_bindings(&expression.pat, &mut self.local_bindings);
+        syn::visit::visit_expr_for_loop(self, expression);
+        self.local_bindings = outer_bindings;
+    }
+
+    fn visit_expr_if(&mut self, expression: &'ast syn::ExprIf) {
+        let outer_bindings = self.local_bindings.clone();
+        if let syn::Expr::Let(condition) = &*expression.cond {
+            collect_pattern_bindings(&condition.pat, &mut self.local_bindings);
+        }
+        syn::visit::visit_expr_if(self, expression);
+        self.local_bindings = outer_bindings;
+    }
+
+    fn visit_arm(&mut self, arm: &'ast syn::Arm) {
+        let outer_bindings = self.local_bindings.clone();
+        collect_pattern_bindings(&arm.pat, &mut self.local_bindings);
+        syn::visit::visit_arm(self, arm);
+        self.local_bindings = outer_bindings;
     }
 
     fn visit_stmt(&mut self, statement: &'ast Stmt) {
@@ -215,6 +280,11 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
     }
 
     fn visit_impl_item_fn(&mut self, function: &'ast syn::ImplItemFn) {
+        match self.cfg_context.evaluate_attributes(&function.attrs) {
+            CfgDecision::Inactive => return,
+            CfgDecision::Unknown => self.cfg_spans.push(function.span().start()),
+            CfgDecision::Active => {}
+        }
         let outer_bindings = self.local_bindings.clone();
         collect_generic_bindings(&function.sig.generics, &mut self.local_bindings);
         for input in &function.sig.inputs {
@@ -227,6 +297,11 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
     }
 
     fn visit_trait_item_fn(&mut self, function: &'ast syn::TraitItemFn) {
+        match self.cfg_context.evaluate_attributes(&function.attrs) {
+            CfgDecision::Inactive => return,
+            CfgDecision::Unknown => self.cfg_spans.push(function.span().start()),
+            CfgDecision::Active => {}
+        }
         let outer_bindings = self.local_bindings.clone();
         collect_generic_bindings(&function.sig.generics, &mut self.local_bindings);
         for input in &function.sig.inputs {
@@ -280,9 +355,22 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
         if identity.len() == 1
             && identity
                 .first()
-                .is_some_and(|name| self.macro_bindings.contains(name))
+                .is_some_and(|name| self.local_macro_bindings.contains(name))
         {
             self.macro_spans.push(macro_item.span().start());
+            return;
+        }
+        if is_dependency_observing_macro(&identity) {
+            let observed = if is_matches_macro(&identity) {
+                visit_matches_macro(self, macro_item.tokens.clone())
+            } else if is_json_macro(&identity) {
+                visit_json_macro(self, macro_item.tokens.clone())
+            } else {
+                visit_macro_expressions(self, macro_item.tokens.clone())
+            };
+            if !observed {
+                self.macro_spans.push(macro_item.span().start());
+            }
             return;
         }
         if is_dependency_neutral_token_macro(&identity) {
@@ -311,11 +399,60 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
             if !known_builtin_derive(attribute, &self.aliases, self.external_crates) {
                 self.macro_spans.push(attribute.span().start());
             }
+        } else if is_dependency_neutral_attribute(attribute) {
+            if is_rustfmt_skip_attribute(attribute) {
+                return;
+            }
         } else if !known_builtin_attribute(attribute.path()) {
             self.macro_spans.push(attribute.span().start());
         }
         syn::visit::visit_attribute(self, attribute);
     }
+}
+
+fn is_dependency_neutral_attribute(attribute: &Attribute) -> bool {
+    if is_rustfmt_skip_attribute(attribute) {
+        return true;
+    }
+    if !attribute.path().is_ident("serde") {
+        return false;
+    }
+    let syn::Meta::List(list) = &attribute.meta else {
+        return false;
+    };
+    let parser = Punctuated::<syn::Meta, Token![,]>::parse_terminated;
+    parser.parse2(list.tokens.clone()).is_ok_and(|metas| {
+        metas.iter().all(|meta| match meta {
+            syn::Meta::Path(path) => path.get_ident().is_some_and(|name| {
+                matches!(
+                    name.to_string().as_str(),
+                    "alias"
+                        | "content"
+                        | "default"
+                        | "deny_unknown_fields"
+                        | "flatten"
+                        | "rename_all"
+                        | "skip"
+                        | "skip_deserializing"
+                        | "skip_serializing"
+                        | "untagged"
+                )
+            }),
+            syn::Meta::NameValue(value) => value.path.get_ident().is_some_and(|name| {
+                matches!(
+                    name.to_string().as_str(),
+                    "alias" | "content" | "rename" | "rename_all"
+                ) && matches!(&value.value, syn::Expr::Lit(_))
+            }),
+            syn::Meta::List(_) => false,
+        })
+    })
+}
+
+fn is_rustfmt_skip_attribute(attribute: &Attribute) -> bool {
+    attribute.path().segments.len() == 2
+        && attribute.path().segments[0].ident == "rustfmt"
+        && attribute.path().segments[1].ident == "skip"
 }
 
 fn known_builtin_derive(
@@ -454,6 +591,7 @@ fn is_dependency_neutral_token_macro(path: &[String]) -> bool {
                 | "concat"
                 | "env"
                 | "file"
+                | "format_description"
                 | "include_bytes"
                 | "include_str"
                 | "line"
@@ -463,6 +601,36 @@ fn is_dependency_neutral_token_macro(path: &[String]) -> bool {
                 | "stringify"
         )
     })
+}
+
+fn is_dependency_observing_macro(path: &[String]) -> bool {
+    [
+        &["matches"][..],
+        &["json"][..],
+        &["serde_json", "json"][..],
+        &["inventory", "submit"][..],
+        &["inventory", "collect"][..],
+        &["require_contract_value"][..],
+        &["require_shape"][..],
+    ]
+    .iter()
+    .any(|expected| macro_path_is(path, expected))
+}
+
+fn is_matches_macro(path: &[String]) -> bool {
+    macro_path_is(path, &["matches"])
+}
+
+fn is_json_macro(path: &[String]) -> bool {
+    macro_path_is(path, &["json"]) || macro_path_is(path, &["serde_json", "json"])
+}
+
+fn macro_path_is(path: &[String], expected: &[&str]) -> bool {
+    path.len() == expected.len()
+        && path
+            .iter()
+            .zip(expected)
+            .all(|(actual, expected)| actual == expected)
 }
 
 fn is_dependency_neutral_expression_macro(path: &[String]) -> bool {
@@ -516,6 +684,141 @@ fn visit_macro_expressions(visitor: &mut PathVisitor<'_>, tokens: TokenStream) -
     } else {
         false
     }
+}
+
+fn visit_matches_macro(visitor: &mut PathVisitor<'_>, tokens: TokenStream) -> bool {
+    let arguments = split_macro_tokens(tokens, ',');
+    if arguments.len() != 2 {
+        return false;
+    }
+    let Ok(expression) = syn::parse2::<syn::Expr>(arguments[0].clone()) else {
+        return false;
+    };
+    let (pattern, guard) = if let Ok(pattern) = syn::Pat::parse_multi.parse2(arguments[1].clone()) {
+        (pattern, None)
+    } else {
+        let Some((pattern_tokens, guard_tokens)) = split_macro_keyword(arguments[1].clone(), "if")
+        else {
+            return false;
+        };
+        let Ok(pattern) = syn::Pat::parse_multi.parse2(pattern_tokens) else {
+            return false;
+        };
+        let Ok(guard) = syn::parse2::<syn::Expr>(guard_tokens) else {
+            return false;
+        };
+        (pattern, Some(guard))
+    };
+    visitor.visit_expr(&expression);
+    visitor.visit_pat(&pattern);
+    if let Some(guard) = guard {
+        visitor.visit_expr(&guard);
+    }
+    true
+}
+
+fn visit_json_macro(visitor: &mut PathVisitor<'_>, tokens: TokenStream) -> bool {
+    visit_json_fragment(visitor, tokens)
+}
+
+fn visit_json_fragment(visitor: &mut PathVisitor<'_>, tokens: TokenStream) -> bool {
+    if tokens.is_empty() {
+        return true;
+    }
+    let mut trees = tokens.clone().into_iter();
+    if let (Some(TokenTree::Ident(identifier)), None) = (trees.next(), trees.next())
+        && matches!(identifier.to_string().as_str(), "null" | "true" | "false")
+    {
+        return true;
+    }
+    if let Ok(expression) = syn::parse2::<syn::Expr>(tokens.clone()) {
+        visitor.visit_expr(&expression);
+        return true;
+    }
+    let groups = tokens.clone().into_iter().collect::<Vec<_>>();
+    if groups.len() == 1
+        && let TokenTree::Group(group) = &groups[0]
+    {
+        return visit_json_fragment(visitor, group.stream());
+    }
+    let entries = split_macro_tokens(tokens.clone(), ',');
+    if entries.len() > 1 {
+        return entries
+            .into_iter()
+            .filter(|entry| !entry.is_empty())
+            .all(|entry| visit_json_entry(visitor, entry));
+    }
+    visit_json_entry(visitor, tokens)
+}
+
+fn visit_json_entry(visitor: &mut PathVisitor<'_>, entry: TokenStream) -> bool {
+    if let Some((_, value)) = split_macro_tokens_once(entry.clone(), ':') {
+        return visit_json_fragment(visitor, value);
+    }
+    if let Ok(expression) = syn::parse2::<syn::Expr>(entry.clone()) {
+        visitor.visit_expr(&expression);
+        return true;
+    }
+    let groups = entry.into_iter().collect::<Vec<_>>();
+    groups.len() == 1
+        && matches!(&groups[0], TokenTree::Group(_))
+        && visit_json_fragment(
+            visitor,
+            match &groups[0] {
+                TokenTree::Group(group) => group.stream(),
+                _ => TokenStream::new(),
+            },
+        )
+}
+
+fn split_macro_tokens(tokens: TokenStream, separator: char) -> Vec<TokenStream> {
+    let mut parts = Vec::new();
+    let mut current = TokenStream::new();
+    for token in tokens {
+        if matches!(&token, TokenTree::Punct(punct) if punct.as_char() == separator) {
+            parts.push(current);
+            current = TokenStream::new();
+        } else {
+            current.extend(std::iter::once(token));
+        }
+    }
+    parts.push(current);
+    parts
+}
+
+fn split_macro_tokens_once(
+    tokens: TokenStream,
+    separator: char,
+) -> Option<(TokenStream, TokenStream)> {
+    let mut before = TokenStream::new();
+    let mut found = false;
+    let mut after = TokenStream::new();
+    for token in tokens {
+        if !found && matches!(&token, TokenTree::Punct(punct) if punct.as_char() == separator) {
+            found = true;
+        } else if found {
+            after.extend(std::iter::once(token));
+        } else {
+            before.extend(std::iter::once(token));
+        }
+    }
+    found.then_some((before, after))
+}
+
+fn split_macro_keyword(tokens: TokenStream, keyword: &str) -> Option<(TokenStream, TokenStream)> {
+    let mut before = TokenStream::new();
+    let mut found = false;
+    let mut after = TokenStream::new();
+    for token in tokens {
+        if !found && matches!(&token, TokenTree::Ident(identifier) if identifier == keyword) {
+            found = true;
+        } else if found {
+            after.extend(std::iter::once(token));
+        } else {
+            before.extend(std::iter::once(token));
+        }
+    }
+    found.then_some((before, after))
 }
 
 fn collect_pattern_bindings(pattern: &syn::Pat, bindings: &mut BTreeSet<String>) {
@@ -597,6 +900,104 @@ pub(super) fn declared_item_names(file: &File, cfg_context: &CfgContext) -> BTre
     names
 }
 
+pub(super) fn public_item_names(file: &File, cfg_context: &CfgContext) -> BTreeSet<String> {
+    file.items
+        .iter()
+        .filter(|item| {
+            cfg_context.evaluate_attributes(item_attributes(item)) != CfgDecision::Inactive
+        })
+        .filter(|item| !matches!(item, Item::Use(_)))
+        .filter(|item| item_visibility(item).is_some_and(is_crate_visible))
+        .filter_map(declared_item_name)
+        .collect()
+}
+
+pub(super) fn public_use_bindings(file: &File, cfg_context: &CfgContext) -> Vec<UseBinding> {
+    let mut bindings = Vec::new();
+    for item in &file.items {
+        if cfg_context.evaluate_attributes(item_attributes(item)) == CfgDecision::Inactive {
+            continue;
+        }
+        if let Item::Use(item) = item
+            && is_crate_visible(&item.vis)
+        {
+            collect_use_bindings_with_paths(
+                &item.tree,
+                Vec::new(),
+                item.leading_colon.is_some(),
+                &mut bindings,
+            );
+        }
+    }
+    bindings
+}
+
+pub(super) fn glob_imports(file: &File, cfg_context: &CfgContext) -> Vec<UseAlias> {
+    let mut imports = Vec::new();
+    for item in &file.items {
+        if cfg_context.evaluate_attributes(item_attributes(item)) == CfgDecision::Inactive {
+            continue;
+        }
+        if let Item::Use(item) = item {
+            collect_use_glob_imports(
+                &item.tree,
+                Vec::new(),
+                item.leading_colon.is_some(),
+                &mut imports,
+            );
+        }
+    }
+    imports
+}
+
+pub(super) fn public_glob_imports(file: &File, cfg_context: &CfgContext) -> Vec<UseAlias> {
+    let mut imports = Vec::new();
+    for item in &file.items {
+        if cfg_context.evaluate_attributes(item_attributes(item)) == CfgDecision::Inactive {
+            continue;
+        }
+        if let Item::Use(item) = item
+            && is_crate_visible(&item.vis)
+        {
+            collect_use_glob_imports(
+                &item.tree,
+                Vec::new(),
+                item.leading_colon.is_some(),
+                &mut imports,
+            );
+        }
+    }
+    imports
+}
+
+pub(super) fn is_crate_visible(visibility: &syn::Visibility) -> bool {
+    match visibility {
+        syn::Visibility::Public(_) => true,
+        syn::Visibility::Restricted(restricted) => restricted.path.is_ident("crate"),
+        syn::Visibility::Inherited => false,
+    }
+}
+
+fn item_visibility(item: &Item) -> Option<&syn::Visibility> {
+    match item {
+        Item::Const(item) => Some(&item.vis),
+        Item::Enum(item) => Some(&item.vis),
+        Item::ExternCrate(item) => Some(&item.vis),
+        Item::Fn(item) => Some(&item.vis),
+        Item::Macro(_) => None,
+        Item::Mod(item) => Some(&item.vis),
+        Item::Static(item) => Some(&item.vis),
+        Item::Struct(item) => Some(&item.vis),
+        Item::Trait(item) => Some(&item.vis),
+        Item::TraitAlias(item) => Some(&item.vis),
+        Item::Type(item) => Some(&item.vis),
+        Item::Union(item) => Some(&item.vis),
+        Item::Use(item) => Some(&item.vis),
+        Item::ForeignMod(_) | Item::Impl(_) | Item::Verbatim(_) => None,
+        _ => None,
+    }
+}
+
 fn declared_item_name(item: &Item) -> Option<String> {
     match item {
         Item::Const(item) => Some(item.ident.to_string()),
@@ -639,6 +1040,19 @@ pub(super) fn declared_macro_bindings(file: &File, cfg_context: &CfgContext) -> 
     bindings
 }
 
+pub(super) fn local_macro_bindings(file: &File, cfg_context: &CfgContext) -> BTreeSet<String> {
+    file.items
+        .iter()
+        .filter(|item| {
+            cfg_context.evaluate_attributes(item_attributes(item)) != CfgDecision::Inactive
+        })
+        .filter_map(|item| match item {
+            Item::Macro(item) => item.ident.as_ref().map(ToString::to_string),
+            _ => None,
+        })
+        .collect()
+}
+
 pub(super) fn declared_external_crate_aliases(
     file: &File,
     cfg_context: &CfgContext,
@@ -656,6 +1070,26 @@ pub(super) fn declared_external_crate_aliases(
                         .map_or(&item.ident, |(_, rename)| rename)
                         .to_string(),
                 ),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+pub(super) fn declared_self_crate_aliases(
+    file: &File,
+    cfg_context: &CfgContext,
+) -> BTreeSet<String> {
+    file.items
+        .iter()
+        .filter_map(|item| {
+            if cfg_context.evaluate_attributes(item_attributes(item)) == CfgDecision::Inactive {
+                return None;
+            }
+            match item {
+                Item::ExternCrate(item) if item.ident == "self" => {
+                    item.rename.as_ref().map(|(_, rename)| rename.to_string())
+                }
                 _ => None,
             }
         })
@@ -692,6 +1126,85 @@ fn collect_use_bindings(tree: &UseTree, prefix: Vec<String>, names: &mut BTreeSe
                 collect_use_bindings(item, prefix.clone(), names);
             }
         }
+    }
+}
+
+fn collect_use_bindings_with_paths(
+    tree: &UseTree,
+    prefix: Vec<String>,
+    absolute_external: bool,
+    bindings: &mut Vec<UseBinding>,
+) {
+    match tree {
+        UseTree::Path(path) => {
+            let mut next = prefix;
+            next.push(path.ident.to_string());
+            collect_use_bindings_with_paths(&path.tree, next, absolute_external, bindings);
+        }
+        UseTree::Name(name) if name.ident == "self" => {
+            if let Some(binding) = prefix.last() {
+                bindings.push(UseBinding {
+                    name: binding.clone(),
+                    path: prefix,
+                    absolute_external,
+                });
+            }
+        }
+        UseTree::Name(name) => {
+            let mut path = prefix;
+            let name = name.ident.to_string();
+            path.push(name.clone());
+            bindings.push(UseBinding {
+                name,
+                path,
+                absolute_external,
+            });
+        }
+        UseTree::Rename(rename) => {
+            let mut path = prefix;
+            path.push(rename.ident.to_string());
+            bindings.push(UseBinding {
+                name: rename.rename.to_string(),
+                path,
+                absolute_external,
+            });
+        }
+        UseTree::Glob(_) => {}
+        UseTree::Group(group) => {
+            for item in &group.items {
+                collect_use_bindings_with_paths(item, prefix.clone(), absolute_external, bindings);
+            }
+        }
+    }
+}
+
+fn collect_use_glob_imports(
+    tree: &UseTree,
+    prefix: Vec<String>,
+    absolute_external: bool,
+    imports: &mut Vec<UseAlias>,
+) {
+    match tree {
+        UseTree::Path(path) => {
+            let mut next = prefix;
+            next.push(path.ident.to_string());
+            collect_use_glob_imports(&path.tree, next, absolute_external, imports);
+        }
+        UseTree::Glob(_) => {
+            let alias = UseAlias {
+                path: prefix,
+                absolute_external,
+            };
+            if !imports.contains(&alias) {
+                imports.push(alias);
+            }
+        }
+        UseTree::Group(group) => {
+            for item in &group.items {
+                collect_use_glob_imports(item, prefix.clone(), absolute_external, imports);
+            }
+        }
+        UseTree::Name(_) | UseTree::Rename(_) => {}
     }
 }
 

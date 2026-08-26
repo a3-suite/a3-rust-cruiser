@@ -349,6 +349,108 @@ fn block_scoped_use_is_resolved_within_its_lexical_scope() {
 }
 
 #[test]
+fn lexical_pattern_bindings_are_not_reported_as_unresolved() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("lexical-pattern-bindings");
+    fixture.write(
+        "src/main.rs",
+        "fn consume(values: &[usize]) -> usize {\n    let mapped = values.iter().map(|value| *value).next();\n    if let Some(selected) = mapped { selected } else { 0 }\n}\nfn main() { let _ = consume(&[1]); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn package_crate_alias_is_resolved_for_library_targets() {
+    // Arrange
+    let fixture = TempFixture::new("package-crate-alias");
+    let alias = fixture.package().replace('-', "_");
+    fixture.write(
+        "src/lib.rs",
+        &format!(
+            "extern crate self as {alias};\npub mod api;\npub fn make() -> {alias}::api::Thing {{ {alias}::api::Thing }}\n"
+        ),
+    );
+    fixture.write("src/api.rs", "pub struct Thing;\n");
+
+    // Act
+    let report = completed_json(&run_check_with(&fixture, "lib", "json", &[]), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "crate::api",
+        "path-reference",
+        "internal-module"
+    ));
+}
+
+#[test]
+fn undeclared_package_name_is_not_treated_as_a_library_alias() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("undeclared-package-crate-alias");
+    let alias = fixture.package().replace('-', "_");
+    fixture.write(
+        "src/lib.rs",
+        &format!("pub mod api;\npub fn make() -> {alias}::api::Thing {{ {alias}::api::Thing }}\n"),
+    );
+    fixture.write("src/api.rs", "pub struct Thing;\n");
+
+    // Act
+    let report = completed_json(&run_check_with(&fixture, "lib", "json", &[]), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-name-resolution");
+    assert_eq!(report["decision"], "indeterminate");
+}
+
+#[test]
+fn package_name_is_not_external_without_a_library_target() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("package-name-without-library");
+    let alias = fixture.package().replace('-', "_");
+    fixture.write(
+        "src/main.rs",
+        &format!("fn main() {{ let _ = {alias}::Thing; }}\n"),
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-name-resolution");
+    assert_eq!(report["decision"], "indeterminate");
+}
+
+#[test]
+fn known_dependency_observing_macros_and_safe_serde_attributes_are_conformant() {
+    // Arrange
+    let fixture = TempFixture::new("known-macros-and-serde");
+    fixture.write_manifest(
+        "[dependencies]\nserde = { version = \"1\", features = [\"derive\"] }\nserde-json = \"1\"\n",
+    );
+    fixture.write(
+        "src/main.rs",
+        "use serde::Deserialize;\n#[derive(Deserialize)]\n#[serde(default, rename = \"value\")]\nstruct Model { #[serde(default)] value: usize }\nfn main() {\n    let value = serde_json::json!({\"value\": crate::build_value()});\n    let _ = matches!(value, serde_json::Value::Object(_));\n}\nfn build_value() -> usize { 1 }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
 fn repeated_json_report_is_byte_stable() {
     // Arrange
     let fixture = forbidden_fixture("stable-json", true);

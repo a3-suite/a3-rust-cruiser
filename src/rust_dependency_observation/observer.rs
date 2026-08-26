@@ -13,9 +13,11 @@ use super::{
     cargo_project,
     cfg_context::{CfgContext, CfgDecision},
     rust_syntax::{
-        PathVisitor, UseAlias, declared_external_crate_aliases, declared_item_names,
-        declared_macro_bindings, flatten_use_tree, has_no_implicit_prelude, has_path_attribute,
-        item_attributes, path_to_string, syn_path_segments, use_aliases,
+        PathVisitor, UseAlias, UseBinding, declared_external_crate_aliases, declared_item_names,
+        declared_macro_bindings, declared_self_crate_aliases, flatten_use_tree, glob_imports,
+        has_no_implicit_prelude, has_path_attribute, is_crate_visible, item_attributes,
+        local_macro_bindings, path_to_string, public_glob_imports, public_item_names,
+        public_use_bindings, syn_path_segments, use_aliases,
     },
 };
 
@@ -52,8 +54,14 @@ struct ModuleVariant {
     module_directory: PathBuf,
     ast: File,
     declared_items: BTreeSet<String>,
+    public_items: BTreeSet<String>,
+    public_use_bindings: Vec<UseBinding>,
     use_aliases: BTreeMap<String, Vec<UseAlias>>,
+    glob_imports: Vec<UseAlias>,
+    public_glob_imports: Vec<UseAlias>,
+    local_macro_bindings: BTreeSet<String>,
     external_crate_aliases: BTreeSet<String>,
+    self_crate_aliases: BTreeSet<String>,
     no_implicit_prelude: bool,
 }
 
@@ -61,7 +69,14 @@ struct PathResolutionContext<'a> {
     source_module: &'a str,
     source_variant: &'a ModuleVariant,
     aliases: &'a BTreeMap<String, Vec<UseAlias>>,
+    glob_imports: &'a [UseAlias],
     all_modules: &'a BTreeSet<String>,
+    exported_items: &'a BTreeMap<String, BTreeSet<String>>,
+}
+
+struct ResolutionScope<'a> {
+    aliases: &'a BTreeMap<String, Vec<UseAlias>>,
+    glob_imports: &'a [UseAlias],
 }
 
 struct Observer {
@@ -69,7 +84,9 @@ struct Observer {
     cfg_context: CfgContext,
     external_crates: BTreeSet<String>,
     context_dependent_crates: BTreeSet<String>,
+    self_crate_aliases: BTreeSet<String>,
     records: BTreeMap<String, ModuleRecord>,
+    exported_items: BTreeMap<String, BTreeSet<String>>,
     declarations: Vec<ModuleDeclaration>,
     issues: Vec<AnalysisIssue>,
 }
@@ -85,20 +102,42 @@ fn observe(
     let manifest = cargo_project::load_manifest(project_root)?;
     let cfg_context = CfgContext::resolve(&context);
     let (entry, target_issues) = cargo_project::target_entry(project_root, &manifest, &context)?;
-    let (external_crates, context_dependent_crates) =
+    let (mut external_crates, context_dependent_crates) =
         cargo_project::declared_external_crates(&manifest, &context, &cfg_context)?;
+    let target_kind = context
+        .compilation_target
+        .split_once(':')
+        .map_or(context.compilation_target.as_str(), |(kind, _)| kind);
+    if target_kind != "lib" && cargo_project::has_library_target(project_root, &manifest)? {
+        // A binary/example/test target in the same package links the package
+        // library under its crate name. The selected target remains the
+        // observation boundary, so treat that library crate as external to
+        // this graph rather than inventing a second source root.
+        external_crates.insert(context.package.replace('-', "_"));
+    }
     let mut observer = Observer {
         project_root: project_root.to_path_buf(),
         cfg_context,
         external_crates,
         context_dependent_crates,
+        self_crate_aliases: BTreeSet::new(),
         records: BTreeMap::new(),
+        exported_items: BTreeMap::new(),
         declarations: Vec::new(),
         issues: target_issues,
     };
     observer.discover_module("crate", &entry)?;
+    observer.self_crate_aliases = observer
+        .records
+        .get("crate")
+        .into_iter()
+        .flat_map(|record| record.variants.iter())
+        .flat_map(|variant| variant.self_crate_aliases.iter().cloned())
+        .collect();
 
     let all_module_ids: BTreeSet<String> = observer.records.keys().cloned().collect();
+    let exported_items = observer.build_export_index(&all_module_ids);
+    observer.exported_items = exported_items;
     let excluded_scopes: Vec<String> = all_module_ids
         .iter()
         .filter(|id| {
@@ -217,8 +256,14 @@ impl Observer {
             path: path.to_path_buf(),
             module_directory: module_directory(path),
             declared_items: declared_item_names(&ast, &self.cfg_context),
+            public_items: public_item_names(&ast, &self.cfg_context),
+            public_use_bindings: public_use_bindings(&ast, &self.cfg_context),
             use_aliases: use_aliases(&ast, &self.cfg_context),
+            glob_imports: glob_imports(&ast, &self.cfg_context),
+            public_glob_imports: public_glob_imports(&ast, &self.cfg_context),
+            local_macro_bindings: local_macro_bindings(&ast, &self.cfg_context),
             external_crate_aliases: declared_external_crate_aliases(&ast, &self.cfg_context),
+            self_crate_aliases: declared_self_crate_aliases(&ast, &self.cfg_context),
             no_implicit_prelude: has_no_implicit_prelude(&ast),
             ast,
         };
@@ -309,8 +354,17 @@ impl Observer {
                     path: parent_path.to_path_buf(),
                     module_directory: child_module_directory.clone(),
                     declared_items: declared_item_names(&inline_file, &self.cfg_context),
+                    public_items: public_item_names(&inline_file, &self.cfg_context),
+                    public_use_bindings: public_use_bindings(&inline_file, &self.cfg_context),
                     use_aliases: use_aliases(&inline_file, &self.cfg_context),
+                    glob_imports: glob_imports(&inline_file, &self.cfg_context),
+                    public_glob_imports: public_glob_imports(&inline_file, &self.cfg_context),
+                    local_macro_bindings: local_macro_bindings(&inline_file, &self.cfg_context),
                     external_crate_aliases: declared_external_crate_aliases(
+                        &inline_file,
+                        &self.cfg_context,
+                    ),
+                    self_crate_aliases: declared_self_crate_aliases(
                         &inline_file,
                         &self.cfg_context,
                     ),
@@ -386,6 +440,10 @@ impl Observer {
         dependencies: &mut Vec<Dependency>,
         issues: &mut Vec<AnalysisIssue>,
     ) {
+        let top_level_scope = ResolutionScope {
+            aliases: &variant.use_aliases,
+            glob_imports: &variant.glob_imports,
+        };
         for item in &variant.ast.items {
             if let Item::Use(use_item) = item
                 && self.cfg_context.evaluate_attributes(&use_item.attrs) != CfgDecision::Inactive
@@ -394,7 +452,7 @@ impl Observer {
                     source_id,
                     variant,
                     use_item,
-                    &variant.use_aliases,
+                    &top_level_scope,
                     selected,
                     all_modules,
                 );
@@ -409,7 +467,9 @@ impl Observer {
             scoped_uses: Vec::new(),
             local_bindings: BTreeSet::new(),
             aliases: variant.use_aliases.clone(),
+            glob_imports: variant.glob_imports.clone(),
             macro_bindings: declared_macro_bindings(&variant.ast, &self.cfg_context),
+            local_macro_bindings: variant.local_macro_bindings.clone(),
             inactive_expr_cfg: false,
             in_expr: false,
             macro_spans: Vec::new(),
@@ -419,11 +479,15 @@ impl Observer {
         };
         visitor.visit_file(&variant.ast);
         for scoped_use in &visitor.scoped_uses {
+            let scoped_scope = ResolutionScope {
+                aliases: &scoped_use.aliases,
+                glob_imports: &scoped_use.glob_imports,
+            };
             let (use_dependencies, use_issues) = self.collect_use(
                 source_id,
                 variant,
                 &scoped_use.item,
-                &scoped_use.aliases,
+                &scoped_scope,
                 selected,
                 all_modules,
             );
@@ -478,10 +542,14 @@ impl Observer {
             {
                 continue;
             }
+            let observed_scope = ResolutionScope {
+                aliases: &observed_path.aliases,
+                glob_imports: &observed_path.glob_imports,
+            };
             let resolved = self.resolve_path(
                 source_id,
                 variant,
-                &observed_path.aliases,
+                &observed_scope,
                 &path_segments,
                 path.leading_colon.is_some(),
                 all_modules,
@@ -504,6 +572,7 @@ impl Observer {
                 let may_reference_internal = self.may_reference_internal_module(
                     source_id,
                     &observed_path.aliases,
+                    &observed_path.glob_imports,
                     &path_segments,
                     all_modules,
                     0,
@@ -526,7 +595,7 @@ impl Observer {
                     let candidate_targets = self.candidate_targets_for_path(
                         source_id,
                         variant,
-                        &observed_path.aliases,
+                        &observed_scope,
                         &path_segments,
                         path.leading_colon.is_some(),
                         all_modules,
@@ -579,6 +648,7 @@ impl Observer {
         &self,
         source_module: &str,
         aliases: &BTreeMap<String, Vec<UseAlias>>,
+        glob_imports: &[UseAlias],
         path: &[String],
         all_modules: &BTreeSet<String>,
         alias_depth: usize,
@@ -599,11 +669,15 @@ impl Observer {
                     && self.may_reference_internal_module(
                         source_module,
                         aliases,
+                        glob_imports,
                         &expanded,
                         all_modules,
                         alias_depth + 1,
                     )
             });
+        }
+        if !glob_imports.is_empty() {
+            return true;
         }
         let local = format!("{source_module}::{first}");
         let crate_level = format!("crate::{first}");
@@ -620,13 +694,13 @@ impl Observer {
         source_id: &str,
         source_variant: &ModuleVariant,
         use_item: &ItemUse,
-        aliases: &BTreeMap<String, Vec<UseAlias>>,
+        resolution_scope: &ResolutionScope<'_>,
         selected: &BTreeSet<String>,
         all_modules: &BTreeSet<String>,
     ) -> (Vec<Dependency>, Vec<AnalysisIssue>) {
         let mut dependencies = Vec::new();
         let mut issues = Vec::new();
-        let kind = if matches!(use_item.vis, syn::Visibility::Public(_)) {
+        let kind = if is_crate_visible(&use_item.vis) {
             DependencyKind::ReExport
         } else {
             DependencyKind::Import
@@ -634,10 +708,13 @@ impl Observer {
         let mut paths = Vec::new();
         flatten_use_tree(&use_item.tree, Vec::new(), &mut paths);
         for path in paths {
+            if path.len() == 1 && source_variant.local_macro_bindings.contains(&path[0]) {
+                continue;
+            }
             let mut resolved = self.resolve_path(
                 source_id,
                 source_variant,
-                aliases,
+                resolution_scope,
                 &path,
                 use_item.leading_colon.is_some(),
                 all_modules,
@@ -669,7 +746,7 @@ impl Observer {
                 let candidate_targets = self.candidate_targets_for_path(
                     source_id,
                     source_variant,
-                    aliases,
+                    resolution_scope,
                     &path,
                     use_item.leading_colon.is_some(),
                     all_modules,
@@ -721,7 +798,7 @@ impl Observer {
         &self,
         source_id: &str,
         source_variant: &ModuleVariant,
-        aliases: &BTreeMap<String, Vec<UseAlias>>,
+        resolution_scope: &ResolutionScope<'_>,
         path: &[String],
         leading_colon: bool,
         all_modules: &BTreeSet<String>,
@@ -731,7 +808,7 @@ impl Observer {
             for (target, scope) in self.resolve_path(
                 source_id,
                 source_variant,
-                aliases,
+                resolution_scope,
                 &path[..end],
                 leading_colon,
                 all_modules,
@@ -744,6 +821,25 @@ impl Observer {
                 break;
             }
         }
+        if candidates.is_empty() {
+            for glob in resolution_scope.glob_imports {
+                for (target, target_scope) in self.resolve_path(
+                    source_id,
+                    source_variant,
+                    &ResolutionScope {
+                        aliases: resolution_scope.aliases,
+                        glob_imports: &[],
+                    },
+                    &glob.path,
+                    glob.absolute_external,
+                    all_modules,
+                ) {
+                    if target_scope == TargetScope::InternalModule && target != source_id {
+                        candidates.insert(target);
+                    }
+                }
+            }
+        }
         candidates.into_iter().collect()
     }
 
@@ -751,16 +847,43 @@ impl Observer {
         &self,
         source_module: &str,
         source_variant: &ModuleVariant,
-        aliases: &BTreeMap<String, Vec<UseAlias>>,
+        scope: &ResolutionScope<'_>,
         path: &[String],
         absolute_external: bool,
         all_modules: &BTreeSet<String>,
+    ) -> Vec<(String, TargetScope)> {
+        self.resolve_path_with_exports(
+            source_module,
+            source_variant,
+            scope.aliases,
+            scope.glob_imports,
+            path,
+            absolute_external,
+            all_modules,
+            &self.exported_items,
+        )
+    }
+
+    // Export-index construction uses the same explicit context with a partially built index.
+    #[allow(clippy::too_many_arguments)]
+    fn resolve_path_with_exports(
+        &self,
+        source_module: &str,
+        source_variant: &ModuleVariant,
+        aliases: &BTreeMap<String, Vec<UseAlias>>,
+        glob_imports: &[UseAlias],
+        path: &[String],
+        absolute_external: bool,
+        all_modules: &BTreeSet<String>,
+        exported_items: &BTreeMap<String, BTreeSet<String>>,
     ) -> Vec<(String, TargetScope)> {
         let context = PathResolutionContext {
             source_module,
             source_variant,
             aliases,
+            glob_imports,
             all_modules,
+            exported_items,
         };
         self.resolve_path_inner(&context, path, absolute_external, 0)
     }
@@ -785,6 +908,13 @@ impl Observer {
         }
         if alias_depth > self.records.len() {
             return Vec::new();
+        }
+        if self.self_crate_aliases.contains(&path[0])
+            || context.source_variant.self_crate_aliases.contains(&path[0])
+        {
+            let mut crate_path = vec!["crate".to_owned()];
+            crate_path.extend_from_slice(&path[1..]);
+            return self.resolve_path_inner(context, &crate_path, false, alias_depth + 1);
         }
         if let Some(candidates) = context.aliases.get(&path[0]) {
             return candidates
@@ -844,6 +974,10 @@ impl Observer {
                         context.source_module.to_owned(),
                         TargetScope::InternalModule,
                     )];
+                } else if !context.glob_imports.is_empty()
+                    && let Some(resolved) = self.resolve_glob_path(context, path, alias_depth)
+                {
+                    return resolved;
                 } else {
                     let is_external_crate = known_external_crate(first)
                         || self.external_crates.contains(first)
@@ -873,7 +1007,10 @@ impl Observer {
                             .variants
                             .iter()
                             .any(|variant| variant.declared_items.contains(segment))
-                    });
+                    }) || context
+                        .exported_items
+                        .get(&candidate)
+                        .is_some_and(|items| items.contains(segment));
                     return if declared_item || alias_depth > 0 {
                         vec![(candidate, TargetScope::InternalModule)]
                     } else {
@@ -889,6 +1026,159 @@ impl Observer {
             .unwrap_or(&candidate)
             .to_owned();
         vec![(external, TargetScope::ExternalCrate)]
+    }
+
+    fn resolve_glob_path(
+        &self,
+        context: &PathResolutionContext<'_>,
+        path: &[String],
+        alias_depth: usize,
+    ) -> Option<Vec<(String, TargetScope)>> {
+        if alias_depth >= self.records.len() {
+            return None;
+        }
+        let mut resolved = Vec::new();
+        let direct_context = PathResolutionContext {
+            source_module: context.source_module,
+            source_variant: context.source_variant,
+            aliases: context.aliases,
+            glob_imports: &[],
+            all_modules: context.all_modules,
+            exported_items: context.exported_items,
+        };
+        for glob in context.glob_imports {
+            let mut expanded = glob.path.clone();
+            expanded.extend_from_slice(path);
+            resolved.extend(self.resolve_path_inner(
+                &direct_context,
+                &expanded,
+                glob.absolute_external,
+                0,
+            ));
+        }
+        resolved.sort_by(|left, right| {
+            left.0.cmp(&right.0).then_with(|| {
+                let rank = |scope| match scope {
+                    TargetScope::InternalModule => 0,
+                    TargetScope::ExternalCrate => 1,
+                };
+                rank(left.1).cmp(&rank(right.1))
+            })
+        });
+        resolved.dedup();
+        (!resolved.is_empty()).then_some(resolved)
+    }
+
+    fn build_export_index(
+        &self,
+        all_modules: &BTreeSet<String>,
+    ) -> BTreeMap<String, BTreeSet<String>> {
+        let mut exported_items = BTreeMap::new();
+        let mut visiting = BTreeSet::new();
+        for module_id in all_modules {
+            self.collect_exported_items(module_id, all_modules, &mut exported_items, &mut visiting);
+        }
+        exported_items
+    }
+
+    fn collect_exported_items(
+        &self,
+        module_id: &str,
+        all_modules: &BTreeSet<String>,
+        exported_items: &mut BTreeMap<String, BTreeSet<String>>,
+        visiting: &mut BTreeSet<String>,
+    ) -> BTreeSet<String> {
+        if let Some(items) = exported_items.get(module_id) {
+            return items.clone();
+        }
+        if !visiting.insert(module_id.to_owned()) {
+            return BTreeSet::new();
+        }
+        let mut items = BTreeSet::new();
+        if let Some(record) = self.records.get(module_id) {
+            for variant in &record.variants {
+                items.extend(variant.public_items.iter().cloned());
+                for binding in &variant.public_use_bindings {
+                    if self.public_use_binding_is_visible(
+                        module_id,
+                        variant,
+                        binding,
+                        all_modules,
+                        exported_items,
+                        visiting,
+                    ) {
+                        items.insert(binding.name.clone());
+                    }
+                }
+                let glob_imports = variant.public_glob_imports.clone();
+                for glob in glob_imports {
+                    let targets = self.resolve_path_with_exports(
+                        module_id,
+                        variant,
+                        &variant.use_aliases,
+                        &variant.glob_imports,
+                        &glob.path,
+                        glob.absolute_external,
+                        all_modules,
+                        exported_items,
+                    );
+                    for (target, scope) in targets {
+                        if scope == TargetScope::InternalModule && target != module_id {
+                            items.extend(self.collect_exported_items(
+                                &target,
+                                all_modules,
+                                exported_items,
+                                visiting,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        visiting.remove(module_id);
+        exported_items.insert(module_id.to_owned(), items.clone());
+        items
+    }
+
+    fn public_use_binding_is_visible(
+        &self,
+        module_id: &str,
+        variant: &ModuleVariant,
+        binding: &UseBinding,
+        all_modules: &BTreeSet<String>,
+        exported_items: &mut BTreeMap<String, BTreeSet<String>>,
+        visiting: &mut BTreeSet<String>,
+    ) -> bool {
+        let Some(name) = binding.path.last() else {
+            return false;
+        };
+        if binding.path.len() == 1 {
+            return variant.public_items.contains(name);
+        }
+        let parent_path = &binding.path[..binding.path.len() - 1];
+        let targets = self.resolve_path_with_exports(
+            module_id,
+            variant,
+            &variant.use_aliases,
+            &variant.glob_imports,
+            parent_path,
+            binding.absolute_external,
+            all_modules,
+            exported_items,
+        );
+        targets.into_iter().any(|(target, scope)| {
+            if scope != TargetScope::InternalModule {
+                return true;
+            }
+            if target == module_id && variant.public_items.contains(name) {
+                return true;
+            }
+            if all_modules.contains(&format!("{target}::{name}")) {
+                return true;
+            }
+            self.collect_exported_items(&target, all_modules, exported_items, visiting)
+                .contains(name)
+        })
     }
 
     fn evidence(&self, path: &Path, start: LineColumn) -> SourceEvidence {
@@ -966,6 +1256,7 @@ fn known_prelude_name(name: &str) -> bool {
             | "DoubleEndedIterator"
             | "Drop"
             | "Eq"
+            | "Err"
             | "ExactSizeIterator"
             | "Fn"
             | "FnMut"

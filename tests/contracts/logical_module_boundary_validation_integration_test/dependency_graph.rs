@@ -154,6 +154,266 @@ fn source_union_observes_source_authored_dependencies_without_expansion_issues()
 }
 
 #[test]
+fn glob_import_and_reexport_chain_resolve_in_both_profiles() {
+    // Arrange
+    let fixture = TempFixture::new("glob-import-reexport");
+    fixture.write(
+        "src/main.rs",
+        "mod api;\nmod facade;\nmod direct;\nmod chain;\nfn main() {}\n",
+    );
+    fixture.write("src/api.rs", "pub struct Public;\npub trait Contract {}\n");
+    fixture.write("src/facade.rs", "pub use crate::api::*;\n");
+    fixture.write(
+        "src/direct.rs",
+        "use crate::api::*;\npub fn accept(_: Public) {}\n",
+    );
+    fixture.write(
+        "src/chain.rs",
+        "use crate::facade::*;\npub fn accept(_: Public) {}\n",
+    );
+    fixture.write("policy.yaml", "rules: []\n");
+
+    // Act
+    let compilation = completed_json(&run_check(&fixture, "json"), 0);
+    let source_union = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        0,
+    );
+
+    // Assert
+    for report in [&compilation, &source_union] {
+        assert_eq!(report["analysis_issues"], serde_json::json!([]));
+        assert_eq!(report["decision"], "conformant");
+        assert!(dependency_exists(
+            report,
+            "crate::direct",
+            "crate::api",
+            "import",
+            "internal-module"
+        ));
+        assert!(dependency_exists(
+            report,
+            "crate::facade",
+            "crate::api",
+            "re-export",
+            "internal-module"
+        ));
+        assert!(dependency_exists(
+            report,
+            "crate::chain",
+            "crate::facade",
+            "import",
+            "internal-module"
+        ));
+    }
+}
+
+#[test]
+fn crate_visible_glob_reexport_resolves_in_both_profiles() {
+    // Arrange
+    let fixture = TempFixture::new("crate-visible-glob-reexport");
+    fixture.write(
+        "src/main.rs",
+        "mod api;\nmod facade;\nmod direct;\nmod chain;\nfn main() {}\n",
+    );
+    fixture.write("src/api.rs", "pub(crate) struct CrateVisible;\n");
+    fixture.write("src/facade.rs", "pub(crate) use crate::api::*;\n");
+    fixture.write(
+        "src/direct.rs",
+        "use crate::api::*;\npub fn accept(_: CrateVisible) {}\n",
+    );
+    fixture.write(
+        "src/chain.rs",
+        "use crate::facade::*;\npub fn accept(_: CrateVisible) {}\n",
+    );
+    fixture.write("policy.yaml", "rules: []\n");
+
+    // Act
+    let compilation = completed_json(&run_check(&fixture, "json"), 0);
+    let source_union = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        0,
+    );
+
+    // Assert
+    for report in [&compilation, &source_union] {
+        assert_eq!(report["analysis_issues"], serde_json::json!([]));
+        assert_eq!(report["decision"], "conformant");
+        assert!(dependency_exists(
+            report,
+            "crate::direct",
+            "crate::api",
+            "import",
+            "internal-module"
+        ));
+        assert!(dependency_exists(
+            report,
+            "crate::facade",
+            "crate::api",
+            "re-export",
+            "internal-module"
+        ));
+        assert!(dependency_exists(
+            report,
+            "crate::chain",
+            "crate::facade",
+            "import",
+            "internal-module"
+        ));
+    }
+}
+
+#[test]
+fn crate_visible_super_glob_reexport_resolves_in_both_profiles() {
+    // Arrange
+    let fixture = TempFixture::new("crate-visible-super-glob-reexport");
+    fixture.write(
+        "src/main.rs",
+        "mod api;\npub(crate) use api::*;\nmod facade;\nmod consumer;\nfn main() {}\n",
+    );
+    fixture.write("src/api.rs", "pub(crate) struct CrateVisible;\n");
+    fixture.write("src/facade.rs", "pub(crate) use super::*;\n");
+    fixture.write(
+        "src/consumer.rs",
+        "use crate::facade::*;\npub fn accept(_: CrateVisible) {}\n",
+    );
+    fixture.write("policy.yaml", "rules: []\n");
+
+    // Act
+    let compilation = completed_json(&run_check(&fixture, "json"), 0);
+    let source_union = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        0,
+    );
+
+    // Assert
+    for report in [&compilation, &source_union] {
+        assert_eq!(report["analysis_issues"], serde_json::json!([]));
+        assert_eq!(report["decision"], "conformant");
+        assert!(dependency_exists(
+            report,
+            "crate",
+            "crate::api",
+            "re-export",
+            "internal-module"
+        ));
+        assert!(dependency_exists(
+            report,
+            "crate::facade",
+            "crate",
+            "re-export",
+            "internal-module"
+        ));
+        assert!(dependency_exists(
+            report,
+            "crate::consumer",
+            "crate::facade",
+            "import",
+            "internal-module"
+        ));
+    }
+}
+
+#[test]
+fn glob_import_keeps_unresolved_names_indeterminate_in_source_union() {
+    // Arrange
+    let fixture = TempFixture::new("glob-unresolved-source-union");
+    fixture.write(
+        "src/main.rs",
+        "mod api;\nmod facade;\nmod consumer;\nfn main() {}\n",
+    );
+    fixture.write("src/api.rs", "pub struct Public;\n");
+    fixture.write("src/facade.rs", "pub use crate::api::*;\n");
+    fixture.write(
+        "src/consumer.rs",
+        "use crate::facade::*;\npub fn accept(_: Missing) {}\n",
+    );
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: glob-resolution-sensitive\n    kind: circular\n    severity: error\n    modules: [crate, 'crate::**']\n",
+    );
+
+    // Act
+    let compilation = completed_json(&run_check(&fixture, "json"), 2);
+    let source_union = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        2,
+    );
+
+    // Assert
+    for report in [&compilation, &source_union] {
+        assert_issue(report, "analysis.unsupported-name-resolution");
+        let issue = report["analysis_issues"]
+            .as_array()
+            .expect("issues array")
+            .iter()
+            .find(|issue| issue["code"] == "analysis.unsupported-name-resolution")
+            .expect("glob unresolved issue");
+        assert_eq!(
+            issue["observation"]["outcome"],
+            "unresolved-dependency-candidate"
+        );
+        assert_eq!(
+            issue["observation"]["dependency_kinds"],
+            serde_json::json!(["path-reference"])
+        );
+        assert_eq!(issue["policy_impact"]["outcome"], "possible");
+        assert_eq!(
+            issue["policy_impact"]["rule_ids"],
+            serde_json::json!(["glob-resolution-sensitive"])
+        );
+        assert_eq!(report["decision"], "indeterminate");
+    }
+}
+
+#[test]
+fn glob_reexport_does_not_resolve_private_items() {
+    // Arrange
+    let fixture = TempFixture::new("glob-private-item");
+    fixture.write(
+        "src/main.rs",
+        "mod api;\nmod facade;\nmod consumer;\nfn main() {}\n",
+    );
+    fixture.write("src/api.rs", "pub struct Public;\nstruct Hidden;\n");
+    fixture.write("src/facade.rs", "pub use crate::api::*;\n");
+    fixture.write(
+        "src/consumer.rs",
+        "use crate::facade::*;\npub fn accept(_: Hidden) {}\n",
+    );
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: glob-private-resolution\n    kind: circular\n    severity: error\n    modules: [crate, 'crate::**']\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-name-resolution");
+    assert_eq!(report["decision"], "indeterminate");
+}
+
+#[test]
 fn source_union_unions_cfg_gated_alias_candidates() {
     // Arrange
     let fixture = TempFixture::new("source-union-cfg-aliases");

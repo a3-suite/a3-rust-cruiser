@@ -375,6 +375,25 @@ pub(super) fn target_entry(
     }
 }
 
+pub(super) fn has_library_target(project_root: &Path, manifest: &toml::Value) -> Result<bool> {
+    let path = match manifest.get("lib") {
+        Some(value) => {
+            let target = value.as_table().ok_or_else(|| {
+                CruiserError::InvalidInput("Cargo.toml lib target must be a table".to_owned())
+            })?;
+            match target.get("path") {
+                Some(value) => project_root.join(value.as_str().ok_or_else(|| {
+                    CruiserError::InvalidInput("Cargo.toml lib.path must be text".to_owned())
+                })?),
+                None => project_root.join("src/lib.rs"),
+            }
+        }
+        None if package_auto_enabled(manifest, "autolib")? => project_root.join("src/lib.rs"),
+        None => return Ok(false),
+    };
+    Ok(path.is_file())
+}
+
 fn resolve_named_target(
     project_root: &Path,
     manifest: &toml::Value,
