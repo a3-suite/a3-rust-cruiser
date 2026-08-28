@@ -19,7 +19,7 @@ nodes:
     primary_area_kind: source
     area_kinds:
       - source
-    responsibility: 論理モジュール境界検証 use case と外部入力 port を配置する
+    responsibility: 論理モジュール境界検証 use case、外部入力 port、ポリシー入力の意味compilerを配置する
   - node_id: src-boundary-evaluation
     path: src/boundary_evaluation
     primary_area_kind: source
@@ -37,4 +37,4 @@ nodes:
     primary_area_kind: source
     area_kinds:
       - source
-    responsibility: 外部表現から BoundaryPolicy を読み込む adapter を配置する
+    responsibility: 外部表現から中立なポリシー入力を読み込む adapter を配置する

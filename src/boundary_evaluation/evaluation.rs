@@ -475,7 +475,15 @@ mod tests {
 
     #[test]
     fn should_prioritize_confirmed_violations_over_analysis_issues() {
-        assert_eq!(decide(1, 1), ValidationDecision::NonConformant);
+        // Arrange
+        let confirmed_violations = 1;
+        let analysis_issues = 1;
+
+        // Act
+        let decision = decide(confirmed_violations, analysis_issues);
+
+        // Assert
+        assert_eq!(decision, ValidationDecision::NonConformant);
     }
 
     #[test]

@@ -28,6 +28,8 @@ jobs:
           persist-credentials: false
       - name: Install Rust toolchain
         run: rustup toolchain install --no-self-update
+      - name: Verify Rust toolchain
+        run: bash .ci/scripts/verify-rust-toolchain.sh
       - name: Validate CI scripts
         run: bash -n .ci/scripts/*.sh
       - name: Check formatting

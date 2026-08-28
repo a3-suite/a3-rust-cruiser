@@ -4,7 +4,7 @@
 use super::*;
 
 #[test]
-fn forbidden_rule_overrides_matching_allowed_rule() {
+fn should_forbidden_rule_overrides_matching_allowed_rule() {
     // Arrange
     let fixture = dependency_fixture("forbidden-precedence", "infrastructure");
     fixture.write(
@@ -46,7 +46,7 @@ fn forbidden_rule_overrides_matching_allowed_rule() {
 }
 
 #[test]
-fn applicable_allowed_rules_use_target_union() {
+fn should_applicable_allowed_rules_use_target_union() {
     // Arrange
     let fixture = dependency_fixture("allowed-union", "domain");
     fixture.write(
@@ -67,7 +67,7 @@ fn applicable_allowed_rules_use_target_union() {
 }
 
 #[test]
-fn unmatched_applicable_allowed_rules_produce_violation() {
+fn should_unmatched_applicable_allowed_rules_produce_violation() {
     // Arrange
     let fixture = dependency_fixture("allowed-rejection", "infrastructure");
     fixture.write(
@@ -94,25 +94,9 @@ fn unmatched_applicable_allowed_rules_produce_violation() {
 }
 
 #[test]
-fn circular_rule_is_independent_from_allowed_rules() {
+fn should_circular_rule_is_independent_from_allowed_rules() {
     // Arrange
-    let fixture = TempFixture::new("circular-independent");
-    fixture.write(
-        "src/main.rs",
-        "mod application;\nmod domain;\nfn main() {}\n",
-    );
-    fixture.write(
-        "src/application.rs",
-        "use crate::domain;\npub fn run() { let _ = domain::run; }\n",
-    );
-    fixture.write(
-        "src/domain.rs",
-        "use crate::application;\npub fn run() { let _ = application::run; }\n",
-    );
-    fixture.write(
-        "policy.yaml",
-        "rules:\n  - id: allowed-application\n    kind: allowed\n    severity: warning\n    from: [crate::application]\n    to: [crate::domain]\n  - id: allowed-domain\n    kind: allowed\n    severity: warning\n    from: [crate::domain]\n    to: [crate::application]\n  - id: no-cycle\n    kind: circular\n    severity: error\n    modules: [crate::application, crate::domain]\n",
-    );
+    let fixture = circular_fixture("circular-independent");
 
     // Act
     let report = completed_json(&run_check(&fixture, "json"), 1);

@@ -42,6 +42,21 @@ fn policy_sensitive_fixture(label: &str) -> TempFixture {
     fixture
 }
 
+fn write_sdd_policy_input(fixture: &TempFixture) {
+    fixture.write(
+        "logical-structure.sdd.yml",
+        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: application\n  - component_id: domain\ndependencies:\n  - from_component_id: application\n    to_component_id: domain\n",
+    );
+    fixture.write(
+        "projection.sdd.yml",
+        "version: 1\nname: projection\nprojection_id: fixture-source\nmappings:\n  - component_id: application\n    node_id: src-application\n  - component_id: domain\n    node_id: src-domain\n",
+    );
+    fixture.write(
+        "directory-structure.sdd.yml",
+        "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n  - node_id: src-application\n    path: src/application.rs\n  - node_id: src-domain\n    path: src/domain.rs\n",
+    );
+}
+
 fn forbidden_fixture(label: &str, with_issue: bool) -> TempFixture {
     let fixture = dependency_fixture(label, "infrastructure");
     if with_issue {
@@ -54,6 +69,38 @@ fn forbidden_fixture(label: &str, with_issue: bool) -> TempFixture {
         "policy.yaml",
         "rules:\n  - id: forbidden-application\n    kind: forbidden\n    severity: error\n    from: [crate::application]\n    to: [crate::infrastructure]\n  - id: possible-crate-cycle\n    kind: circular\n    severity: error\n    modules: [crate, 'crate::**']\n",
     );
+    fixture
+}
+
+fn circular_fixture(label: &str) -> TempFixture {
+    let fixture = TempFixture::new(label);
+    fixture.write(
+        "src/main.rs",
+        "mod application;\nmod domain;\nfn main() {}\n",
+    );
+    fixture.write(
+        "src/application.rs",
+        "use crate::domain;\npub fn run() { let _ = domain::run; }\n",
+    );
+    fixture.write(
+        "src/domain.rs",
+        "use crate::application;\npub fn run() { let _ = application::run; }\n",
+    );
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: allowed-application\n    kind: allowed\n    severity: warning\n    from: [crate::application]\n    to: [crate::domain]\n  - id: allowed-domain\n    kind: allowed\n    severity: warning\n    from: [crate::domain]\n    to: [crate::application]\n  - id: no-cycle\n    kind: circular\n    severity: error\n    modules: [crate::application, crate::domain]\n",
+    );
+    fixture
+}
+
+fn ambiguous_candidate_fixture(label: &str) -> TempFixture {
+    let fixture = TempFixture::new(label);
+    fixture.write(
+        "src/main.rs",
+        "mod left;\nmod right;\nuse crate::left::*;\nuse crate::right::*;\nstruct Model { #[serde(default = \"default_value\")] value: usize }\nfn main() {}\n",
+    );
+    fixture.write("src/left.rs", "pub fn default_value() -> usize { 1 }\n");
+    fixture.write("src/right.rs", "pub fn default_value() -> usize { 1 }\n");
     fixture
 }
 
@@ -83,6 +130,110 @@ fn many_to_one_sdd_fixture() -> TempFixture {
     fixture.write(
         "directory-structure.sdd.yml",
         "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n  - node_id: src-infrastructure\n    path: src/infrastructure.rs\n  - node_id: src-reporting\n    path: src/reporting.rs\n  - node_id: src-shared\n    path: src/shared.rs\n  - node_id: ci-scripts\n    path: .ci/scripts\n",
+    );
+    fixture
+}
+
+fn exact_runtime_macro_definitions() -> &'static str {
+    r#"
+pub(crate) fn no_language_agnostic_snapshot_extractor() -> Option<crate::foundation::plugin::language_agnostic_snapshot_extractor::LanguageAgnosticSnapshotExtractor> { None }
+pub(crate) fn no_contextual_snapshot_materializer() -> Option<crate::foundation::plugin::contextual_snapshot_materializer::ContextualSnapshotMaterializer> { None }
+
+macro_rules! declare_builtin_language_runtime {
+    (
+        slot = $slot:ident,
+        agnostic_fn = $agnostic_fn:ident,
+        contextual_fn = $contextual_fn:ident,
+        agnostic_for_fn = $agnostic_for_fn:ident,
+        contextual_for_fn = $contextual_for_fn:ident,
+        source_view_resolver = $source_view_resolver:path,
+        language = $language:literal,
+        provider = $provider:literal,
+        agnostic_provider = $agnostic_provider:path,
+        contextual_provider = $contextual_provider:path
+    ) => {
+        pub(crate) const LANGUAGE: &str = $language;
+        pub(crate) const PROVIDER_NAME: &str = $provider;
+        pub(crate) const $slot: crate::foundation::plugin::provider::LanguagePluginProviderSlot =
+            crate::foundation::plugin::provider::LanguagePluginProviderSlot {
+                name: PROVIDER_NAME,
+                language: LANGUAGE,
+                language_agnostic_snapshot_extractor_for: $agnostic_for_fn,
+                contextual_snapshot_materializer_for: $contextual_for_fn,
+                source_view_resolver: $source_view_resolver,
+            };
+        inventory::submit! { $slot }
+        pub(crate) fn $agnostic_fn() -> Option<crate::foundation::plugin::language_agnostic_snapshot_extractor::LanguageAgnosticSnapshotExtractor> { $agnostic_provider() }
+        pub(crate) fn $contextual_fn() -> Option<crate::foundation::plugin::contextual_snapshot_materializer::ContextualSnapshotMaterializer> { $contextual_provider() }
+        fn $agnostic_for_fn(language: &str,) -> Option<crate::foundation::plugin::language_agnostic_snapshot_extractor::LanguageAgnosticSnapshotExtractor> { if language == LANGUAGE { $agnostic_fn() } else { None } }
+        fn $contextual_for_fn(language: &str,) -> Option<crate::foundation::plugin::contextual_snapshot_materializer::ContextualSnapshotMaterializer> { if language == LANGUAGE { $contextual_fn() } else { None } }
+    };
+}
+
+macro_rules! declare_policy_only_language_runtime {
+    (
+        slot = $slot:ident,
+        agnostic_fn = $agnostic_fn:ident,
+        contextual_fn = $contextual_fn:ident,
+        agnostic_for_fn = $agnostic_for_fn:ident,
+        contextual_for_fn = $contextual_for_fn:ident,
+        source_view_resolver = $source_view_resolver:path,
+        language = $language:literal,
+        provider = $provider:literal
+    ) => {
+        crate::foundation::plugin::policy_only::declare_builtin_language_runtime! {
+            slot = $slot,
+            agnostic_fn = $agnostic_fn,
+            contextual_fn = $contextual_fn,
+            agnostic_for_fn = $agnostic_for_fn,
+            contextual_for_fn = $contextual_for_fn,
+            source_view_resolver = $source_view_resolver,
+            language = $language,
+            provider = $provider,
+            agnostic_provider = crate::foundation::plugin::policy_only::no_language_agnostic_snapshot_extractor,
+            contextual_provider = crate::foundation::plugin::policy_only::no_contextual_snapshot_materializer
+        }
+    };
+}
+
+pub(crate) use declare_builtin_language_runtime;
+pub(crate) use declare_policy_only_language_runtime;
+"#
+}
+
+fn runtime_item_macro_fixture(name: &str, definitions: &str) -> TempFixture {
+    let fixture = TempFixture::new(name);
+    fixture.write_manifest("[dependencies]\ninventory = \"0.3\"\n");
+    fixture.write(
+        "src/main.rs",
+        "mod forbidden;\nmod foundation;\nfn main() {}\n",
+    );
+    fixture.write("src/forbidden.rs", "pub fn resolve() {}\n");
+    fixture.write("src/foundation.rs", "pub(crate) mod plugin;\n");
+    fixture.write(
+        "src/foundation/plugin.rs",
+        "pub(crate) mod contextual_snapshot_materializer;\npub(crate) mod language_agnostic_snapshot_extractor;\npub(crate) mod policy_only;\npub(crate) mod provider;\npub(crate) mod runtime;\n",
+    );
+    fixture.write(
+        "src/foundation/plugin/contextual_snapshot_materializer.rs",
+        "pub(crate) struct ContextualSnapshotMaterializer;\n",
+    );
+    fixture.write(
+        "src/foundation/plugin/language_agnostic_snapshot_extractor.rs",
+        "pub(crate) struct LanguageAgnosticSnapshotExtractor;\n",
+    );
+    fixture.write(
+        "src/foundation/plugin/provider.rs",
+        "pub(crate) struct LanguagePluginProviderSlot;\n",
+    );
+    fixture.write("src/foundation/plugin/policy_only.rs", definitions);
+    fixture.write(
+        "src/foundation/plugin/runtime.rs",
+        "crate::foundation::plugin::policy_only::declare_policy_only_language_runtime! {\n    slot = SLOT,\n    agnostic_fn = agnostic,\n    contextual_fn = contextual,\n    agnostic_for_fn = agnostic_for,\n    contextual_for_fn = contextual_for,\n    source_view_resolver = crate::forbidden::resolve,\n    language = \"fixture\",\n    provider = \"fixture-provider\"\n}\npub(crate) fn provider_name() -> &'static str { PROVIDER_NAME }\n",
+    );
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-generated-runtime-dependency\n    kind: forbidden\n    severity: error\n    from: [crate::foundation::plugin::runtime]\n    to: [crate::forbidden]\n",
     );
     fixture
 }
@@ -165,8 +316,65 @@ fn run_custom(
     command.output().expect("binary should run")
 }
 
+fn run_check_without_policy(
+    fixture: &TempFixture,
+    package: &str,
+    target: &str,
+    target_triple: &str,
+    extra_args: &[&str],
+) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"));
+    command
+        .arg("check")
+        .arg(fixture.path())
+        .arg("--package")
+        .arg(package)
+        .arg("--target")
+        .arg(target)
+        .arg("--target-triple")
+        .arg(target_triple)
+        .args(extra_args);
+    command.output().expect("binary should run")
+}
+
+fn run_policy_and_sdd_check(fixture: &TempFixture) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"));
+    command
+        .arg("check")
+        .arg(fixture.path())
+        .arg("--policy")
+        .arg(fixture.join("policy.yaml"))
+        .arg("--logical-structure")
+        .arg(fixture.join("logical-structure.sdd.yml"))
+        .arg("--projection")
+        .arg(fixture.join("projection.sdd.yml"))
+        .arg("--directory-structure")
+        .arg(fixture.join("directory-structure.sdd.yml"))
+        .arg("--package")
+        .arg(fixture.package())
+        .arg("--target")
+        .arg(fixture.target())
+        .args([
+            "--target-triple",
+            "x86_64-unknown-linux-gnu",
+            "--format",
+            "json",
+        ]);
+    command.output().expect("binary should run")
+}
+
 fn completed_json(output: &Output, exit_code: i32) -> Value {
     assert_eq!(output.status.code(), Some(exit_code));
+    assert!(
+        output.stderr.is_empty(),
+        "unexpected stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).expect("valid JSON report")
+}
+
+fn accepted_json(output: &Output) -> Value {
+    assert!(matches!(output.status.code(), Some(0..=2)));
     assert!(
         output.stderr.is_empty(),
         "unexpected stderr: {}",
@@ -216,11 +424,22 @@ fn assert_issue(report: &Value, code: &str) {
             .as_str()
             .is_some_and(|scope| !scope.is_empty())
     );
-    assert!(issue["observation"]["outcome"].is_string());
+    assert!(matches!(
+        issue["observation"]["outcome"].as_str(),
+        Some(
+            "unresolved-dependency-candidate"
+                | "dependency-neutral"
+                | "analysis-context-unresolved"
+                | "component-attribution-unresolved"
+        )
+    ));
     assert!(issue["observation"]["candidate_targets"].is_array());
     assert!(issue["observation"]["candidate_components"].is_array());
     assert!(issue["observation"]["dependency_kinds"].is_array());
-    assert!(issue["policy_impact"]["outcome"].is_string());
+    assert!(matches!(
+        issue["policy_impact"]["outcome"].as_str(),
+        Some("none" | "possible")
+    ));
     assert!(issue["policy_impact"]["rule_ids"].is_array());
 }
 

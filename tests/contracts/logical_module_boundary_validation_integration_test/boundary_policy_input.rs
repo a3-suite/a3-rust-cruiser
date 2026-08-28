@@ -4,7 +4,7 @@
 use super::*;
 
 #[test]
-fn sdd_design_is_projected_to_a_boundary_policy() {
+fn should_sdd_design_is_projected_to_a_boundary_policy() {
     // Arrange
     let fixture = TempFixture::new("sdd-policy-input");
     fixture.write(
@@ -23,7 +23,7 @@ fn sdd_design_is_projected_to_a_boundary_policy() {
 }
 
 #[test]
-fn many_to_one_sdd_projection_with_non_rust_nodes_is_accepted() {
+fn should_many_to_one_sdd_projection_with_non_rust_nodes_is_accepted() {
     // Arrange
     let fixture = many_to_one_sdd_fixture();
 
@@ -35,7 +35,7 @@ fn many_to_one_sdd_projection_with_non_rust_nodes_is_accepted() {
 }
 
 #[test]
-fn incomplete_sdd_design_input_is_rejected() {
+fn should_incomplete_sdd_design_input_is_rejected() {
     // Arrange
     let fixture = TempFixture::new("incomplete-sdd-policy-input");
     write_sdd_policy_input(&fixture);
@@ -48,7 +48,23 @@ fn incomplete_sdd_design_input_is_rejected() {
 }
 
 #[test]
-fn circular_sdd_component_dependencies_are_rejected() {
+fn should_policy_and_sdd_boundary_inputs_are_rejected() {
+    // Arrange
+    let fixture = TempFixture::new("policy-and-sdd-boundary-input");
+    write_sdd_policy_input(&fixture);
+
+    // Act
+    let output = run_policy_and_sdd_check(&fixture);
+
+    // Assert
+    assert_execution_failure(
+        &output,
+        "--policy cannot be combined with SDD boundary policy input",
+    );
+}
+
+#[test]
+fn should_circular_sdd_component_dependencies_are_rejected() {
     // Arrange
     let fixture = TempFixture::new("circular-sdd-policy-input");
     write_sdd_policy_input(&fixture);
@@ -56,19 +72,32 @@ fn circular_sdd_component_dependencies_are_rejected() {
         "logical-structure.sdd.yml",
         "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: application\n  - component_id: domain\ndependencies:\n  - from_component_id: application\n    to_component_id: domain\n  - from_component_id: domain\n    to_component_id: application\n",
     );
+    let self_loop = TempFixture::new("self-loop-sdd-policy-input");
+    write_sdd_policy_input(&self_loop);
+    self_loop.write(
+        "logical-structure.sdd.yml",
+        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: application\n  - component_id: domain\ndependencies:\n  - from_component_id: application\n    to_component_id: application\n",
+    );
 
     // Act
-    let output = run_sdd_check(&fixture, true);
+    let outputs = [
+        run_sdd_check(&fixture, true),
+        run_sdd_check(&self_loop, true),
+    ];
 
     // Assert
     assert_execution_failure(
-        &output,
+        &outputs[0],
         "logical component dependency graph must be acyclic",
+    );
+    assert_execution_failure(
+        &outputs[1],
+        "logical component dependency graph is circular at",
     );
 }
 
 #[test]
-fn cargo_target_root_component_projections_are_rejected() {
+fn should_cargo_target_root_component_projections_are_rejected() {
     // Arrange
     let conventional = TempFixture::new("conventional-target-root-sdd-policy-input");
     write_sdd_policy_input(&conventional);
@@ -101,7 +130,7 @@ fn cargo_target_root_component_projections_are_rejected() {
 }
 
 #[test]
-fn overlapping_rust_module_projections_remain_indeterminate_when_unobserved() {
+fn should_overlapping_rust_module_projections_are_accepted() {
     // Arrange
     let fixture = TempFixture::new("overlapping-rust-module-sdd-policy-input");
     write_sdd_policy_input(&fixture);
@@ -114,17 +143,11 @@ fn overlapping_rust_module_projections_remain_indeterminate_when_unobserved() {
     let output = run_sdd_check(&fixture, true);
 
     // Assert
-    let report = completed_json(&output, 2);
-    assert_eq!(report["decision"], "indeterminate");
-    assert_issue(&report, "analysis.ambiguous-component-attribution");
-    assert_eq!(
-        report["analysis_issues"][0]["policy_impact"]["outcome"],
-        "possible"
-    );
+    let _report = accepted_json(&output);
 }
 
 #[test]
-fn inconsistent_sdd_design_inputs_are_rejected() {
+fn should_inconsistent_sdd_design_inputs_are_rejected() {
     // Arrange
     let cases = [
         (
@@ -188,12 +211,29 @@ fn inconsistent_sdd_design_inputs_are_rejected() {
             "component path must be a normalized path",
         ),
         (
+            "crate-root-project-path",
+            "directory-structure.sdd.yml",
+            "nodes:\n  - node_id: src-application\n    path: src/\n  - node_id: src-domain\n    path: src/domain.rs\n",
+            "crate root cannot represent a component",
+        ),
+        (
             "unsupported-module-segment",
             "directory-structure.sdd.yml",
             "nodes:\n  - node_id: src-application\n    path: src/application.rs\n  - node_id: src-domain\n    path: src/domain-name.rs\n",
             "unsupported Rust module segment",
         ),
     ];
+
+    let combined = TempFixture::new("structural-error-precedes-target-projection");
+    write_sdd_policy_input(&combined);
+    combined.write(
+        "logical-structure.sdd.yml",
+        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: application\n  - component_id: domain\ndependencies:\n  - from_component_id: unknown\n    to_component_id: domain\n",
+    );
+    combined.write(
+        "directory-structure.sdd.yml",
+        "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n  - node_id: src-application\n    path: src/main.rs\n  - node_id: src-domain\n    path: src/domain.rs\n",
+    );
 
     // Act
     let outputs = cases
@@ -205,15 +245,20 @@ fn inconsistent_sdd_design_inputs_are_rejected() {
             (run_sdd_check(&fixture, true), expected)
         })
         .collect::<Vec<_>>();
+    let combined_output = run_sdd_check(&combined, true);
 
     // Assert
     for (output, expected) in outputs {
         assert_execution_failure(&output, expected);
     }
+    assert_execution_failure(
+        &combined_output,
+        "dependency references unknown source component",
+    );
 }
 
 #[test]
-fn documented_boundary_policy_shape_is_accepted() {
+fn should_documented_boundary_policy_shape_is_accepted() {
     // Arrange
     let fixture = TempFixture::new("documented-policy-shape");
     fixture.write(
@@ -229,7 +274,7 @@ fn documented_boundary_policy_shape_is_accepted() {
 }
 
 #[test]
-fn omitted_boundary_policy_collections_default_to_empty() {
+fn should_omitted_boundary_policy_collections_default_to_empty() {
     // Arrange
     let fixture = TempFixture::new("policy-default-collections");
     fixture.write(
@@ -245,7 +290,7 @@ fn omitted_boundary_policy_collections_default_to_empty() {
 }
 
 #[test]
-fn unknown_boundary_policy_field_is_rejected() {
+fn should_unknown_boundary_policy_field_is_rejected() {
     // Arrange
     let fixture = TempFixture::new("unknown-policy-field");
     fixture.write("policy.yaml", "rules: []\nunknown_field: true\n");
@@ -258,7 +303,7 @@ fn unknown_boundary_policy_field_is_rejected() {
 }
 
 #[test]
-fn unsupported_boundary_policy_enum_is_rejected() {
+fn should_unsupported_boundary_policy_enum_is_rejected() {
     // Arrange
     let fixture = TempFixture::new("unsupported-policy-enum");
     fixture.write(
@@ -274,7 +319,7 @@ fn unsupported_boundary_policy_enum_is_rejected() {
 }
 
 #[test]
-fn invalid_boundary_policy_rules_are_rejected() {
+fn should_invalid_boundary_policy_rules_are_rejected() {
     // Arrange
     let cases = [
         (
@@ -333,19 +378,4 @@ fn invalid_boundary_policy_rules_are_rejected() {
     for (output, expected) in outputs {
         assert_execution_failure(&output, expected);
     }
-}
-
-fn write_sdd_policy_input(fixture: &TempFixture) {
-    fixture.write(
-        "logical-structure.sdd.yml",
-        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: application\n  - component_id: domain\ndependencies:\n  - from_component_id: application\n    to_component_id: domain\n",
-    );
-    fixture.write(
-        "projection.sdd.yml",
-        "version: 1\nname: projection\nprojection_id: fixture-source\nmappings:\n  - component_id: application\n    node_id: src-application\n  - component_id: domain\n    node_id: src-domain\n",
-    );
-    fixture.write(
-        "directory-structure.sdd.yml",
-        "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n  - node_id: src-application\n    path: src/application.rs\n  - node_id: src-domain\n    path: src/domain.rs\n",
-    );
 }

@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, process::Command};
+use std::{collections::BTreeSet, path::Path, process::Command};
 
 use syn::{Attribute, Meta, Token, parse::Parser, punctuated::Punctuated};
 
@@ -19,8 +19,9 @@ pub(super) struct CfgContext {
 }
 
 impl CfgContext {
-    pub(super) fn resolve(context: &AnalysisContext) -> Self {
+    pub(super) fn resolve(project_root: &Path, context: &AnalysisContext) -> Self {
         let output = Command::new("rustc")
+            .current_dir(project_root)
             .args(["--print", "cfg", "--target", &context.target_triple])
             .output();
         let (mut active, available) = match output {
@@ -241,78 +242,85 @@ mod tests {
 
     #[test]
     fn should_evaluate_compound_cfg_selectors_with_three_states() {
+        // Arrange
         let context = available_context();
 
-        assert_eq!(
-            context.evaluate_selector("cfg(all(unix, target_os = \"linux\"))"),
-            CfgDecision::Active
-        );
-        assert_eq!(
-            context.evaluate_selector("cfg(any(windows, feature = \"cli\"))"),
-            CfgDecision::Active
-        );
-        assert_eq!(
-            context.evaluate_selector("cfg(not(unix))"),
-            CfgDecision::Inactive
-        );
-        assert_eq!(
-            context.evaluate_selector("cfg(all(unix, custom(value)))"),
-            CfgDecision::Unknown
-        );
-        assert_eq!(
-            context.evaluate_selector("target_os = \"linux\""),
-            CfgDecision::Unknown
-        );
+        // Act
+        let all_active = context.evaluate_selector("cfg(all(unix, target_os = \"linux\"))");
+        let any_active = context.evaluate_selector("cfg(any(windows, feature = \"cli\"))");
+        let negated_active = context.evaluate_selector("cfg(not(unix))");
+        let unknown_nested = context.evaluate_selector("cfg(all(unix, custom(value)))");
+        let unsupported_shape = context.evaluate_selector("target_os = \"linux\"");
+
+        // Assert
+        assert_eq!(all_active, CfgDecision::Active);
+        assert_eq!(any_active, CfgDecision::Active);
+        assert_eq!(negated_active, CfgDecision::Inactive);
+        assert_eq!(unknown_nested, CfgDecision::Unknown);
+        assert_eq!(unsupported_shape, CfgDecision::Unknown);
     }
 
     #[test]
     fn should_propagate_unavailable_cfg_context_as_unknown() {
+        // Arrange
         let context = CfgContext {
             active: Default::default(),
             available: false,
             source_union: false,
         };
 
-        assert_eq!(context.evaluate_selector("cfg(unix)"), CfgDecision::Unknown);
+        // Act
+        let decision = context.evaluate_selector("cfg(unix)");
+
+        // Assert
+        assert_eq!(decision, CfgDecision::Unknown);
     }
 
     #[test]
     fn should_apply_cfg_attr_only_when_its_predicate_is_active() {
+        // Arrange
         let context = available_context();
         let inactive_condition = parse_quote!(#[cfg_attr(windows, cfg(unix))]);
         let active_condition = parse_quote!(#[cfg_attr(unix, cfg(windows))]);
 
-        assert_eq!(
-            context.evaluate_attributes(&[inactive_condition]),
-            CfgDecision::Active
-        );
-        assert_eq!(
-            context.evaluate_attributes(&[active_condition]),
-            CfgDecision::Inactive
-        );
+        // Act
+        let inactive_decision = context.evaluate_attributes(&[inactive_condition]);
+        let active_decision = context.evaluate_attributes(&[active_condition]);
+
+        // Assert
+        assert_eq!(inactive_decision, CfgDecision::Active);
+        assert_eq!(active_decision, CfgDecision::Inactive);
     }
 
     #[test]
     fn should_detect_only_active_cfg_attr_path_attributes() {
+        // Arrange
         let context = available_context();
         let active_path = parse_quote!(#[cfg_attr(unix, path = "alternate.rs")]);
         let inactive_path = parse_quote!(#[cfg_attr(windows, path = "alternate.rs")]);
 
-        assert!(context.has_active_path_attribute(&active_path));
-        assert!(!context.has_active_path_attribute(&inactive_path));
+        // Act
+        let active_path_detected = context.has_active_path_attribute(&active_path);
+        let inactive_path_detected = context.has_active_path_attribute(&inactive_path);
+
+        // Assert
+        assert!(active_path_detected);
+        assert!(!inactive_path_detected);
     }
 
     #[test]
     fn should_treat_all_attributes_as_active_in_source_union() {
+        // Arrange
         let context = CfgContext {
             source_union: true,
             ..available_context()
         };
         let attribute = parse_quote!(#[cfg(windows)]);
 
-        assert_eq!(
-            context.evaluate_attributes(&[attribute]),
-            CfgDecision::Active
-        );
+        // Act
+        let decision = context.evaluate_attributes(&[attribute]);
+
+        // Assert
+        assert_eq!(decision, CfgDecision::Active);
     }
 }

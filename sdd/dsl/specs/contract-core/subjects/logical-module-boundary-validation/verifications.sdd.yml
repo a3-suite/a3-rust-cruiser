@@ -175,6 +175,18 @@ verifications:
             guarantee_ref: invalid-boundary-policy-input-keeps-stdout-empty
           - id: check-invalid-policy-stderr
             guarantee_ref: invalid-boundary-policy-input-writes-stderr-diagnostic
+      - id: yaml-and-sdd-boundary-inputs-are-rejected
+        intent_id: boundary-policy-input-rejection
+        input:
+          invalid_boundary_policy:
+            simultaneous_yaml_and_sdd: true
+        checks:
+          - id: check-invalid-policy-exit-code
+            guarantee_ref: invalid-boundary-policy-input-exits-with-three
+          - id: check-invalid-policy-stdout
+            guarantee_ref: invalid-boundary-policy-input-keeps-stdout-empty
+          - id: check-invalid-policy-stderr
+            guarantee_ref: invalid-boundary-policy-input-writes-stderr-diagnostic
       - id: sdd-design-is-projected-to-boundary-policy
         intent_id: sdd-boundary-policy-input-acceptance
         input:
@@ -202,7 +214,7 @@ verifications:
         checks:
           - id: check-valid-sdd-policy-with-non-rust-node-accepted
             guarantee_ref: valid-sdd-boundary-policy-input-accepted
-      - id: overlapping-rust-module-projections-are-evaluated
+      - id: overlapping-rust-module-projections-are-accepted
         intent_id: sdd-boundary-policy-input-acceptance
         input:
           valid_sdd_boundary_policy:
@@ -210,8 +222,6 @@ verifications:
         checks:
           - id: check-overlapping-rust-module-projection-accepted
             guarantee_ref: valid-sdd-boundary-policy-input-accepted
-          - id: check-overlapping-rust-module-projection-attribution
-            guarantee_ref: ambiguous-component-attribution-code
       - id: incomplete-sdd-design-input-is-rejected
         intent_id: sdd-boundary-policy-input-rejection
         input:
@@ -462,6 +472,15 @@ verifications:
         checks:
           - id: check-non-conformant-decision
             guarantee_ref: non-conformant-decision
+      - id: possible-policy-impact-without-violation-is-indeterminate
+        intent_id: decision-precedence
+        input:
+          complete_without_violation: true
+          analysis_issue_policy_impact_possible: true
+          report_request: true
+        checks:
+          - id: check-indeterminate-decision
+            guarantee_ref: indeterminate-decision
       - id: unresolved-candidate-without-policy-impact
         intent_id: analysis-issue-classification
         input:
@@ -472,10 +491,93 @@ verifications:
         checks:
           - id: check-conformant-decision
             guarantee_ref: conformant-decision
+          - id: check-analysis-observation-outcome
+            guarantee_ref: analysis-observation-outcome-supported
+          - id: check-analysis-policy-impact-outcome
+            guarantee_ref: analysis-policy-impact-outcome-supported
           - id: check-unresolved-observation
             guarantee_ref: unresolved-dependency-observation
           - id: check-no-policy-impact
             guarantee_ref: analysis-issue-has-no-policy-impact
+      - id: unresolved-candidate-allowed-union-matches
+        intent_id: analysis-issue-classification
+        input:
+          complete_without_violation: true
+          unresolved_dependency_analysis_issue: true
+          unresolved_candidate_allowed_union_matches: true
+          analysis_issue_policy_impact_none: true
+          unresolved_candidate_policy_shape:
+            candidate_targets:
+              - crate::left
+              - crate::right
+            allowed_target_union:
+              - crate::left
+              - crate::right
+            applicable_allowed_rule_ids:
+              - allowed-left
+              - allowed-right
+            dependency_kinds:
+              - path-reference
+          report_request: true
+        checks:
+          - id: check-conformant-decision
+            guarantee_ref: conformant-decision
+          - id: check-unresolved-observation
+            guarantee_ref: unresolved-dependency-observation
+          - id: check-allowed-union-match-no-impact
+            guarantee_ref: unresolved-candidate-allowed-union-match-has-no-policy-impact
+      - id: unresolved-candidate-allowed-union-misses
+        intent_id: analysis-issue-classification
+        input:
+          complete_without_violation: true
+          unresolved_dependency_analysis_issue: true
+          unresolved_candidate_allowed_union_misses: true
+          analysis_issue_policy_impact_possible: true
+          unresolved_candidate_policy_shape:
+            candidate_targets:
+              - crate::left
+              - crate::right
+            allowed_target_union:
+              - crate::left
+              - crate::domain
+            applicable_allowed_rule_ids:
+              - allowed-domain
+              - allowed-left
+            dependency_kinds:
+              - path-reference
+          report_request: true
+        checks:
+          - id: check-indeterminate-decision
+            guarantee_ref: indeterminate-decision
+          - id: check-unresolved-observation
+            guarantee_ref: unresolved-dependency-observation
+          - id: check-allowed-union-miss-possible
+            guarantee_ref: unresolved-candidate-allowed-union-miss-has-possible-policy-impact
+          - id: check-possible-policy-rule-ids
+            guarantee_ref: possible-policy-impact-rule-ids-present
+      - id: unresolved-candidate-with-empty-targets
+        intent_id: analysis-issue-classification
+        input:
+          complete_without_violation: true
+          unresolved_dependency_analysis_issue: true
+          unresolved_candidate_targets_empty: true
+          analysis_issue_policy_impact_possible: true
+          unresolved_candidate_policy_shape:
+            candidate_targets: []
+            allowed_target_union:
+              - crate::domain
+            applicable_allowed_rule_ids:
+              - allowed-domain
+          report_request: true
+        checks:
+          - id: check-indeterminate-decision
+            guarantee_ref: indeterminate-decision
+          - id: check-unresolved-observation
+            guarantee_ref: unresolved-dependency-observation
+          - id: check-empty-targets-possible
+            guarantee_ref: unresolved-candidate-with-empty-targets-has-possible-policy-impact
+          - id: check-possible-policy-rule-ids
+            guarantee_ref: possible-policy-impact-rule-ids-present
       - id: dependency-neutral-without-policy-impact
         intent_id: analysis-issue-classification
         input:
@@ -488,17 +590,6 @@ verifications:
             guarantee_ref: conformant-decision
           - id: check-neutral-policy-impact
             guarantee_ref: dependency-neutral-has-no-policy-impact
-      - id: unresolved-candidate-with-possible-policy-impact
-        intent_id: analysis-issue-classification
-        input:
-          unresolved_dependency_analysis_issue: true
-          analysis_issue_policy_impact_possible: true
-          report_request: true
-        checks:
-          - id: check-indeterminate-decision
-            guarantee_ref: indeterminate-decision
-          - id: check-unresolved-observation
-            guarantee_ref: unresolved-dependency-observation
       - id: ambiguous-component-attribution-is-non-conformant
         intent_id: ambiguous-component-attribution-report
         input:
@@ -520,6 +611,10 @@ verifications:
             guarantee_ref: analysis-issue-reason-present
           - id: check-analysis-issue-affected-scope
             guarantee_ref: analysis-issue-affected-scope-present
+          - id: check-analysis-observation-outcome
+            guarantee_ref: analysis-observation-outcome-supported
+          - id: check-analysis-policy-impact-outcome
+            guarantee_ref: analysis-policy-impact-outcome-supported
           - id: check-canonical-ordering
             guarantee_ref: report-ordering-canonical
           - id: check-safe-violations-remain-observable
@@ -537,6 +632,10 @@ verifications:
             guarantee_ref: conformant-decision
           - id: check-analysis-issue-code
             guarantee_ref: ambiguous-component-attribution-code
+          - id: check-analysis-observation-outcome
+            guarantee_ref: analysis-observation-outcome-supported
+          - id: check-analysis-policy-impact-outcome
+            guarantee_ref: analysis-policy-impact-outcome-supported
           - id: check-no-policy-impact
             guarantee_ref: analysis-issue-has-no-policy-impact
       - id: invariant-forbidden-component-assignments-are-non-conformant
@@ -566,18 +665,55 @@ verifications:
             guarantee_ref: indeterminate-decision
           - id: check-analysis-issue-code
             guarantee_ref: ambiguous-component-attribution-code
-      - id: component-assignment-proof-exhaustion-is-indeterminate
+          - id: check-analysis-observation-outcome
+            guarantee_ref: analysis-observation-outcome-supported
+          - id: check-analysis-policy-impact-outcome
+            guarantee_ref: analysis-policy-impact-outcome-supported
+          - id: check-possible-policy-impact
+            guarantee_ref: analysis-issue-has-possible-policy-impact
+      - id: many-component-assignments-remain-invariant
+        intent_id: ambiguous-component-attribution-report
+        input:
+          complete_without_violation: true
+          ambiguous_component_attribution: true
+          analysis_issue_policy_impact_none: true
+          component_assignment_outcome: invariant-allowed
+          report_request: true
+        checks:
+          - id: check-conformant-decision
+            guarantee_ref: conformant-decision
+          - id: check-analysis-issue-code
+            guarantee_ref: ambiguous-component-attribution-code
+          - id: check-analysis-observation-outcome
+            guarantee_ref: analysis-observation-outcome-supported
+          - id: check-analysis-policy-impact-outcome
+            guarantee_ref: analysis-policy-impact-outcome-supported
+          - id: check-no-policy-impact
+            guarantee_ref: analysis-issue-has-no-policy-impact
+      - id: overlapping-rust-module-projections-are-indeterminate
         intent_id: ambiguous-component-attribution-report
         input:
           ambiguous_component_attribution: true
           analysis_issue_policy_impact_possible: true
-          component_assignment_outcome: proof-exhausted
+          component_assignment_outcome: assignment-dependent
           report_request: true
         checks:
           - id: check-indeterminate-decision
             guarantee_ref: indeterminate-decision
+          - id: check-analysis-issues
+            guarantee_ref: analysis-issues-present
           - id: check-analysis-issue-code
             guarantee_ref: ambiguous-component-attribution-code
+          - id: check-analysis-issue-reason
+            guarantee_ref: analysis-issue-reason-present
+          - id: check-analysis-issue-affected-scope
+            guarantee_ref: analysis-issue-affected-scope-present
+          - id: check-analysis-observation-outcome
+            guarantee_ref: analysis-observation-outcome-supported
+          - id: check-analysis-policy-impact-outcome
+            guarantee_ref: analysis-policy-impact-outcome-supported
+          - id: check-possible-policy-impact
+            guarantee_ref: analysis-issue-has-possible-policy-impact
       - id: known-compilation-context-is-resolved
         intent_id: analysis-issue-classification
         input:
@@ -623,6 +759,10 @@ verifications:
             guarantee_ref: analysis-issue-affected-scope-present
           - id: check-path-module-source-module
             guarantee_ref: path-module-source-module-present
+          - id: check-analysis-observation-outcome
+            guarantee_ref: analysis-observation-outcome-supported
+          - id: check-analysis-policy-impact-outcome
+            guarantee_ref: analysis-policy-impact-outcome-supported
           - id: check-path-module-policy-impact
             guarantee_ref: analysis-issue-has-possible-policy-impact
           - id: check-path-module-policy-rule-ids
@@ -644,6 +784,10 @@ verifications:
             guarantee_ref: analysis-issue-reason-present
           - id: check-analysis-issue-affected-scope
             guarantee_ref: analysis-issue-affected-scope-present
+          - id: check-analysis-observation-outcome
+            guarantee_ref: analysis-observation-outcome-supported
+          - id: check-analysis-policy-impact-outcome
+            guarantee_ref: analysis-policy-impact-outcome-supported
           - id: check-report-serialization
             guarantee_ref: report-serialization-supported
           - id: check-report-ordering
@@ -666,6 +810,10 @@ verifications:
             guarantee_ref: analysis-issue-reason-present
           - id: check-analysis-issue-affected-scope
             guarantee_ref: analysis-issue-affected-scope-present
+          - id: check-analysis-observation-outcome
+            guarantee_ref: analysis-observation-outcome-supported
+          - id: check-analysis-policy-impact-outcome
+            guarantee_ref: analysis-policy-impact-outcome-supported
           - id: check-report-serialization
             guarantee_ref: report-serialization-supported
           - id: check-report-ordering

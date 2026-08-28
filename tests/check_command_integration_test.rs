@@ -1,4 +1,4 @@
-// contract_id: contract.logical-module-boundary.cli-outcome
+// integration_id: logical-module-boundary-check-command
 
 use std::{
     fs,
@@ -10,7 +10,7 @@ use std::{
 static FIXTURE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
-fn check_accepts_sdd_design_as_the_boundary_policy_source() {
+fn should_check_accepts_sdd_design_as_the_boundary_policy_source() {
     // Arrange
     let fixture = TempFixture::new();
     fixture.write(
@@ -73,7 +73,7 @@ fn check_accepts_sdd_design_as_the_boundary_policy_source() {
 }
 
 #[test]
-fn check_reports_forbidden_dependency_as_json_and_returns_one() {
+fn should_check_reports_forbidden_dependency_as_json_and_returns_one() {
     // Arrange
     let fixture = TempFixture::new();
     fixture.write(
@@ -181,75 +181,6 @@ fn check_reports_forbidden_dependency_as_json_and_returns_one() {
         excluded_report["excluded_scopes"][0],
         "crate::infrastructure"
     );
-}
-
-#[test]
-fn unknown_macro_makes_the_decision_indeterminate() {
-    // Arrange
-    let fixture = TempFixture::new();
-    fixture.write(
-        "Cargo.toml",
-        "[package]\nname = \"macro-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
-    );
-    fixture.write("src/main.rs", "fn main() { custom_macro!(); }\n");
-    fixture.write(
-        "policy.yaml",
-        "rules:\n  - id: possible-crate-cycle\n    kind: circular\n    severity: error\n    modules: [crate, 'crate::**']\n",
-    );
-
-    // Act
-    let output = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"))
-        .args([
-            "check",
-            fixture.path().to_str().expect("fixture path is UTF-8"),
-            "--policy",
-            fixture
-                .join("policy.yaml")
-                .to_str()
-                .expect("policy path is UTF-8"),
-            "--package",
-            "macro-fixture",
-            "--target",
-            "bin:macro-fixture",
-            "--target-triple",
-            "x86_64-unknown-linux-gnu",
-            "--format",
-            "json",
-        ])
-        .output()
-        .expect("binary should run");
-
-    // Assert
-    assert_eq!(output.status.code(), Some(2));
-    assert!(output.stderr.is_empty());
-    let report: serde_json::Value =
-        serde_json::from_slice(&output.stdout).expect("valid JSON report");
-    assert_eq!(report["decision"], "indeterminate");
-    assert_eq!(
-        report["analysis_issues"][0]["code"],
-        "analysis.unsupported-macro-expansion"
-    );
-    assert_eq!(
-        report["analysis_issues"][0]["policy_impact"]["outcome"],
-        "possible"
-    );
-}
-
-#[test]
-fn invalid_invocation_writes_only_a_diagnostic_to_stderr() {
-    // Arrange
-    let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
-
-    // Act
-    let output = Command::new(binary)
-        .arg("unknown")
-        .output()
-        .expect("binary should run");
-
-    // Assert
-    assert_eq!(output.status.code(), Some(3));
-    assert!(output.stdout.is_empty());
-    assert!(!output.stderr.is_empty());
 }
 
 struct TempFixture {

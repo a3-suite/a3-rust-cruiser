@@ -165,17 +165,13 @@ contracts:
       circularは空でないmodulesだけを使用する。patternは空でない`::`区切りのsegment列とし、
       各segmentにはliteral、`*`、`**`だけを受理する。未定義field、未対応enum、重複または
       kebab-caseでないid、kind別field制約またはpattern文法に反するruleは解析開始前の入力失敗として扱う。
-      またはCLIはlogical-structure、projection、directory-structureをproject全体の一組として受け取り、
+      また、CLIはlogical-structure、projection、directory-structureをproject全体の一組として受け取り、
+      boundary-policy-inputは各設計表現を中立なポリシー入力契約へ変換する。boundary-validationの意味compilerは
       component/node参照とlogical dependency graphの整合性を検証した後、Rust module解析対象へ対応するcomponentだけを
       projectionとdirectory nodeを介してRust logical moduleへ対応付ける。Rust module解析対象外と確定できる正規source nodeは
       入力不正または解析不能とせず、BoundaryPolicy導出対象から除外する。複数componentが同じdirectory nodeへ対応する場合、
-      またはcomponentのRust module scopeが親子関係で重なる場合は、component帰属が曖昧な有効入力として扱う。1つのdirectory nodeへ複数componentを
-      対応付けるmany-to-oneは有効入力として受理し、対象moduleとcomponent集合を伴うAnalysisIssueを返す。
-      全component帰属候補を列挙し、各候補でlogical dependency graphの直接辺に基づく許可・禁止を評価する。
-      全候補で評価が同一ならpolicy impactをnoneとして確定判断し、全候補で禁止される依存だけを確定違反へ投影する。
-      各候補は検証済み宣言DAGの部分graphとして評価し、候補間で評価が異なる場合、または帰属候補を完全列挙できない場合は
-      policy impactをpossibleとして判定不能にする。一対一で対応するcomponent間では宣言済み依存以外をerrorのforbidden ruleへ投影する。
-      logical-structureの宣言依存graphは非循環でなければならず、宣言外依存を禁止することで実装上のcomponent間循環を防ぐ。
+      またはcomponentのRust module scopeが親子関係で重なる場合も、有効な入力として受理する。
+      logical-structureの宣言依存graphは意味compilerで非循環性を検証し、宣言外依存を禁止することで実装上のcomponent間循環を防ぐ。
       YAMLとSDDの同時指定、SDD三入力の欠落、未知のcomponent/node参照、component IDまたはnode IDの重複、
       1つのcomponentから複数nodeへの投影、異なるdirectory nodeから同一Rust logical moduleへの
       投影、選択したCargo target rootへのcomponent投影、非正規project path、Rust解析対象内の未対応module pathは
@@ -296,13 +292,13 @@ contracts:
         guarantee_refs:
           - valid-boundary-policy-input-accepted
       - id: boundary-policy-input-rejection
-        goal: 未定義field、未対応enum、意味的に不正なruleが解析開始前の入力失敗になることを確認する
+        goal: 未定義field、未対応enum、意味的に不正なrule、または入力源の組み合わせの不正が解析開始前の入力失敗になることを確認する
         guarantee_refs:
           - invalid-boundary-policy-input-exits-with-three
           - invalid-boundary-policy-input-keeps-stdout-empty
           - invalid-boundary-policy-input-writes-stderr-diagnostic
       - id: sdd-boundary-policy-input-acceptance
-        goal: SDD設計三入力が一意なBoundaryPolicyへ投影され、非循環な宣言graphに対する未宣言依存を検証できることを確認する
+        goal: SDD設計三入力が意味compilerを介して一意なBoundaryPolicyへ投影され、非循環な宣言graphに対する未宣言依存を検証できることを確認する
         guarantee_refs:
           - valid-sdd-boundary-policy-input-accepted
       - id: sdd-boundary-policy-input-rejection
@@ -631,11 +627,17 @@ contracts:
       BoundaryViolationが1件でもあれば重大度によらずnon-conformantを最優先し、
       違反がなく現在policyへの影響がpossibleなAnalysisIssueが1件でもあればindeterminate、
       それ以外はAnalysisIssueが存在してもconformantとする。JSONとtextは同じ判断、違反、解析問題を表し、
-      曖昧なcomponent帰属は全実行可能な帰属候補の評価が不変な場合だけpolicy impact noneとし、候補間差分、
-      完全列挙不能、または宣言DAGと矛盾する候補を含む場合はpossibleとする。
+      SDD投影で生じた曖昧なcomponent帰属（many-to-oneまたは親子重複）は、対象moduleとcomponent集合を伴うAnalysisIssueとして
+      観測する。全component帰属候補を列挙し、各候補でlogical dependency graphの直接辺に基づく許可・禁止を評価する。
+      全候補で評価が同一ならpolicy impactをnoneとして確定判断し、全候補で禁止される依存だけを確定違反へ投影する。
+      各候補は検証済み宣言DAGの部分graphとして評価し、候補間差分、完全列挙不能、または宣言DAGと矛盾する候補を含む場合は
+      policy impactをpossibleとして判定不能にする。一対一で対応するcomponent間では宣言済み依存以外をerrorのforbidden ruleへ投影する。
       moduleはid、declarationはparent・child・evidence、dependencyはsource・target・kind・evidence、
       violationはrule_id・source・target・dependency_kind・evidence、analysis issueはcode・affected_scope・reasonに加え、
       観測結果と現在policyへの影響を独立した型付きfieldで保持する。確定依存と確定違反はAnalysisIssueへ複製しない。
+      未解決依存候補では、sourceとdependency kindに適用可能なforbidden・circular ruleのうち、候補集合が空またはpatternに一致する候補を持つruleを
+      影響し得るrule IDへ含める。allowed ruleは、候補集合が空、または許可先和集合に含まれない候補が1つでもある場合に、適用可能なrule IDを
+      影響へ含め、候補集合が空でなく全候補が許可先和集合に含まれる場合は含めない。影響し得るruleがなければnone、1つ以上ならpossibleとする。
       候補集合、rule ID、excluded scopeは文字列を比較keyとして昇順かつ重複なしで出力する。
     conditions:
       - id: complete-without-violation
@@ -672,6 +674,21 @@ contracts:
         input_predicate:
           kind: input
           term: input.analysis_issue_policy_impact_none
+          op: present
+      - id: unresolved-candidate-allowed-union-matches
+        input_predicate:
+          kind: input
+          term: input.unresolved_candidate_allowed_union_matches
+          op: present
+      - id: unresolved-candidate-allowed-union-misses
+        input_predicate:
+          kind: input
+          term: input.unresolved_candidate_allowed_union_misses
+          op: present
+      - id: unresolved-candidate-targets-empty
+        input_predicate:
+          kind: input
+          term: input.unresolved_candidate_targets_empty
           op: present
       - id: ambiguous-component-attribution
         input_predicate:
@@ -745,6 +762,15 @@ contracts:
               kind: value_set
               values:
                 - possible
+      - id: possible-policy-impact-rule-ids-present
+        when: possible-policy-impact
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.analysis_issues.policy_impact.rule_ids
       - id: path-module-source-module-present
         when: path-module-analysis-issue
         observation_ref: observation.validation.result
@@ -911,6 +937,48 @@ contracts:
               kind: value_set
               values:
                 - none
+      - id: unresolved-candidate-allowed-union-match-has-no-policy-impact
+        when: unresolved-candidate-allowed-union-matches
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.analysis_issues.policy_impact.outcome
+            right:
+              kind: value_set
+              values:
+                - none
+      - id: unresolved-candidate-allowed-union-miss-has-possible-policy-impact
+        when: unresolved-candidate-allowed-union-misses
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.analysis_issues.policy_impact.outcome
+            right:
+              kind: value_set
+              values:
+                - possible
+      - id: unresolved-candidate-with-empty-targets-has-possible-policy-impact
+        when: unresolved-candidate-targets-empty
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.analysis_issues.policy_impact.outcome
+            right:
+              kind: value_set
+              values:
+                - possible
       - id: report-serialization-supported
         when: report-request-present
         observation_ref: observation.validation.result
@@ -986,17 +1054,29 @@ contracts:
           - dependency-neutral-has-no-policy-impact
           - unresolved-dependency-observation
           - analysis-issue-has-no-policy-impact
+          - analysis-issue-has-possible-policy-impact
+          - possible-policy-impact-rule-ids-present
+          - unresolved-candidate-allowed-union-match-has-no-policy-impact
+          - unresolved-candidate-allowed-union-miss-has-possible-policy-impact
+          - unresolved-candidate-with-empty-targets-has-possible-policy-impact
+          - path-module-source-module-present
+          - path-module-policy-rule-ids-present
       - id: ambiguous-component-attribution-report
         goal: >-
           many-to-one moduleのissue code・module scope・決定的に整列したcomponent集合を確認し、
           曖昧なmoduleに関係する違反を生成せず、一対一module間で安全に確定する違反を保持することを確認する
         guarantee_refs:
+          - conformant-decision
           - non-conformant-decision
+          - indeterminate-decision
+          - analysis-issues-present
           - ambiguous-component-attribution-code
           - analysis-issue-reason-present
           - analysis-issue-affected-scope-present
           - analysis-observation-outcome-supported
           - analysis-policy-impact-outcome-supported
+          - analysis-issue-has-no-policy-impact
+          - analysis-issue-has-possible-policy-impact
           - report-ordering-canonical
           - report-violations-present
       - id: json-report-projection

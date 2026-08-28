@@ -305,25 +305,17 @@ pub(super) fn target_entry(
     let mut issues = Vec::new();
     let path = match target_kind {
         "lib" => {
-            let explicit = manifest
-                .get("lib")
-                .map(|value| {
-                    value.as_table().ok_or_else(|| {
-                        CruiserError::InvalidInput(
-                            "Cargo.toml lib target must be a table".to_owned(),
-                        )
-                    })
-                })
-                .transpose()?;
+            let explicit = manifest.get("lib").and_then(toml::Value::as_table);
             if explicit.is_none() && !package_auto_enabled(manifest, "autolib")? {
                 return Err(CruiserError::InvalidInput(
                     "library target not found: lib".to_owned(),
                 ));
             }
-            match explicit.and_then(|target| target.get("path")) {
-                Some(value) => project_root.join(value.as_str().ok_or_else(|| {
-                    CruiserError::InvalidInput("Cargo.toml lib.path must be text".to_owned())
-                })?),
+            match explicit
+                .and_then(|target| target.get("path"))
+                .and_then(toml::Value::as_str)
+            {
+                Some(path) => project_root.join(path),
                 None => project_root.join("src/lib.rs"),
             }
         }
@@ -376,18 +368,11 @@ pub(super) fn target_entry(
 }
 
 pub(super) fn has_library_target(project_root: &Path, manifest: &toml::Value) -> Result<bool> {
-    let path = match manifest.get("lib") {
-        Some(value) => {
-            let target = value.as_table().ok_or_else(|| {
-                CruiserError::InvalidInput("Cargo.toml lib target must be a table".to_owned())
-            })?;
-            match target.get("path") {
-                Some(value) => project_root.join(value.as_str().ok_or_else(|| {
-                    CruiserError::InvalidInput("Cargo.toml lib.path must be text".to_owned())
-                })?),
-                None => project_root.join("src/lib.rs"),
-            }
-        }
+    let path = match manifest.get("lib").and_then(toml::Value::as_table) {
+        Some(target) => match target.get("path").and_then(toml::Value::as_str) {
+            Some(path) => project_root.join(path),
+            None => project_root.join("src/lib.rs"),
+        },
         None if package_auto_enabled(manifest, "autolib")? => project_root.join("src/lib.rs"),
         None => return Ok(false),
     };
@@ -403,15 +388,10 @@ fn resolve_named_target(
     context: &AnalysisContext,
     issues: &mut Vec<AnalysisIssue>,
 ) -> Result<PathBuf> {
-    let explicit = explicit_target(manifest, kind, name)?;
+    let explicit = explicit_target(manifest, kind, name);
     if let Some(target) = explicit {
         collect_required_feature_issue(target, context, issues)?;
-        if let Some(value) = target.get("path") {
-            let path = value.as_str().ok_or_else(|| {
-                CruiserError::InvalidInput(format!(
-                    "Cargo.toml {kind} target {name}.path must be text"
-                ))
-            })?;
+        if let Some(path) = target.get("path").and_then(toml::Value::as_str) {
             return Ok(project_root.join(path));
         }
     } else if !package_auto_enabled(manifest, auto_target_key(kind))? {
@@ -435,31 +415,19 @@ fn explicit_target<'a>(
     manifest: &'a toml::Value,
     kind: &str,
     name: &str,
-) -> Result<Option<&'a toml::value::Table>> {
-    let Some(value) = manifest.get(kind) else {
-        return Ok(None);
-    };
-    let targets = value.as_array().ok_or_else(|| {
-        CruiserError::InvalidInput(format!("Cargo.toml {kind} targets must be an array"))
-    })?;
-    for target in targets {
-        let target = target.as_table().ok_or_else(|| {
-            CruiserError::InvalidInput(format!("Cargo.toml {kind} target must be a table"))
-        })?;
-        let target_name = target
-            .get("name")
-            .ok_or_else(|| {
-                CruiserError::InvalidInput(format!("Cargo.toml {kind} target.name is required"))
-            })?
-            .as_str()
-            .ok_or_else(|| {
-                CruiserError::InvalidInput(format!("Cargo.toml {kind} target.name must be text"))
-            })?;
-        if target_name == name {
-            return Ok(Some(target));
-        }
-    }
-    Ok(None)
+) -> Option<&'a toml::value::Table> {
+    manifest
+        .get(kind)
+        .and_then(toml::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(toml::Value::as_table)
+        .find(|target| {
+            target
+                .get("name")
+                .and_then(toml::Value::as_str)
+                .is_some_and(|target_name| target_name == name)
+        })
 }
 
 fn collect_required_feature_issue(

@@ -4,7 +4,7 @@
 use super::*;
 
 #[test]
-fn typed_dependencies_and_declarations_are_reported() {
+fn should_typed_dependencies_and_declarations_are_reported() {
     // Arrange
     let fixture = TempFixture::new("typed-dependencies");
     fixture.write_manifest("[dependencies]\nserde-json = \"1\"\n");
@@ -71,7 +71,7 @@ fn typed_dependencies_and_declarations_are_reported() {
 }
 
 #[test]
-fn aliases_and_multiple_super_segments_are_resolved() {
+fn should_aliases_and_multiple_super_segments_are_resolved() {
     // Arrange
     let fixture = TempFixture::new("aliases-and-super");
     fixture.write("src/main.rs", "mod outer;\nmod shared;\nfn main() {}\n");
@@ -104,7 +104,7 @@ fn aliases_and_multiple_super_segments_are_resolved() {
 }
 
 #[test]
-fn source_union_observes_source_authored_dependencies_without_expansion_issues() {
+fn should_source_union_observes_source_authored_dependencies_without_expansion_issues() {
     // Arrange
     let fixture = TempFixture::new("source-union");
     fixture.write(
@@ -154,7 +154,7 @@ fn source_union_observes_source_authored_dependencies_without_expansion_issues()
 }
 
 #[test]
-fn glob_import_and_reexport_chain_resolve_in_both_profiles() {
+fn should_glob_import_and_reexport_chain_resolve_in_both_profiles() {
     // Arrange
     let fixture = TempFixture::new("glob-import-reexport");
     fixture.write(
@@ -214,7 +214,7 @@ fn glob_import_and_reexport_chain_resolve_in_both_profiles() {
 }
 
 #[test]
-fn crate_visible_glob_reexport_resolves_in_both_profiles() {
+fn should_crate_visible_glob_reexport_resolves_in_both_profiles() {
     // Arrange
     let fixture = TempFixture::new("crate-visible-glob-reexport");
     fixture.write(
@@ -274,7 +274,7 @@ fn crate_visible_glob_reexport_resolves_in_both_profiles() {
 }
 
 #[test]
-fn crate_visible_super_glob_reexport_resolves_in_both_profiles() {
+fn should_crate_visible_super_glob_reexport_resolves_in_both_profiles() {
     // Arrange
     let fixture = TempFixture::new("crate-visible-super-glob-reexport");
     fixture.write(
@@ -330,7 +330,7 @@ fn crate_visible_super_glob_reexport_resolves_in_both_profiles() {
 }
 
 #[test]
-fn glob_import_keeps_unresolved_names_indeterminate_in_source_union() {
+fn should_glob_import_keeps_unresolved_names_indeterminate_in_source_union() {
     // Arrange
     let fixture = TempFixture::new("glob-unresolved-source-union");
     fixture.write(
@@ -387,7 +387,7 @@ fn glob_import_keeps_unresolved_names_indeterminate_in_source_union() {
 }
 
 #[test]
-fn glob_reexport_does_not_resolve_private_items() {
+fn should_glob_reexport_does_not_resolve_private_items() {
     // Arrange
     let fixture = TempFixture::new("glob-private-item");
     fixture.write(
@@ -414,7 +414,7 @@ fn glob_reexport_does_not_resolve_private_items() {
 }
 
 #[test]
-fn source_union_unions_cfg_gated_alias_candidates() {
+fn should_source_union_unions_cfg_gated_alias_candidates() {
     // Arrange
     let fixture = TempFixture::new("source-union-cfg-aliases");
     fixture.write(
@@ -459,7 +459,7 @@ fn source_union_unions_cfg_gated_alias_candidates() {
 }
 
 #[test]
-fn source_union_includes_conditional_external_dependencies() {
+fn should_source_union_includes_conditional_external_dependencies() {
     // Arrange
     let fixture = TempFixture::new("source-union-conditional-external");
     fixture.write_manifest("[dependencies]\noptional-dep = { version = \"1\", optional = true }\n");
@@ -492,7 +492,7 @@ fn source_union_includes_conditional_external_dependencies() {
 }
 
 #[test]
-fn source_union_preserves_conditional_dependency_kind_boundaries() {
+fn should_source_union_preserves_conditional_dependency_kind_boundaries() {
     // Arrange
     let fixture = policy_sensitive_fixture("source-union-target-cfg-dependencies");
     fixture.write_manifest(
@@ -559,7 +559,7 @@ fn source_union_preserves_conditional_dependency_kind_boundaries() {
 }
 
 #[test]
-fn supported_compilation_targets_select_their_entry_files() {
+fn should_supported_compilation_targets_select_their_entry_files() {
     // Arrange
     let fixture = TempFixture::new("explicit-targets");
     fixture.write_manifest(
@@ -600,7 +600,7 @@ fn supported_compilation_targets_select_their_entry_files() {
 }
 
 #[test]
-fn conventional_compilation_target_paths_are_supported() {
+fn should_conventional_compilation_target_paths_are_supported() {
     // Arrange
     let fixture = TempFixture::new("conventional-targets");
     fixture.write("src/lib.rs", "pub fn library() {}\n");
@@ -638,7 +638,7 @@ fn conventional_compilation_target_paths_are_supported() {
 }
 
 #[test]
-fn required_feature_activates_the_selected_target() {
+fn should_required_feature_activates_the_selected_target() {
     // Arrange
     let fixture = TempFixture::new("active-target-feature");
     fixture.write_manifest(
@@ -663,7 +663,7 @@ fn required_feature_activates_the_selected_target() {
 }
 
 #[test]
-fn inline_nested_and_declared_external_dependencies_are_observed() {
+fn should_inline_nested_and_declared_external_dependencies_are_observed() {
     // Arrange
     let fixture = TempFixture::new("module-shapes");
     fixture.write_manifest("[dependencies]\nserde-json = \"1\"\n");
@@ -710,7 +710,7 @@ fn inline_nested_and_declared_external_dependencies_are_observed() {
 }
 
 #[test]
-fn leading_colon_selects_the_external_crate_namespace() {
+fn should_leading_colon_selects_the_external_crate_namespace() {
     // Arrange
     let fixture = TempFixture::new("absolute-external");
     fixture.write_manifest("[dependencies]\nserde = \"1\"\n");
@@ -735,7 +735,7 @@ fn leading_colon_selects_the_external_crate_namespace() {
 }
 
 #[test]
-fn declared_item_kinds_support_complete_path_resolution() {
+fn should_declared_item_kinds_support_complete_path_resolution() {
     // Arrange
     let fixture = policy_sensitive_fixture("declared-items");
     fixture.write(
@@ -761,7 +761,7 @@ fn declared_item_kinds_support_complete_path_resolution() {
 }
 
 #[test]
-fn dev_dependency_is_available_to_test_target() {
+fn should_dev_dependency_is_available_to_test_target() {
     // Arrange
     let fixture = TempFixture::new("test-target-dependencies");
     fixture.write_manifest("[dev-dependencies]\ntest-only = \"1\"\n");
@@ -785,7 +785,7 @@ fn dev_dependency_is_available_to_test_target() {
 }
 
 #[test]
-fn exact_target_dependency_is_active_for_the_selected_triple() {
+fn should_exact_target_dependency_is_active_for_the_selected_triple() {
     // Arrange
     let fixture = TempFixture::new("exact-target-dependency");
     fixture.write_manifest("[target.x86_64-unknown-linux-gnu.dependencies]\ntarget-only = \"1\"\n");
@@ -809,7 +809,7 @@ fn exact_target_dependency_is_active_for_the_selected_triple() {
 }
 
 #[test]
-fn serde_function_path_observes_explicit_internal_dependency() {
+fn should_serde_function_path_observes_explicit_internal_dependency() {
     // Arrange
     let fixture = TempFixture::new("serde-explicit-internal-function-path");
     fixture.write(
@@ -842,7 +842,7 @@ fn serde_function_path_observes_explicit_internal_dependency() {
 }
 
 #[test]
-fn source_union_does_not_observe_serde_function_path_dependency() {
+fn should_source_union_does_not_observe_serde_function_path_dependency() {
     // Arrange
     let fixture = TempFixture::new("source-union-serde-function-path");
     fixture.write(
@@ -853,6 +853,192 @@ fn source_union_does_not_observe_serde_function_path_dependency() {
     fixture.write(
         "policy.yaml",
         "rules:\n  - id: forbid-serde-helper\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::forbidden]\n",
+    );
+
+    // Act
+    let report = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        0,
+    );
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert!(!dependency_exists(
+        &report,
+        "crate",
+        "crate::forbidden",
+        "path-reference",
+        "internal-module"
+    ));
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn should_exact_policy_runtime_item_macro_observes_generated_dependencies() {
+    // Arrange
+    let crate_path_fixture = runtime_item_macro_fixture(
+        "exact-policy-runtime-item-macro",
+        exact_runtime_macro_definitions(),
+    );
+    let invocation = |path: &str| {
+        format!(
+            "{path}! {{\n    slot = SLOT,\n    agnostic_fn = agnostic,\n    contextual_fn = contextual,\n    agnostic_for_fn = agnostic_for,\n    contextual_for_fn = contextual_for,\n    source_view_resolver = crate::forbidden::resolve,\n    language = \"fixture\",\n    provider = \"fixture-provider\",\n    agnostic_provider = crate::foundation::plugin::policy_only::no_language_agnostic_snapshot_extractor,\n    contextual_provider = crate::foundation::plugin::policy_only::no_contextual_snapshot_materializer\n}}\n",
+        )
+    };
+    let self_path_fixture = runtime_item_macro_fixture(
+        "exact-self-runtime-item-macro",
+        exact_runtime_macro_definitions(),
+    );
+    self_path_fixture.write(
+        "src/foundation/plugin.rs",
+        "pub(crate) mod contextual_snapshot_materializer;\npub(crate) mod language_agnostic_snapshot_extractor;\npub(crate) mod policy_only;\npub(crate) mod provider;\npub(crate) mod runtime;\npub(crate) mod self_runtime;\n",
+    );
+    self_path_fixture.write(
+        "src/foundation/plugin/self_runtime.rs",
+        &format!(
+            "{}\n{}",
+            exact_runtime_macro_definitions(),
+            invocation("self::declare_builtin_language_runtime")
+        ),
+    );
+    self_path_fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-generated-runtime-dependency\n    kind: forbidden\n    severity: error\n    from: [crate::foundation::plugin::self_runtime]\n    to: [crate::forbidden]\n",
+    );
+    let super_path_fixture = runtime_item_macro_fixture(
+        "exact-super-runtime-item-macro",
+        exact_runtime_macro_definitions(),
+    );
+    super_path_fixture.write(
+        "src/foundation/plugin.rs",
+        "pub(crate) mod contextual_snapshot_materializer;\npub(crate) mod language_agnostic_snapshot_extractor;\npub(crate) mod policy_only;\npub(crate) mod provider;\npub(crate) mod runtime;\npub(crate) mod runtime_support;\n",
+    );
+    super_path_fixture.write(
+        "src/foundation/plugin/runtime_support.rs",
+        &format!(
+            "{}\npub(crate) mod nested;\n",
+            exact_runtime_macro_definitions()
+        ),
+    );
+    super_path_fixture.write(
+        "src/foundation/plugin/runtime_support/nested.rs",
+        &invocation("super::declare_builtin_language_runtime"),
+    );
+    super_path_fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-generated-runtime-dependency\n    kind: forbidden\n    severity: error\n    from: [crate::foundation::plugin::runtime_support::nested]\n    to: [crate::forbidden]\n",
+    );
+    let local_path_fixture = runtime_item_macro_fixture(
+        "exact-local-runtime-item-macro",
+        exact_runtime_macro_definitions(),
+    );
+    local_path_fixture.write(
+        "src/foundation/plugin.rs",
+        "pub(crate) mod contextual_snapshot_materializer;\npub(crate) mod language_agnostic_snapshot_extractor;\npub(crate) mod local_runtime;\npub(crate) mod policy_only;\npub(crate) mod provider;\npub(crate) mod runtime;\n",
+    );
+    local_path_fixture.write(
+        "src/foundation/plugin/local_runtime.rs",
+        &format!(
+            "{}\n{}",
+            exact_runtime_macro_definitions(),
+            invocation("declare_builtin_language_runtime")
+        ),
+    );
+    local_path_fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-generated-runtime-dependency\n    kind: forbidden\n    severity: error\n    from: [crate::foundation::plugin::local_runtime]\n    to: [crate::forbidden]\n",
+    );
+    let imported_path_fixture = runtime_item_macro_fixture(
+        "exact-imported-runtime-item-macro",
+        exact_runtime_macro_definitions(),
+    );
+    imported_path_fixture.write(
+        "src/foundation/plugin.rs",
+        "pub(crate) mod contextual_snapshot_materializer;\npub(crate) mod imported_runtime;\npub(crate) mod language_agnostic_snapshot_extractor;\npub(crate) mod policy_only;\npub(crate) mod provider;\npub(crate) mod runtime;\n",
+    );
+    imported_path_fixture.write(
+        "src/foundation/plugin/imported_runtime.rs",
+        &format!(
+            "use super::policy_only::declare_builtin_language_runtime;\n{}",
+            invocation("declare_builtin_language_runtime")
+        ),
+    );
+    imported_path_fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-generated-runtime-dependency\n    kind: forbidden\n    severity: error\n    from: [crate::foundation::plugin::imported_runtime]\n    to: [crate::forbidden]\n",
+    );
+    let fixtures = [
+        (crate_path_fixture, "crate::foundation::plugin::runtime"),
+        (self_path_fixture, "crate::foundation::plugin::self_runtime"),
+        (
+            super_path_fixture,
+            "crate::foundation::plugin::runtime_support::nested",
+        ),
+        (
+            local_path_fixture,
+            "crate::foundation::plugin::local_runtime",
+        ),
+        (
+            imported_path_fixture,
+            "crate::foundation::plugin::imported_runtime",
+        ),
+    ];
+
+    // Act
+    let reports = fixtures
+        .iter()
+        .map(|(fixture, source)| (completed_json(&run_check(fixture, "json"), 1), *source))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for (report, source) in reports {
+        assert!(dependency_exists(
+            &report,
+            source,
+            "crate::forbidden",
+            "path-reference",
+            "internal-module"
+        ));
+        assert!(dependency_exists(
+            &report,
+            source,
+            "crate::foundation::plugin::provider",
+            "path-reference",
+            "internal-module"
+        ));
+        if source == "crate::foundation::plugin::runtime" {
+            assert!(
+                report["dependencies"]
+                    .as_array()
+                    .is_some_and(|dependencies| {
+                        dependencies.iter().any(|dependency| {
+                            dependency["source"] == source
+                                && dependency["target"] == "crate::forbidden"
+                                && dependency["evidence"]["line"] == 1
+                                && dependency["evidence"]["column"] == 1
+                        })
+                    })
+            );
+        }
+        assert_eq!(report["analysis_issues"], serde_json::json!([]));
+        assert_eq!(
+            report["violations"][0]["rule_id"],
+            "forbid-generated-runtime-dependency"
+        );
+    }
+}
+
+#[test]
+fn should_source_union_does_not_expand_exact_runtime_item_macro() {
+    // Arrange
+    let fixture = runtime_item_macro_fixture(
+        "source-union-runtime-item-macro",
+        exact_runtime_macro_definitions(),
     );
 
     // Act

@@ -4,7 +4,7 @@
 use super::*;
 
 #[test]
-fn complete_graph_without_violations_is_conformant() {
+fn should_complete_graph_without_violations_is_conformant() {
     // Arrange
     let fixture = TempFixture::new("complete-conformant");
 
@@ -16,7 +16,7 @@ fn complete_graph_without_violations_is_conformant() {
 }
 
 #[test]
-fn complete_graph_with_violations_is_non_conformant() {
+fn should_complete_graph_with_violations_is_non_conformant() {
     // Arrange
     let fixture = forbidden_fixture("complete-non-conformant", false);
 
@@ -28,7 +28,7 @@ fn complete_graph_with_violations_is_non_conformant() {
 }
 
 #[test]
-fn confirmed_violations_are_non_conformant_even_with_possible_issues() {
+fn should_confirmed_violations_are_non_conformant_even_with_possible_issues() {
     // Arrange
     let fixture = forbidden_fixture("incomplete-with-violation", true);
 
@@ -57,7 +57,7 @@ fn confirmed_violations_are_non_conformant_even_with_possible_issues() {
 }
 
 #[test]
-fn ambiguous_component_attribution_retains_safe_violations_as_non_conformant() {
+fn should_ambiguous_component_attribution_retains_safe_violations_as_non_conformant() {
     // Arrange
     let fixture = many_to_one_sdd_fixture();
 
@@ -88,7 +88,7 @@ fn ambiguous_component_attribution_retains_safe_violations_as_non_conformant() {
 }
 
 #[test]
-fn invariant_allowed_component_assignments_are_conformant() {
+fn should_invariant_allowed_component_assignments_are_conformant() {
     // Arrange
     let fixture = many_to_one_sdd_fixture();
     fixture.write(
@@ -101,6 +101,7 @@ fn invariant_allowed_component_assignments_are_conformant() {
 
     // Assert
     assert_eq!(report["decision"], "conformant");
+    assert_issue(&report, "analysis.ambiguous-component-attribution");
     assert_eq!(
         report["analysis_issues"][0]["policy_impact"]["outcome"],
         "none"
@@ -109,7 +110,7 @@ fn invariant_allowed_component_assignments_are_conformant() {
 }
 
 #[test]
-fn invariant_forbidden_component_assignments_are_non_conformant() {
+fn should_invariant_forbidden_component_assignments_are_non_conformant() {
     // Arrange
     let fixture = many_to_one_sdd_fixture();
     fixture.write(
@@ -134,7 +135,7 @@ fn invariant_forbidden_component_assignments_are_non_conformant() {
 }
 
 #[test]
-fn assignment_dependent_component_outcomes_remain_indeterminate_without_safe_violations() {
+fn should_assignment_dependent_component_outcomes_remain_indeterminate_without_safe_violations() {
     // Arrange
     let fixture = many_to_one_sdd_fixture();
     fixture.write("src/reporting.rs", "pub fn report() {}\n");
@@ -144,6 +145,7 @@ fn assignment_dependent_component_outcomes_remain_indeterminate_without_safe_vio
 
     // Assert
     assert_eq!(report["decision"], "indeterminate");
+    assert_issue(&report, "analysis.ambiguous-component-attribution");
     assert_eq!(
         report["analysis_issues"][0]["policy_impact"]["outcome"],
         "possible"
@@ -152,9 +154,9 @@ fn assignment_dependent_component_outcomes_remain_indeterminate_without_safe_vio
 }
 
 #[test]
-fn component_assignment_proof_avoids_exhaustive_enumeration() {
+fn should_many_component_assignments_remain_invariant() {
     // Arrange
-    let fixture = TempFixture::new("component-assignment-proof-exhaustion");
+    let fixture = TempFixture::new("many-component-assignments-invariant");
     let mut main_source = String::new();
     let mut logical =
         "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n".to_owned();
@@ -187,6 +189,7 @@ fn component_assignment_proof_avoids_exhaustive_enumeration() {
 
     // Assert
     assert_eq!(report["decision"], "conformant");
+    assert_issue(&report, "analysis.ambiguous-component-attribution");
     assert!(report["analysis_issues"].as_array().is_some_and(|issues| {
         issues
             .iter()
@@ -195,7 +198,30 @@ fn component_assignment_proof_avoids_exhaustive_enumeration() {
 }
 
 #[test]
-fn json_report_projects_common_validation_result() {
+fn should_overlapping_rust_module_projections_remain_indeterminate_when_unobserved() {
+    // Arrange
+    let fixture = TempFixture::new("overlapping-rust-module-sdd-policy-input");
+    write_sdd_policy_input(&fixture);
+    fixture.write(
+        "directory-structure.sdd.yml",
+        "nodes:\n  - node_id: src-application\n    path: src/application\n  - node_id: src-domain\n    path: src/application/domain.rs\n",
+    );
+
+    // Act
+    let output = run_sdd_check(&fixture, true);
+
+    // Assert
+    let report = completed_json(&output, 2);
+    assert_eq!(report["decision"], "indeterminate");
+    assert_issue(&report, "analysis.ambiguous-component-attribution");
+    assert_eq!(
+        report["analysis_issues"][0]["policy_impact"]["outcome"],
+        "possible"
+    );
+}
+
+#[test]
+fn should_json_report_projects_common_validation_result() {
     // Arrange
     let fixture = forbidden_fixture("json-report", true);
 
@@ -241,7 +267,7 @@ fn json_report_projects_common_validation_result() {
 }
 
 #[test]
-fn text_report_projects_common_validation_result() {
+fn should_text_report_projects_common_validation_result() {
     // Arrange
     let fixture = forbidden_fixture("text-report", true);
 
@@ -262,7 +288,24 @@ fn text_report_projects_common_validation_result() {
 }
 
 #[test]
-fn unresolved_candidate_outside_the_policy_is_conformant() {
+fn should_text_report_projects_circular_cycle_path() {
+    // Arrange
+    let fixture = circular_fixture("text-circular-report");
+
+    // Act
+    let output = run_check(&fixture, "text");
+    let payload = completed_text(&output, 1);
+
+    // Assert
+    assert!(payload.contains("decision: non-conformant"));
+    assert!(payload.contains("violations:\n  - no-cycle circular"));
+    assert!(
+        payload.contains("cycle_path: crate::application -> crate::domain -> crate::application")
+    );
+}
+
+#[test]
+fn should_unresolved_candidate_outside_the_policy_is_conformant() {
     // Arrange
     let fixture = TempFixture::new("unresolved-policy-none");
     fixture.write(
@@ -295,7 +338,89 @@ fn unresolved_candidate_outside_the_policy_is_conformant() {
 }
 
 #[test]
-fn unresolved_reference_is_indeterminate() {
+fn should_unresolved_candidate_with_allowed_target_union_is_conformant() {
+    // Arrange
+    let fixture = ambiguous_candidate_fixture("unresolved-allowed-union-match");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: allowed-left\n    kind: allowed\n    severity: warning\n    from: [crate]\n    to: ['crate::left']\n    dependency_kinds: [path-reference]\n  - id: allowed-right\n    kind: allowed\n    severity: warning\n    from: [crate]\n    to: ['crate::right']\n    dependency_kinds: [path-reference]\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_issue(&report, "analysis.unsupported-name-resolution");
+    let issue = &report["analysis_issues"][0];
+    assert_eq!(
+        issue["observation"]["candidate_targets"],
+        serde_json::json!(["crate::left", "crate::right"])
+    );
+    assert_eq!(issue["policy_impact"]["outcome"], "none");
+    assert_eq!(issue["policy_impact"]["rule_ids"], serde_json::json!([]));
+}
+
+#[test]
+fn should_unresolved_candidate_outside_allowed_target_union_is_indeterminate() {
+    // Arrange
+    let fixture = ambiguous_candidate_fixture("unresolved-allowed-union-miss");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: allowed-left\n    kind: allowed\n    severity: warning\n    from: [crate]\n    to: ['crate::left']\n    dependency_kinds: [path-reference]\n  - id: allowed-domain\n    kind: allowed\n    severity: warning\n    from: [crate]\n    to: ['crate::domain']\n    dependency_kinds: [path-reference]\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_eq!(report["decision"], "indeterminate");
+    assert_issue(&report, "analysis.unsupported-name-resolution");
+    let issue = &report["analysis_issues"][0];
+    assert_eq!(
+        issue["observation"]["candidate_targets"],
+        serde_json::json!(["crate::left", "crate::right"])
+    );
+    assert_eq!(issue["policy_impact"]["outcome"], "possible");
+    assert_eq!(
+        issue["policy_impact"]["rule_ids"],
+        serde_json::json!(["allowed-domain", "allowed-left"])
+    );
+}
+
+#[test]
+fn should_unresolved_candidate_without_targets_is_indeterminate_for_allowed_rule() {
+    // Arrange
+    let fixture = TempFixture::new("unresolved-allowed-empty-targets");
+    fixture.write(
+        "src/main.rs",
+        "fn consume(_: crate::missing::Missing) {}\nfn main() {}\n",
+    );
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: allowed-domain\n    kind: allowed\n    severity: warning\n    from: [crate]\n    to: ['crate::domain']\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_eq!(report["decision"], "indeterminate");
+    assert_issue(&report, "analysis.unresolved-reference");
+    let issue = &report["analysis_issues"][0];
+    assert_eq!(
+        issue["observation"]["candidate_targets"],
+        serde_json::json!([])
+    );
+    assert_eq!(issue["policy_impact"]["outcome"], "possible");
+    assert_eq!(
+        issue["policy_impact"]["rule_ids"],
+        serde_json::json!(["allowed-domain"])
+    );
+}
+
+#[test]
+fn should_unresolved_reference_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("unresolved-reference");
     fixture.write(
@@ -318,7 +443,7 @@ fn unresolved_reference_is_indeterminate() {
 }
 
 #[test]
-fn unresolved_single_segment_type_is_indeterminate() {
+fn should_unresolved_single_segment_type_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("unresolved-single-segment");
     fixture.write("src/main.rs", "fn consume(_: Missing) {}\nfn main() {}\n");
@@ -331,7 +456,7 @@ fn unresolved_single_segment_type_is_indeterminate() {
 }
 
 #[test]
-fn block_scoped_use_is_resolved_within_its_lexical_scope() {
+fn should_block_scoped_use_is_resolved_within_its_lexical_scope() {
     // Arrange
     let fixture = policy_sensitive_fixture("block-scoped-use");
     fixture.write(
@@ -349,7 +474,7 @@ fn block_scoped_use_is_resolved_within_its_lexical_scope() {
 }
 
 #[test]
-fn lexical_pattern_bindings_are_not_reported_as_unresolved() {
+fn should_lexical_pattern_bindings_are_not_reported_as_unresolved() {
     // Arrange
     let fixture = policy_sensitive_fixture("lexical-pattern-bindings");
     fixture.write(
@@ -366,7 +491,7 @@ fn lexical_pattern_bindings_are_not_reported_as_unresolved() {
 }
 
 #[test]
-fn package_crate_alias_is_resolved_for_library_targets() {
+fn should_package_crate_alias_is_resolved_for_library_targets() {
     // Arrange
     let fixture = TempFixture::new("package-crate-alias");
     let alias = fixture.package().replace('-', "_");
@@ -394,7 +519,7 @@ fn package_crate_alias_is_resolved_for_library_targets() {
 }
 
 #[test]
-fn undeclared_package_name_is_not_treated_as_a_library_alias() {
+fn should_undeclared_package_name_is_not_treated_as_a_library_alias() {
     // Arrange
     let fixture = policy_sensitive_fixture("undeclared-package-crate-alias");
     let alias = fixture.package().replace('-', "_");
@@ -413,7 +538,7 @@ fn undeclared_package_name_is_not_treated_as_a_library_alias() {
 }
 
 #[test]
-fn package_name_is_not_external_without_a_library_target() {
+fn should_package_name_is_not_external_without_a_library_target() {
     // Arrange
     let fixture = policy_sensitive_fixture("package-name-without-library");
     let alias = fixture.package().replace('-', "_");
@@ -431,7 +556,7 @@ fn package_name_is_not_external_without_a_library_target() {
 }
 
 #[test]
-fn known_dependency_observing_macros_and_safe_serde_attributes_are_conformant() {
+fn should_known_dependency_observing_macros_and_safe_serde_attributes_are_conformant() {
     // Arrange
     let fixture = TempFixture::new("known-macros-and-serde");
     fixture.write_manifest(
@@ -451,7 +576,7 @@ fn known_dependency_observing_macros_and_safe_serde_attributes_are_conformant() 
 }
 
 #[test]
-fn serde_function_paths_to_same_module_helpers_are_conformant() {
+fn should_serde_function_paths_to_same_module_helpers_are_conformant() {
     // Arrange
     let fixture = policy_sensitive_fixture("serde-same-module-function-paths");
     fixture.write(
@@ -468,7 +593,7 @@ fn serde_function_paths_to_same_module_helpers_are_conformant() {
 }
 
 #[test]
-fn serde_prelude_function_path_is_conformant() {
+fn should_serde_prelude_function_path_is_conformant() {
     // Arrange
     let fixture = policy_sensitive_fixture("serde-prelude-function-path");
     fixture.write(
@@ -485,7 +610,7 @@ fn serde_prelude_function_path_is_conformant() {
 }
 
 #[test]
-fn serde_function_path_observes_aliased_internal_dependency() {
+fn should_serde_function_path_observes_aliased_internal_dependency() {
     // Arrange
     let fixture = TempFixture::new("serde-aliased-internal-function-path");
     fixture.write(
@@ -520,7 +645,7 @@ fn serde_function_path_observes_aliased_internal_dependency() {
 }
 
 #[test]
-fn serde_function_path_with_shadowed_prelude_is_indeterminate() {
+fn should_serde_function_path_with_shadowed_prelude_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("serde-shadowed-prelude-path");
     fixture.write(
@@ -536,7 +661,7 @@ fn serde_function_path_with_shadowed_prelude_is_indeterminate() {
 }
 
 #[test]
-fn serde_function_path_without_implicit_prelude_is_indeterminate() {
+fn should_serde_function_path_without_implicit_prelude_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("serde-no-implicit-prelude-path");
     fixture.write(
@@ -552,7 +677,7 @@ fn serde_function_path_without_implicit_prelude_is_indeterminate() {
 }
 
 #[test]
-fn serde_function_path_with_unknown_alias_is_indeterminate() {
+fn should_serde_function_path_with_unknown_alias_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("serde-unknown-alias-path");
     fixture.write(
@@ -568,7 +693,7 @@ fn serde_function_path_with_unknown_alias_is_indeterminate() {
 }
 
 #[test]
-fn serde_function_path_with_ambiguous_glob_is_indeterminate() {
+fn should_serde_function_path_with_ambiguous_glob_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("serde-ambiguous-glob-path");
     fixture.write(
@@ -600,7 +725,7 @@ fn serde_function_path_with_ambiguous_glob_is_indeterminate() {
 }
 
 #[test]
-fn invalid_serde_function_path_is_indeterminate() {
+fn should_invalid_serde_function_path_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("serde-invalid-function-path");
     fixture.write(
@@ -616,7 +741,7 @@ fn invalid_serde_function_path_is_indeterminate() {
 }
 
 #[test]
-fn unsupported_serde_function_path_shape_is_indeterminate() {
+fn should_unsupported_serde_function_path_shape_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("serde-generic-function-path");
     fixture.write(
@@ -632,7 +757,7 @@ fn unsupported_serde_function_path_shape_is_indeterminate() {
 }
 
 #[test]
-fn repeated_json_report_is_byte_stable() {
+fn should_repeated_json_report_is_byte_stable() {
     // Arrange
     let fixture = forbidden_fixture("stable-json", true);
 
@@ -649,7 +774,7 @@ fn repeated_json_report_is_byte_stable() {
 }
 
 #[test]
-fn dependency_neutral_standard_macro_is_conformant() {
+fn should_dependency_neutral_standard_macro_is_conformant() {
     // Arrange
     let fixture = policy_sensitive_fixture("unsupported-macro");
     fixture.write("src/main.rs", "fn main() { println!(\"hello\"); }\n");
@@ -662,233 +787,8 @@ fn dependency_neutral_standard_macro_is_conformant() {
     assert_eq!(report["analysis_issues"], serde_json::json!([]));
 }
 
-fn exact_runtime_macro_definitions() -> &'static str {
-    r#"
-pub(crate) fn no_language_agnostic_snapshot_extractor() -> Option<crate::foundation::plugin::language_agnostic_snapshot_extractor::LanguageAgnosticSnapshotExtractor> { None }
-pub(crate) fn no_contextual_snapshot_materializer() -> Option<crate::foundation::plugin::contextual_snapshot_materializer::ContextualSnapshotMaterializer> { None }
-
-macro_rules! declare_builtin_language_runtime {
-    (
-        slot = $slot:ident,
-        agnostic_fn = $agnostic_fn:ident,
-        contextual_fn = $contextual_fn:ident,
-        agnostic_for_fn = $agnostic_for_fn:ident,
-        contextual_for_fn = $contextual_for_fn:ident,
-        source_view_resolver = $source_view_resolver:path,
-        language = $language:literal,
-        provider = $provider:literal,
-        agnostic_provider = $agnostic_provider:path,
-        contextual_provider = $contextual_provider:path
-    ) => {
-        pub(crate) const LANGUAGE: &str = $language;
-        pub(crate) const PROVIDER_NAME: &str = $provider;
-        pub(crate) const $slot: crate::foundation::plugin::provider::LanguagePluginProviderSlot =
-            crate::foundation::plugin::provider::LanguagePluginProviderSlot {
-                name: PROVIDER_NAME,
-                language: LANGUAGE,
-                language_agnostic_snapshot_extractor_for: $agnostic_for_fn,
-                contextual_snapshot_materializer_for: $contextual_for_fn,
-                source_view_resolver: $source_view_resolver,
-            };
-        inventory::submit! { $slot }
-        pub(crate) fn $agnostic_fn() -> Option<crate::foundation::plugin::language_agnostic_snapshot_extractor::LanguageAgnosticSnapshotExtractor> { $agnostic_provider() }
-        pub(crate) fn $contextual_fn() -> Option<crate::foundation::plugin::contextual_snapshot_materializer::ContextualSnapshotMaterializer> { $contextual_provider() }
-        fn $agnostic_for_fn(language: &str,) -> Option<crate::foundation::plugin::language_agnostic_snapshot_extractor::LanguageAgnosticSnapshotExtractor> { if language == LANGUAGE { $agnostic_fn() } else { None } }
-        fn $contextual_for_fn(language: &str,) -> Option<crate::foundation::plugin::contextual_snapshot_materializer::ContextualSnapshotMaterializer> { if language == LANGUAGE { $contextual_fn() } else { None } }
-    };
-}
-
-macro_rules! declare_policy_only_language_runtime {
-    (
-        slot = $slot:ident,
-        agnostic_fn = $agnostic_fn:ident,
-        contextual_fn = $contextual_fn:ident,
-        agnostic_for_fn = $agnostic_for_fn:ident,
-        contextual_for_fn = $contextual_for_fn:ident,
-        source_view_resolver = $source_view_resolver:path,
-        language = $language:literal,
-        provider = $provider:literal
-    ) => {
-        crate::foundation::plugin::policy_only::declare_builtin_language_runtime! {
-            slot = $slot,
-            agnostic_fn = $agnostic_fn,
-            contextual_fn = $contextual_fn,
-            agnostic_for_fn = $agnostic_for_fn,
-            contextual_for_fn = $contextual_for_fn,
-            source_view_resolver = $source_view_resolver,
-            language = $language,
-            provider = $provider,
-            agnostic_provider = crate::foundation::plugin::policy_only::no_language_agnostic_snapshot_extractor,
-            contextual_provider = crate::foundation::plugin::policy_only::no_contextual_snapshot_materializer
-        }
-    };
-}
-
-pub(crate) use declare_builtin_language_runtime;
-pub(crate) use declare_policy_only_language_runtime;
-"#
-}
-
-fn runtime_item_macro_fixture(name: &str, definitions: &str) -> TempFixture {
-    let fixture = TempFixture::new(name);
-    fixture.write_manifest("[dependencies]\ninventory = \"0.3\"\n");
-    fixture.write(
-        "src/main.rs",
-        "mod forbidden;\nmod foundation;\nfn main() {}\n",
-    );
-    fixture.write("src/forbidden.rs", "pub fn resolve() {}\n");
-    fixture.write("src/foundation.rs", "pub(crate) mod plugin;\n");
-    fixture.write(
-        "src/foundation/plugin.rs",
-        "pub(crate) mod contextual_snapshot_materializer;\npub(crate) mod language_agnostic_snapshot_extractor;\npub(crate) mod policy_only;\npub(crate) mod provider;\npub(crate) mod runtime;\n",
-    );
-    fixture.write(
-        "src/foundation/plugin/contextual_snapshot_materializer.rs",
-        "pub(crate) struct ContextualSnapshotMaterializer;\n",
-    );
-    fixture.write(
-        "src/foundation/plugin/language_agnostic_snapshot_extractor.rs",
-        "pub(crate) struct LanguageAgnosticSnapshotExtractor;\n",
-    );
-    fixture.write(
-        "src/foundation/plugin/provider.rs",
-        "pub(crate) struct LanguagePluginProviderSlot;\n",
-    );
-    fixture.write("src/foundation/plugin/policy_only.rs", definitions);
-    fixture.write(
-        "src/foundation/plugin/runtime.rs",
-        "crate::foundation::plugin::policy_only::declare_policy_only_language_runtime! {\n    slot = SLOT,\n    agnostic_fn = agnostic,\n    contextual_fn = contextual,\n    agnostic_for_fn = agnostic_for,\n    contextual_for_fn = contextual_for,\n    source_view_resolver = crate::forbidden::resolve,\n    language = \"fixture\",\n    provider = \"fixture-provider\"\n}\npub(crate) fn provider_name() -> &'static str { PROVIDER_NAME }\n",
-    );
-    fixture.write(
-        "policy.yaml",
-        "rules:\n  - id: forbid-generated-runtime-dependency\n    kind: forbidden\n    severity: error\n    from: [crate::foundation::plugin::runtime]\n    to: [crate::forbidden]\n",
-    );
-    fixture
-}
-
 #[test]
-fn exact_policy_runtime_item_macro_observes_generated_dependencies() {
-    // Arrange
-    let fixture = runtime_item_macro_fixture(
-        "exact-policy-runtime-item-macro",
-        exact_runtime_macro_definitions(),
-    );
-
-    // Act
-    let report = completed_json(&run_check(&fixture, "json"), 1);
-
-    // Assert
-    assert!(dependency_exists(
-        &report,
-        "crate::foundation::plugin::runtime",
-        "crate::forbidden",
-        "path-reference",
-        "internal-module"
-    ));
-    assert!(dependency_exists(
-        &report,
-        "crate::foundation::plugin::runtime",
-        "crate::foundation::plugin::provider",
-        "path-reference",
-        "internal-module"
-    ));
-    assert!(
-        report["dependencies"]
-            .as_array()
-            .is_some_and(|dependencies| {
-                dependencies.iter().any(|dependency| {
-                    dependency["source"] == "crate::foundation::plugin::runtime"
-                        && dependency["target"] == "crate::forbidden"
-                        && dependency["evidence"]["line"] == 1
-                        && dependency["evidence"]["column"] == 1
-                })
-            })
-    );
-    assert_eq!(report["analysis_issues"], serde_json::json!([]));
-    assert_eq!(
-        report["violations"][0]["rule_id"],
-        "forbid-generated-runtime-dependency"
-    );
-}
-
-#[test]
-fn altered_runtime_item_macro_definition_is_indeterminate() {
-    // Arrange
-    let altered = exact_runtime_macro_definitions().replace(
-        "source_view_resolver: $source_view_resolver,",
-        "source_view_resolver: $source_view_resolver, unexpected: LANGUAGE,",
-    );
-    let fixture = runtime_item_macro_fixture("altered-runtime-item-macro", &altered);
-
-    // Act
-    let report = completed_json(&run_check(&fixture, "json"), 2);
-
-    // Assert
-    assert_issue(&report, "analysis.unsupported-macro-expansion");
-    assert_eq!(report["violations"], serde_json::json!([]));
-}
-
-#[test]
-fn ambiguous_runtime_macro_import_is_indeterminate() {
-    // Arrange
-    let fixture = runtime_item_macro_fixture(
-        "ambiguous-runtime-macro-import",
-        exact_runtime_macro_definitions(),
-    );
-    fixture.write(
-        "src/foundation/plugin.rs",
-        "pub(crate) mod contextual_snapshot_materializer;\npub(crate) mod language_agnostic_snapshot_extractor;\npub(crate) mod policy_copy;\npub(crate) mod policy_only;\npub(crate) mod provider;\npub(crate) mod runtime;\n",
-    );
-    fixture.write(
-        "src/foundation/plugin/policy_copy.rs",
-        exact_runtime_macro_definitions(),
-    );
-    fixture.write(
-        "src/foundation/plugin/runtime.rs",
-        "use crate::foundation::plugin::policy_copy::declare_builtin_language_runtime;\nuse crate::foundation::plugin::policy_only::declare_builtin_language_runtime;\ndeclare_builtin_language_runtime! {\n    slot = SLOT,\n    agnostic_fn = agnostic,\n    contextual_fn = contextual,\n    agnostic_for_fn = agnostic_for,\n    contextual_for_fn = contextual_for,\n    source_view_resolver = crate::forbidden::resolve,\n    language = \"fixture\",\n    provider = \"fixture-provider\",\n    agnostic_provider = crate::foundation::plugin::policy_only::no_language_agnostic_snapshot_extractor,\n    contextual_provider = crate::foundation::plugin::policy_only::no_contextual_snapshot_materializer\n}\n",
-    );
-
-    // Act
-    let report = completed_json(&run_check(&fixture, "json"), 2);
-
-    // Assert
-    assert_issue(&report, "analysis.unsupported-macro-expansion");
-    assert_eq!(report["violations"], serde_json::json!([]));
-}
-
-#[test]
-fn source_union_does_not_expand_exact_runtime_item_macro() {
-    // Arrange
-    let fixture = runtime_item_macro_fixture(
-        "source-union-runtime-item-macro",
-        exact_runtime_macro_definitions(),
-    );
-
-    // Act
-    let report = completed_json(
-        &run_check_with(
-            &fixture,
-            "bin",
-            "json",
-            &["--analysis-profile", "source-union"],
-        ),
-        0,
-    );
-
-    // Assert
-    assert_eq!(report["analysis_issues"], serde_json::json!([]));
-    assert_eq!(report["violations"], serde_json::json!([]));
-    assert!(!dependency_exists(
-        &report,
-        "crate::foundation::plugin::runtime",
-        "crate::forbidden",
-        "path-reference",
-        "internal-module"
-    ));
-}
-
-#[test]
-fn safe_local_single_arm_macro_is_conformant() {
+fn should_safe_local_single_arm_macro_is_conformant() {
     // Arrange
     let fixture = policy_sensitive_fixture("safe-local-macro");
     fixture.write(
@@ -905,7 +805,7 @@ fn safe_local_single_arm_macro_is_conformant() {
 }
 
 #[test]
-fn safe_local_macro_observes_internal_paths_in_arguments() {
+fn should_safe_local_macro_observes_internal_paths_in_arguments() {
     // Arrange
     let fixture = TempFixture::new("safe-local-macro-path");
     fixture.write(
@@ -937,7 +837,7 @@ fn safe_local_macro_observes_internal_paths_in_arguments() {
 }
 
 #[test]
-fn local_macro_with_internal_path_is_indeterminate() {
+fn should_local_macro_with_internal_path_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("local-macro-internal-path");
     fixture.write(
@@ -954,7 +854,7 @@ fn local_macro_with_internal_path_is_indeterminate() {
 }
 
 #[test]
-fn inner_local_macro_shadowing_preserves_fail_closed_behavior() {
+fn should_inner_local_macro_shadowing_preserves_fail_closed_behavior() {
     // Arrange
     let fixture = policy_sensitive_fixture("shadowed-local-macro");
     fixture.write(
@@ -971,7 +871,7 @@ fn inner_local_macro_shadowing_preserves_fail_closed_behavior() {
 }
 
 #[test]
-fn safe_local_macro_allows_known_nested_macro() {
+fn should_safe_local_macro_allows_known_nested_macro() {
     // Arrange
     let fixture = policy_sensitive_fixture("safe-local-nested-macro");
     fixture.write(
@@ -988,7 +888,7 @@ fn safe_local_macro_allows_known_nested_macro() {
 }
 
 #[test]
-fn exact_require_contract_value_macro_is_conformant() {
+fn should_exact_require_contract_value_macro_is_conformant() {
     // Arrange
     let fixture = policy_sensitive_fixture("exact-require-contract-value-macro");
     fixture.write(
@@ -1005,7 +905,7 @@ fn exact_require_contract_value_macro_is_conformant() {
 }
 
 #[test]
-fn exact_require_shape_macro_is_conformant() {
+fn should_exact_require_shape_macro_is_conformant() {
     // Arrange
     let fixture = TempFixture::new("exact-require-shape-macro");
     fixture.write(
@@ -1023,7 +923,7 @@ fn exact_require_shape_macro_is_conformant() {
 }
 
 #[test]
-fn exact_require_shape_macro_observes_internal_path_argument() {
+fn should_exact_require_shape_macro_observes_internal_path_argument() {
     // Arrange
     let fixture = TempFixture::new("exact-require-shape-macro-path");
     fixture.write(
@@ -1052,7 +952,7 @@ fn exact_require_shape_macro_observes_internal_path_argument() {
 }
 
 #[test]
-fn exact_require_macro_with_shadowed_err_is_indeterminate() {
+fn should_exact_require_macro_with_shadowed_err_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("exact-require-shadowed-err");
     fixture.write(
@@ -1068,7 +968,7 @@ fn exact_require_macro_with_shadowed_err_is_indeterminate() {
 }
 
 #[test]
-fn exact_require_macro_with_shadowed_format_is_indeterminate() {
+fn should_exact_require_macro_with_shadowed_format_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("exact-require-shadowed-format");
     fixture.write(
@@ -1084,7 +984,7 @@ fn exact_require_macro_with_shadowed_format_is_indeterminate() {
 }
 
 #[test]
-fn exact_require_macro_with_block_shadowing_is_indeterminate() {
+fn should_exact_require_macro_with_block_shadowing_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("exact-require-block-shadowing");
     fixture.write(
@@ -1100,7 +1000,7 @@ fn exact_require_macro_with_block_shadowing_is_indeterminate() {
 }
 
 #[test]
-fn exact_require_macro_with_block_item_shadowing_is_indeterminate() {
+fn should_exact_require_macro_with_block_item_shadowing_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("exact-require-block-item-shadowing");
     fixture.write(
@@ -1116,7 +1016,7 @@ fn exact_require_macro_with_block_item_shadowing_is_indeterminate() {
 }
 
 #[test]
-fn require_shape_macro_with_unknown_method_is_indeterminate() {
+fn should_require_shape_macro_with_unknown_method_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("require-shape-unknown-method");
     fixture.write(
@@ -1132,7 +1032,7 @@ fn require_shape_macro_with_unknown_method_is_indeterminate() {
 }
 
 #[test]
-fn shadowed_nested_macro_is_indeterminate() {
+fn should_shadowed_nested_macro_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("shadowed-nested-macro");
     fixture.write(
@@ -1149,7 +1049,7 @@ fn shadowed_nested_macro_is_indeterminate() {
 }
 
 #[test]
-fn safe_local_macro_ignores_token_neutral_nested_arguments() {
+fn should_safe_local_macro_ignores_token_neutral_nested_arguments() {
     // Arrange
     let fixture = TempFixture::new("token-neutral-nested-macro");
     fixture.write(
@@ -1179,7 +1079,7 @@ fn safe_local_macro_ignores_token_neutral_nested_arguments() {
 }
 
 #[test]
-fn safe_local_macro_allows_cfg_expression() {
+fn should_safe_local_macro_allows_cfg_expression() {
     // Arrange
     let fixture = policy_sensitive_fixture("safe-local-cfg-macro");
     fixture.write(
@@ -1196,7 +1096,7 @@ fn safe_local_macro_allows_cfg_expression() {
 }
 
 #[test]
-fn multi_arm_local_macro_is_indeterminate() {
+fn should_multi_arm_local_macro_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("multi-arm-local-macro");
     fixture.write(
@@ -1212,7 +1112,58 @@ fn multi_arm_local_macro_is_indeterminate() {
 }
 
 #[test]
-fn cfg_expression_macro_is_dependency_neutral() {
+fn should_unsupported_local_macro_shapes_are_indeterminate() {
+    // Arrange
+    let sources = [
+        (
+            "unsupported-local-macro-fragment",
+            "macro_rules! validate { ($value:ty) => { stringify!($value) }; }\nfn main() { let _ = validate!(usize); }\n",
+        ),
+        (
+            "unsupported-local-macro-missing-binding",
+            "macro_rules! validate { ($) => { 1 }; }\nfn main() { let _ = validate!(); }\n",
+        ),
+        (
+            "unsupported-local-macro-missing-colon",
+            "macro_rules! validate { ($value) => { 1 }; }\nfn main() { let _ = validate!(1); }\n",
+        ),
+        (
+            "unsupported-local-macro-missing-fragment",
+            "macro_rules! validate { ($value:) => { 1 }; }\nfn main() { let _ = validate!(1); }\n",
+        ),
+        (
+            "unsupported-local-macro-repetition",
+            "macro_rules! validate { ($($value:expr),*) => { stringify!($value) }; }\nfn main() { let _ = validate!(1); }\n",
+        ),
+        (
+            "unsupported-local-macro-metavariable",
+            "macro_rules! validate { ($value:expr) => { $missing }; }\nfn main() { let _ = validate!(1); }\n",
+        ),
+        (
+            "unsupported-local-macro-transcriber",
+            "macro_rules! validate { ($value:expr) => { unknown $value }; }\nfn main() { let _ = validate!(1); }\n",
+        ),
+    ];
+    let fixtures = sources.map(|(name, source)| {
+        let fixture = policy_sensitive_fixture(name);
+        fixture.write("src/main.rs", source);
+        fixture
+    });
+
+    // Act
+    let reports = fixtures
+        .iter()
+        .map(|fixture| completed_json(&run_check(fixture, "json"), 2))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for report in reports {
+        assert_issue(&report, "analysis.unsupported-macro-expansion");
+    }
+}
+
+#[test]
+fn should_cfg_expression_macro_is_dependency_neutral() {
     // Arrange
     let fixture = policy_sensitive_fixture("cfg-expression-macro");
     fixture.write(
@@ -1229,7 +1180,7 @@ fn cfg_expression_macro_is_dependency_neutral() {
 }
 
 #[test]
-fn cfg_guarded_local_macro_is_not_safe() {
+fn should_cfg_guarded_local_macro_is_not_safe() {
     // Arrange
     let fixture = policy_sensitive_fixture("cfg-guarded-local-macro");
     fixture.write(
@@ -1245,7 +1196,7 @@ fn cfg_guarded_local_macro_is_not_safe() {
 }
 
 #[test]
-fn unknown_cfg_guarded_local_macro_is_not_safe() {
+fn should_unknown_cfg_guarded_local_macro_is_not_safe() {
     // Arrange
     let fixture = policy_sensitive_fixture("unknown-cfg-guarded-local-macro");
     fixture.write(
@@ -1262,7 +1213,7 @@ fn unknown_cfg_guarded_local_macro_is_not_safe() {
 }
 
 #[test]
-fn safe_local_macro_at_item_position_is_indeterminate() {
+fn should_safe_local_macro_at_item_position_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("item-position-local-macro");
     fixture.write(
@@ -1278,7 +1229,7 @@ fn safe_local_macro_at_item_position_is_indeterminate() {
 }
 
 #[test]
-fn shadowed_builtin_macro_is_indeterminate() {
+fn should_shadowed_builtin_macro_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("shadowed-builtin-macro");
     fixture.write(
@@ -1294,7 +1245,7 @@ fn shadowed_builtin_macro_is_indeterminate() {
 }
 
 #[test]
-fn unsupported_macro_expansion_is_indeterminate() {
+fn should_unsupported_macro_expansion_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("unsupported-macro");
     fixture.write("src/main.rs", "fn main() { custom_macro!(); }\n");
@@ -1307,7 +1258,7 @@ fn unsupported_macro_expansion_is_indeterminate() {
 }
 
 #[test]
-fn unsupported_derive_macro_is_indeterminate() {
+fn should_unsupported_derive_macro_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("unsupported-derive");
     fixture.write(
@@ -1323,7 +1274,171 @@ fn unsupported_derive_macro_is_indeterminate() {
 }
 
 #[test]
-fn source_union_keeps_unresolved_internal_references_indeterminate() {
+fn should_altered_runtime_item_macro_definition_is_indeterminate() {
+    // Arrange
+    let alterations = [
+        (
+            "altered-runtime-item-macro-transcriber",
+            "source_view_resolver: $source_view_resolver,",
+            "source_view_resolver: $source_view_resolver, unexpected: LANGUAGE,",
+        ),
+        (
+            "altered-runtime-item-macro-missing-comma",
+            "slot = $slot:ident,\n        agnostic_fn",
+            "slot = $slot:ident\n        agnostic_fn",
+        ),
+        (
+            "altered-runtime-item-macro-key-separator",
+            "slot = $slot:ident,",
+            "slot: $slot:ident,",
+        ),
+        (
+            "altered-runtime-item-macro-missing-metavariable",
+            "slot = $slot:ident,",
+            "slot = slot:ident,",
+        ),
+        (
+            "altered-runtime-item-macro-duplicate-binding",
+            "agnostic_fn = $agnostic_fn:ident,",
+            "agnostic_fn = $slot:ident,",
+        ),
+        (
+            "altered-runtime-item-macro-fragment",
+            "slot = $slot:ident,",
+            "slot = $slot:literal,",
+        ),
+        (
+            "altered-runtime-item-macro-trailing-matcher",
+            "contextual_provider = $contextual_provider:path\n    ) =>",
+            "contextual_provider = $contextual_provider:path,\n        unexpected\n    ) =>",
+        ),
+        (
+            "altered-runtime-item-macro-unknown-metavariable",
+            "name: PROVIDER_NAME,",
+            "name: $unknown_provider,",
+        ),
+        (
+            "altered-runtime-item-macro-ungrouped-matcher",
+            "    (\n        slot = $slot:ident,",
+            "    slot = $slot:ident,",
+        ),
+        (
+            "altered-runtime-item-macro-ungrouped-transcriber",
+            "    ) => {\n        pub(crate) const LANGUAGE: &str = $language;",
+            "    ) => pub(crate) const LANGUAGE: &str = $language;",
+        ),
+    ];
+    let fixtures = alterations.map(|(name, needle, replacement)| {
+        let altered = exact_runtime_macro_definitions().replacen(needle, replacement, 1);
+        runtime_item_macro_fixture(name, &altered)
+    });
+
+    // Act
+    let reports = fixtures
+        .iter()
+        .map(|fixture| completed_json(&run_check(fixture, "json"), 2))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for report in reports {
+        assert_issue(&report, "analysis.unsupported-macro-expansion");
+        assert_eq!(report["violations"], serde_json::json!([]));
+    }
+}
+
+#[test]
+fn should_invalid_runtime_item_macro_arguments_are_indeterminate() {
+    // Arrange
+    let invalid_arguments = [
+        (
+            "invalid-runtime-item-macro-missing-equals",
+            "slot = SLOT,",
+            "slot SLOT,",
+        ),
+        (
+            "invalid-runtime-item-macro-unknown-key",
+            "slot = SLOT,",
+            "unknown = SLOT,",
+        ),
+        (
+            "invalid-runtime-item-macro-ident-fragment",
+            "slot = SLOT,",
+            "slot = \"slot\",",
+        ),
+        (
+            "invalid-runtime-item-macro-literal-fragment",
+            "language = \"fixture\",",
+            "language = fixture,",
+        ),
+        (
+            "invalid-runtime-item-macro-path-fragment",
+            "source_view_resolver = crate::forbidden::resolve,",
+            "source_view_resolver = 1,",
+        ),
+        (
+            "invalid-runtime-item-macro-missing-value",
+            "slot = SLOT,",
+            "slot = ,",
+        ),
+        (
+            "invalid-runtime-item-macro-extra-argument",
+            "provider = \"fixture-provider\"",
+            "provider = \"fixture-provider\",\n    unexpected = VALUE,",
+        ),
+    ];
+    let fixtures = invalid_arguments.map(|(name, needle, replacement)| {
+        let fixture = runtime_item_macro_fixture(name, exact_runtime_macro_definitions());
+        let invocation = "crate::foundation::plugin::policy_only::declare_policy_only_language_runtime! {\n    slot = SLOT,\n    agnostic_fn = agnostic,\n    contextual_fn = contextual,\n    agnostic_for_fn = agnostic_for,\n    contextual_for_fn = contextual_for,\n    source_view_resolver = crate::forbidden::resolve,\n    language = \"fixture\",\n    provider = \"fixture-provider\"\n}\npub(crate) fn provider_name() -> &'static str { PROVIDER_NAME }\n";
+        fixture.write(
+            "src/foundation/plugin/runtime.rs",
+            &invocation.replacen(needle, replacement, 1),
+        );
+        fixture
+    });
+
+    // Act
+    let reports = fixtures
+        .iter()
+        .map(|fixture| completed_json(&run_check(fixture, "json"), 2))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for report in reports {
+        assert_issue(&report, "analysis.unsupported-macro-expansion");
+        assert_eq!(report["violations"], serde_json::json!([]));
+    }
+}
+
+#[test]
+fn should_ambiguous_runtime_macro_import_is_indeterminate() {
+    // Arrange
+    let fixture = runtime_item_macro_fixture(
+        "ambiguous-runtime-macro-import",
+        exact_runtime_macro_definitions(),
+    );
+    fixture.write(
+        "src/foundation/plugin.rs",
+        "pub(crate) mod contextual_snapshot_materializer;\npub(crate) mod language_agnostic_snapshot_extractor;\npub(crate) mod policy_copy;\npub(crate) mod policy_only;\npub(crate) mod provider;\npub(crate) mod runtime;\n",
+    );
+    fixture.write(
+        "src/foundation/plugin/policy_copy.rs",
+        exact_runtime_macro_definitions(),
+    );
+    fixture.write(
+        "src/foundation/plugin/runtime.rs",
+        "use crate::foundation::plugin::policy_copy::declare_builtin_language_runtime;\nuse crate::foundation::plugin::policy_only::declare_builtin_language_runtime;\ndeclare_builtin_language_runtime! {\n    slot = SLOT,\n    agnostic_fn = agnostic,\n    contextual_fn = contextual,\n    agnostic_for_fn = agnostic_for,\n    contextual_for_fn = contextual_for,\n    source_view_resolver = crate::forbidden::resolve,\n    language = \"fixture\",\n    provider = \"fixture-provider\",\n    agnostic_provider = crate::foundation::plugin::policy_only::no_language_agnostic_snapshot_extractor,\n    contextual_provider = crate::foundation::plugin::policy_only::no_contextual_snapshot_materializer\n}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+    assert_eq!(report["violations"], serde_json::json!([]));
+}
+
+#[test]
+fn should_source_union_keeps_unresolved_internal_references_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("source-union-unresolved-internal");
     fixture.write(
@@ -1351,7 +1466,7 @@ fn source_union_keeps_unresolved_internal_references_indeterminate() {
 }
 
 #[test]
-fn dependency_neutral_builtin_derive_is_conformant() {
+fn should_dependency_neutral_builtin_derive_is_conformant() {
     // Arrange
     let fixture = policy_sensitive_fixture("unsupported-derive");
     fixture.write(
@@ -1368,7 +1483,7 @@ fn dependency_neutral_builtin_derive_is_conformant() {
 }
 
 #[test]
-fn external_derive_macros_with_proven_crate_identity_are_conformant() {
+fn should_external_derive_macros_with_proven_crate_identity_are_conformant() {
     // Arrange
     let fixture = policy_sensitive_fixture("external-derive");
     fixture
@@ -1387,7 +1502,7 @@ fn external_derive_macros_with_proven_crate_identity_are_conformant() {
 }
 
 #[test]
-fn unknown_external_derive_macro_is_indeterminate() {
+fn should_unknown_external_derive_macro_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("unknown-external-derive");
     fixture.write_manifest("[dependencies]\nevil = \"1\"\n");
@@ -1404,7 +1519,7 @@ fn unknown_external_derive_macro_is_indeterminate() {
 }
 
 #[test]
-fn unknown_external_single_segment_derive_alias_is_indeterminate() {
+fn should_unknown_external_single_segment_derive_alias_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("unknown-external-derive-alias");
     fixture.write_manifest("[dependencies]\nevil = \"1\"\n");
@@ -1421,7 +1536,7 @@ fn unknown_external_single_segment_derive_alias_is_indeterminate() {
 }
 
 #[test]
-fn mixed_external_derive_alias_candidates_are_indeterminate() {
+fn should_mixed_external_derive_alias_candidates_are_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("mixed-external-derive-aliases");
     fixture.write_manifest(
@@ -1440,7 +1555,7 @@ fn mixed_external_derive_alias_candidates_are_indeterminate() {
 }
 
 #[test]
-fn unsupported_name_resolution_is_indeterminate() {
+fn should_unsupported_name_resolution_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("unsupported-name-resolution");
     fixture.write(
@@ -1456,7 +1571,7 @@ fn unsupported_name_resolution_is_indeterminate() {
 }
 
 #[test]
-fn unsupported_expression_name_resolution_is_indeterminate() {
+fn should_unsupported_expression_name_resolution_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("unsupported-expression-resolution");
     fixture.write(
@@ -1472,7 +1587,7 @@ fn unsupported_expression_name_resolution_is_indeterminate() {
 }
 
 #[test]
-fn generic_type_parameters_are_dependency_neutral() {
+fn should_generic_type_parameters_are_dependency_neutral() {
     // Arrange
     let fixture = policy_sensitive_fixture("generic-type-parameter");
     fixture.write(
@@ -1489,7 +1604,7 @@ fn generic_type_parameters_are_dependency_neutral() {
 }
 
 #[test]
-fn generic_associated_paths_are_dependency_neutral() {
+fn should_generic_associated_paths_are_dependency_neutral() {
     // Arrange
     let fixture = policy_sensitive_fixture("generic-associated-path");
     fixture.write(
@@ -1506,7 +1621,7 @@ fn generic_associated_paths_are_dependency_neutral() {
 }
 
 #[test]
-fn no_implicit_prelude_keeps_prelude_names_unresolved() {
+fn should_no_implicit_prelude_keeps_prelude_names_unresolved() {
     // Arrange
     let fixture = policy_sensitive_fixture("no-implicit-prelude");
     fixture.write(
@@ -1522,7 +1637,7 @@ fn no_implicit_prelude_keeps_prelude_names_unresolved() {
 }
 
 #[test]
-fn internal_module_named_like_a_prelude_type_is_observed() {
+fn should_internal_module_named_like_a_prelude_type_is_observed() {
     // Arrange
     let fixture = TempFixture::new("internal-prelude-name");
     fixture.write(
@@ -1544,7 +1659,7 @@ fn internal_module_named_like_a_prelude_type_is_observed() {
 }
 
 #[test]
-fn renamed_extern_crate_is_resolved_as_external() {
+fn should_renamed_extern_crate_is_resolved_as_external() {
     // Arrange
     let fixture = policy_sensitive_fixture("renamed-extern-crate");
     fixture.write(
@@ -1568,7 +1683,7 @@ fn renamed_extern_crate_is_resolved_as_external() {
 }
 
 #[test]
-fn unsupported_syntax_is_indeterminate() {
+fn should_unsupported_syntax_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("unsupported-syntax");
     fixture.write("src/main.rs", "fn main( {\n");
@@ -1581,7 +1696,7 @@ fn unsupported_syntax_is_indeterminate() {
 }
 
 #[test]
-fn path_module_declaration_is_indeterminate_for_child_policy() {
+fn should_path_module_declaration_is_indeterminate_for_child_policy() {
     // Arrange
     let fixture = TempFixture::new("path-module-child-policy");
     fixture.write(
@@ -1599,6 +1714,7 @@ fn path_module_declaration_is_indeterminate_for_child_policy() {
     let report = completed_json(&run_check(&fixture, "json"), 2);
 
     // Assert
+    assert_issue(&report, "analysis.unsupported-syntax");
     let issue = &report["analysis_issues"][0];
     assert_eq!(issue["code"], "analysis.unsupported-syntax");
     assert_eq!(issue["affected_scope"], "crate::restricted");
@@ -1611,7 +1727,7 @@ fn path_module_declaration_is_indeterminate_for_child_policy() {
 }
 
 #[test]
-fn active_cfg_attr_path_module_is_indeterminate_for_child_policy() {
+fn should_active_cfg_attr_path_module_is_indeterminate_for_child_policy() {
     // Arrange
     let fixture = TempFixture::new("cfg-attr-path-module-child-policy");
     fixture.write(
@@ -1642,7 +1758,7 @@ fn active_cfg_attr_path_module_is_indeterminate_for_child_policy() {
 }
 
 #[test]
-fn inactive_cfg_attr_path_module_is_ignored() {
+fn should_inactive_cfg_attr_path_module_is_ignored() {
     // Arrange
     let fixture = TempFixture::new("inactive-cfg-attr-path-module");
     fixture.write(
@@ -1666,7 +1782,7 @@ fn inactive_cfg_attr_path_module_is_ignored() {
 }
 
 #[test]
-fn unsupported_analysis_context_is_indeterminate() {
+fn should_unsupported_analysis_context_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("unsupported-context");
     fixture.write(
@@ -1682,7 +1798,7 @@ fn unsupported_analysis_context_is_indeterminate() {
 }
 
 #[test]
-fn missing_target_required_feature_is_indeterminate() {
+fn should_missing_target_required_feature_is_indeterminate() {
     // Arrange
     let fixture = policy_sensitive_fixture("missing-target-feature");
     fixture.write_manifest(
@@ -1698,7 +1814,7 @@ fn missing_target_required_feature_is_indeterminate() {
 }
 
 #[test]
-fn dev_dependency_is_unavailable_to_binary_target() {
+fn should_dev_dependency_is_unavailable_to_binary_target() {
     // Arrange
     let fixture = policy_sensitive_fixture("binary-target-dependencies");
     fixture.write_manifest("[dev-dependencies]\ntest-only = \"1\"\n[target.x86_64-unknown-linux-gnu.dependencies]\ntarget-only = \"1\"\n");
@@ -1712,7 +1828,7 @@ fn dev_dependency_is_unavailable_to_binary_target() {
 }
 
 #[test]
-fn cfg_selected_dependency_uses_the_rustc_target_context() {
+fn should_cfg_selected_dependency_uses_the_rustc_target_context() {
     // Arrange
     let fixture = policy_sensitive_fixture("cfg-dependency");
     fixture.write_manifest("[target.'cfg(unix)'.dependencies]\ncfg-only = \"1\"\n");
@@ -1727,7 +1843,7 @@ fn cfg_selected_dependency_uses_the_rustc_target_context() {
 }
 
 #[test]
-fn selected_optional_dependency_uses_the_cargo_feature_context() {
+fn should_selected_optional_dependency_uses_the_cargo_feature_context() {
     // Arrange
     let fixture = policy_sensitive_fixture("optional-dependency");
     fixture
@@ -1746,7 +1862,7 @@ fn selected_optional_dependency_uses_the_cargo_feature_context() {
 }
 
 #[test]
-fn inactive_cfg_items_are_excluded_before_dependency_observation() {
+fn should_inactive_cfg_items_are_excluded_before_dependency_observation() {
     // Arrange
     let fixture = policy_sensitive_fixture("inactive-cfg-item");
     fixture.write(
@@ -1763,7 +1879,7 @@ fn inactive_cfg_items_are_excluded_before_dependency_observation() {
 }
 
 #[test]
-fn inactive_cfg_macro_statements_are_excluded_before_macro_observation() {
+fn should_inactive_cfg_macro_statements_are_excluded_before_macro_observation() {
     // Arrange
     let fixture = policy_sensitive_fixture("inactive-cfg-macro-statement");
     fixture.write(
@@ -1780,7 +1896,7 @@ fn inactive_cfg_macro_statements_are_excluded_before_macro_observation() {
 }
 
 #[test]
-fn inactive_cfg_fields_are_excluded_before_name_observation() {
+fn should_inactive_cfg_fields_are_excluded_before_name_observation() {
     // Arrange
     let fixture = policy_sensitive_fixture("inactive-cfg-field");
     fixture.write(
@@ -1797,7 +1913,7 @@ fn inactive_cfg_fields_are_excluded_before_name_observation() {
 }
 
 #[test]
-fn standard_macro_arguments_are_observed_recursively() {
+fn should_standard_macro_arguments_are_observed_recursively() {
     // Arrange
     let fixture = TempFixture::new("macro-arguments");
     fixture.write(
@@ -1823,7 +1939,7 @@ fn standard_macro_arguments_are_observed_recursively() {
 }
 
 #[test]
-fn local_binding_shadowing_does_not_create_a_module_dependency() {
+fn should_local_binding_shadowing_does_not_create_a_module_dependency() {
     // Arrange
     let fixture = TempFixture::new("local-binding-shadowing");
     fixture.write(

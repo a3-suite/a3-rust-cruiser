@@ -4,7 +4,7 @@
 use super::*;
 
 #[test]
-fn root_help_exits_with_zero() {
+fn should_root_help_exits_with_zero() {
     // Arrange
     let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
 
@@ -23,7 +23,7 @@ fn root_help_exits_with_zero() {
 }
 
 #[test]
-fn check_help_exits_with_zero() {
+fn should_check_help_exits_with_zero() {
     // Arrange
     let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
 
@@ -42,7 +42,7 @@ fn check_help_exits_with_zero() {
 }
 
 #[test]
-fn version_exits_with_zero() {
+fn should_version_exits_with_zero() {
     // Arrange
     let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
 
@@ -62,7 +62,7 @@ fn version_exits_with_zero() {
 }
 
 #[test]
-fn conformant_result_exits_with_zero() {
+fn should_conformant_result_exits_with_zero() {
     // Arrange
     let fixture = TempFixture::new("conformant-exit");
 
@@ -74,7 +74,7 @@ fn conformant_result_exits_with_zero() {
 }
 
 #[test]
-fn non_conformant_result_exits_with_one() {
+fn should_non_conformant_result_exits_with_one() {
     // Arrange
     let fixture = forbidden_fixture("non-conformant-exit", false);
 
@@ -86,7 +86,7 @@ fn non_conformant_result_exits_with_one() {
 }
 
 #[test]
-fn indeterminate_result_exits_with_two() {
+fn should_indeterminate_result_exits_with_two() {
     // Arrange
     let fixture = policy_sensitive_fixture("indeterminate-exit");
     fixture.write("src/main.rs", "fn main() { custom_macro!(); }\n");
@@ -99,7 +99,7 @@ fn indeterminate_result_exits_with_two() {
 }
 
 #[test]
-fn execution_failure_exits_with_three() {
+fn should_execution_failure_exits_with_three() {
     // Arrange
     let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
 
@@ -116,7 +116,44 @@ fn execution_failure_exits_with_three() {
 }
 
 #[test]
-fn invalid_cli_options_are_rejected() {
+fn should_missing_boundary_policy_source_is_rejected() {
+    // Arrange
+    let fixture = TempFixture::new("missing-boundary-policy-source");
+    let target = fixture.target();
+
+    // Act
+    let output = run_check_without_policy(
+        &fixture,
+        fixture.package(),
+        &target,
+        "x86_64-unknown-linux-gnu",
+        &["--format", "json"],
+    );
+
+    // Assert
+    assert_execution_failure(
+        &output,
+        "--policy or complete SDD boundary policy input is required",
+    );
+}
+
+#[test]
+fn should_project_root_is_required_for_check() {
+    // Arrange
+    let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
+
+    // Act
+    let output = Command::new(binary)
+        .arg("check")
+        .output()
+        .expect("binary should run");
+
+    // Assert
+    assert_execution_failure(&output, "Usage: a3-rust-cruiser check <PROJECT_ROOT>");
+}
+
+#[test]
+fn should_invalid_cli_options_are_rejected() {
     // Arrange
     let fixture = TempFixture::new("invalid-cli-options");
 
@@ -143,7 +180,7 @@ fn invalid_cli_options_are_rejected() {
 }
 
 #[test]
-fn disabled_auto_discovery_rejects_hidden_target() {
+fn should_disabled_auto_discovery_rejects_hidden_target() {
     // Arrange
     let fixture = TempFixture::new("disabled-auto-discovery");
     fixture.write_manifest("autobins = false\n");
@@ -157,7 +194,7 @@ fn disabled_auto_discovery_rejects_hidden_target() {
 }
 
 #[test]
-fn missing_target_source_is_rejected() {
+fn should_missing_target_source_is_rejected() {
     // Arrange
     let fixture = TempFixture::new("missing-target-source");
     fixture.write_manifest("[[bin]]\nname = \"missing\"\npath = \"src/bin/missing.rs\"\n");
@@ -170,7 +207,7 @@ fn missing_target_source_is_rejected() {
 }
 
 #[test]
-fn invalid_manifest_and_target_requests_fail_with_diagnostics() {
+fn should_invalid_manifest_and_target_requests_fail_with_diagnostics() {
     // Arrange
     let fixture = TempFixture::new("invalid-targets");
 
@@ -215,7 +252,7 @@ fn invalid_manifest_and_target_requests_fail_with_diagnostics() {
 }
 
 #[test]
-fn manifest_target_and_dependency_types_are_rejected() {
+fn should_manifest_target_and_dependency_types_are_rejected() {
     // Arrange
     let invalid_auto = TempFixture::new("invalid-auto");
     invalid_auto.write_manifest("autobins = \"false\"\n");
@@ -241,7 +278,7 @@ fn manifest_target_and_dependency_types_are_rejected() {
 }
 
 #[test]
-fn malformed_manifest_shapes_fail_before_analysis() {
+fn should_malformed_manifest_shapes_fail_before_analysis() {
     // Arrange
     let cases = [
         (
@@ -303,13 +340,28 @@ fn malformed_manifest_shapes_fail_before_analysis() {
 }
 
 #[test]
-fn missing_required_analysis_context_is_rejected() {
+fn should_missing_required_analysis_context_is_rejected() {
     // Arrange
     let fixture = TempFixture::new("missing-context");
+    let package = fixture.package().to_owned();
+    let target = fixture.target();
+    let target_triple = "x86_64-unknown-linux-gnu".to_owned();
+    let cases = [
+        (String::new(), target.clone(), target_triple.clone()),
+        (package.clone(), String::new(), target_triple.clone()),
+        (package, target, String::new()),
+    ];
 
     // Act
-    let output = run_custom(&fixture, fixture.package(), &fixture.target(), "", &[]);
+    let outputs = cases
+        .into_iter()
+        .map(|(package, target, target_triple)| {
+            run_custom(&fixture, &package, &target, &target_triple, &[])
+        })
+        .collect::<Vec<_>>();
 
     // Assert
-    assert_execution_failure(&output, "package, target, and target_triple are required");
+    for output in outputs {
+        assert_execution_failure(&output, "package, target, and target_triple are required");
+    }
 }

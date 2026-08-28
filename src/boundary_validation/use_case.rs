@@ -12,12 +12,19 @@ use crate::boundary_evaluation::{
 use super::{CruiserError, Result};
 
 pub trait BoundaryPolicyLoader {
-    fn load(
+    fn prepare(&self, input: &BoundaryPolicyInput) -> Result<PreparedBoundaryPolicy>;
+
+    fn finalize(
         &self,
-        input: &BoundaryPolicyInput,
+        prepared: PreparedBoundaryPolicy,
         project_root: &Path,
-        target_source: &Path,
+        target_source: Option<&Path>,
     ) -> Result<LoadedBoundaryPolicy>;
+}
+
+pub(crate) enum PreparedBoundaryPolicy {
+    Yaml(BoundaryPolicy),
+    Sdd(super::sdd_policy::PreparedSddDesign),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,11 +68,12 @@ where
             "package, target, and target_triple are required".to_owned(),
         ));
     }
-    let target_source = match policy_input {
-        BoundaryPolicyInput::Yaml { .. } => PathBuf::new(),
-        BoundaryPolicyInput::SddDesign { .. } => observer.target_source(project_root, &context)?,
+    let prepared = policy_loader.prepare(policy_input)?;
+    let target_source = match &prepared {
+        PreparedBoundaryPolicy::Yaml(_) => None,
+        PreparedBoundaryPolicy::Sdd(_) => Some(observer.target_source(project_root, &context)?),
     };
-    let loaded = policy_loader.load(policy_input, project_root, &target_source)?;
+    let loaded = policy_loader.finalize(prepared, project_root, target_source.as_deref())?;
     let mut policy = loaded.policy;
     let mut analysis_issues = loaded.analysis_issues;
     validate_policy(&policy)?;
@@ -198,23 +206,33 @@ fn is_kebab_case(value: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{BoundaryPolicyLoader, DependencyObserver, validate, validate_analysis_issues};
+    use super::{BoundaryPolicyLoader, DependencyObserver, PreparedBoundaryPolicy, validate};
     use crate::boundary_validation::{
-        AnalysisContext, AnalysisIssue, BoundaryPolicy, BoundaryRule, LoadedBoundaryPolicy,
-        ObservedDependencyGraph, Result, RuleKind, Severity, ValidationDecision,
+        AnalysisContext, AnalysisIssue, BoundaryPolicy, BoundaryRule, CruiserError,
+        LoadedBoundaryPolicy, ObservedDependencyGraph, Result, RuleKind, Severity,
+        ValidationDecision,
     };
 
     struct StubPolicyLoader;
 
     impl BoundaryPolicyLoader for StubPolicyLoader {
-        fn load(
+        fn prepare(&self, _input: &super::BoundaryPolicyInput) -> Result<PreparedBoundaryPolicy> {
+            Ok(PreparedBoundaryPolicy::Yaml(BoundaryPolicy {
+                rules: Vec::new(),
+            }))
+        }
+
+        fn finalize(
             &self,
-            _input: &super::BoundaryPolicyInput,
+            prepared: PreparedBoundaryPolicy,
             _project_root: &std::path::Path,
-            _target_source: &std::path::Path,
+            _target_source: Option<&std::path::Path>,
         ) -> Result<LoadedBoundaryPolicy> {
+            let PreparedBoundaryPolicy::Yaml(policy) = prepared else {
+                panic!("stub policy loader only prepares YAML policies")
+            };
             Ok(LoadedBoundaryPolicy {
-                policy: BoundaryPolicy { rules: Vec::new() },
+                policy,
                 analysis_issues: Vec::new(),
                 component_attribution: None,
             })
@@ -250,15 +268,80 @@ mod tests {
         }
     }
 
+    struct AnalysisIssueObserver {
+        issue: AnalysisIssue,
+    }
+
+    impl DependencyObserver for AnalysisIssueObserver {
+        fn target_source(
+            &self,
+            project_root: &std::path::Path,
+            _context: &AnalysisContext,
+        ) -> Result<std::path::PathBuf> {
+            Ok(project_root.join("src/main.rs"))
+        }
+
+        fn observe(
+            &self,
+            _project_root: &std::path::Path,
+            context: AnalysisContext,
+        ) -> Result<(ObservedDependencyGraph, Vec<AnalysisIssue>)> {
+            Ok((
+                ObservedDependencyGraph {
+                    analysis_context: context,
+                    modules: Vec::new(),
+                    module_declarations: Vec::new(),
+                    dependencies: Vec::new(),
+                    excluded_scopes: Vec::new(),
+                },
+                vec![self.issue.clone()],
+            ))
+        }
+    }
+
+    struct PrepareFailureLoader;
+
+    impl BoundaryPolicyLoader for PrepareFailureLoader {
+        fn prepare(&self, _input: &super::BoundaryPolicyInput) -> Result<PreparedBoundaryPolicy> {
+            Err(CruiserError::InvalidInput(
+                "structural preflight failed".to_owned(),
+            ))
+        }
+
+        fn finalize(
+            &self,
+            _prepared: PreparedBoundaryPolicy,
+            _project_root: &std::path::Path,
+            _target_source: Option<&std::path::Path>,
+        ) -> Result<LoadedBoundaryPolicy> {
+            unreachable!("finalization must not run after a failed preflight")
+        }
+    }
+
+    struct TargetSourceMustNotBeCalled;
+
+    impl DependencyObserver for TargetSourceMustNotBeCalled {
+        fn target_source(
+            &self,
+            _project_root: &std::path::Path,
+            _context: &AnalysisContext,
+        ) -> Result<std::path::PathBuf> {
+            panic!("target source resolution must follow SDD structural preflight")
+        }
+
+        fn observe(
+            &self,
+            _project_root: &std::path::Path,
+            _context: AnalysisContext,
+        ) -> Result<(ObservedDependencyGraph, Vec<AnalysisIssue>)> {
+            unreachable!("observation must not run after a failed preflight")
+        }
+    }
+
     struct InvalidPolicyLoader;
 
     impl BoundaryPolicyLoader for InvalidPolicyLoader {
-        fn load(
-            &self,
-            _input: &super::BoundaryPolicyInput,
-            _project_root: &std::path::Path,
-            _target_source: &std::path::Path,
-        ) -> Result<LoadedBoundaryPolicy> {
+        fn prepare(&self, _input: &super::BoundaryPolicyInput) -> Result<PreparedBoundaryPolicy> {
             let rule = BoundaryRule {
                 id: "duplicate".to_owned(),
                 kind: RuleKind::Forbidden,
@@ -268,10 +351,22 @@ mod tests {
                 modules: Vec::new(),
                 dependency_kinds: Vec::new(),
             };
+            Ok(PreparedBoundaryPolicy::Yaml(BoundaryPolicy {
+                rules: vec![rule.clone(), rule],
+            }))
+        }
+
+        fn finalize(
+            &self,
+            prepared: PreparedBoundaryPolicy,
+            _project_root: &std::path::Path,
+            _target_source: Option<&std::path::Path>,
+        ) -> Result<LoadedBoundaryPolicy> {
+            let PreparedBoundaryPolicy::Yaml(policy) = prepared else {
+                panic!("invalid policy loader only prepares YAML policies")
+            };
             Ok(LoadedBoundaryPolicy {
-                policy: BoundaryPolicy {
-                    rules: vec![rule.clone(), rule],
-                },
+                policy,
                 analysis_issues: Vec::new(),
                 component_attribution: None,
             })
@@ -308,6 +403,41 @@ mod tests {
 
         // Assert
         assert_eq!(result.decision, ValidationDecision::Conformant);
+    }
+
+    #[test]
+    fn should_prepare_sdd_policy_before_resolving_target_source() {
+        // Arrange
+        let context = AnalysisContext {
+            analysis_profile: crate::boundary_validation::AnalysisProfile::Compilation,
+            package: "fixture".to_owned(),
+            compilation_target: "bin:fixture".to_owned(),
+            features: Vec::new(),
+            cfg: Vec::new(),
+            target_triple: "x86_64-unknown-linux-gnu".to_owned(),
+            include: Vec::new(),
+            exclude: Vec::new(),
+        };
+        let policy = super::BoundaryPolicyInput::SddDesign {
+            logical_structure: "logical-structure.sdd.yml".into(),
+            projection: "projection.sdd.yml".into(),
+            directory_structure: "directory-structure.sdd.yml".into(),
+        };
+
+        // Act
+        let result = validate(
+            &TargetSourceMustNotBeCalled,
+            &PrepareFailureLoader,
+            std::path::Path::new("unused-project"),
+            context,
+            &policy,
+        );
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(CruiserError::InvalidInput(message)) if message == "structural preflight failed"
+        ));
     }
 
     #[test]
@@ -350,11 +480,77 @@ mod tests {
             None,
         );
         issue.policy_impact = crate::boundary_evaluation::PolicyImpact::possible(Vec::new());
+        let context = AnalysisContext {
+            analysis_profile: crate::boundary_validation::AnalysisProfile::Compilation,
+            package: "fixture".to_owned(),
+            compilation_target: "bin:fixture".to_owned(),
+            features: Vec::new(),
+            cfg: Vec::new(),
+            target_triple: "x86_64-unknown-linux-gnu".to_owned(),
+            include: Vec::new(),
+            exclude: Vec::new(),
+        };
 
         // Act
-        let result = validate_analysis_issues(&[issue]);
+        let result = validate(
+            &AnalysisIssueObserver { issue },
+            &StubPolicyLoader,
+            std::path::Path::new("unused-project"),
+            context,
+            &super::BoundaryPolicyInput::Yaml {
+                path: "unused-policy".into(),
+            },
+        );
 
         // Assert
-        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(CruiserError::InvalidInput(message))
+                if message == "dependency-neutral analysis issue analysis.unsupported-syntax cannot have possible policy impact"
+        ));
+    }
+
+    #[test]
+    fn should_reject_rule_ids_for_an_issue_without_policy_impact() {
+        // Arrange
+        let mut issue = AnalysisIssue::dependency_neutral(
+            "analysis.unsupported-syntax",
+            "syntax was proven dependency-neutral",
+            "crate",
+            Some("crate".to_owned()),
+            None,
+        );
+        issue
+            .policy_impact
+            .rule_ids
+            .push("unexpected-rule".to_owned());
+        let context = AnalysisContext {
+            analysis_profile: crate::boundary_validation::AnalysisProfile::Compilation,
+            package: "fixture".to_owned(),
+            compilation_target: "bin:fixture".to_owned(),
+            features: Vec::new(),
+            cfg: Vec::new(),
+            target_triple: "x86_64-unknown-linux-gnu".to_owned(),
+            include: Vec::new(),
+            exclude: Vec::new(),
+        };
+
+        // Act
+        let result = validate(
+            &AnalysisIssueObserver { issue },
+            &StubPolicyLoader,
+            std::path::Path::new("unused-project"),
+            context,
+            &super::BoundaryPolicyInput::Yaml {
+                path: "unused-policy".into(),
+            },
+        );
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(CruiserError::InvalidInput(message))
+                if message == "analysis issue analysis.unsupported-syntax with no policy impact cannot reference rules"
+        ));
     }
 }
