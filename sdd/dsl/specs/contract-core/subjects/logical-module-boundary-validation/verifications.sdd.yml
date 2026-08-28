@@ -724,6 +724,7 @@ verifications:
             - inactive-cfg-item
             - lexical-use-and-local-binding
             - dependency-neutral-standard-macro-and-derive
+            - dependency-neutral-external-macro-with-proven-identity
             - standard-macro-arguments
             - exact-safe-local-macro
             - known-serde-function-path-attribute

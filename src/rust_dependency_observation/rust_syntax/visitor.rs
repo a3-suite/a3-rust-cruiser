@@ -78,10 +78,12 @@ fn known_builtin_attribute(path: &syn::Path) -> bool {
 pub(crate) struct PathVisitor<'a> {
     pub(crate) cfg_context: &'a CfgContext,
     pub(crate) external_crates: &'a BTreeSet<String>,
+    pub(crate) declared_items: &'a BTreeSet<String>,
     pub(crate) observe_attribute_paths: bool,
     pub(crate) paths: Vec<ObservedPath>,
     pub(crate) scoped_uses: Vec<ScopedUse>,
     pub(crate) local_bindings: BTreeSet<String>,
+    pub(crate) local_item_bindings: BTreeSet<String>,
     pub(crate) aliases: BTreeMap<String, Vec<UseAlias>>,
     pub(crate) glob_imports: Vec<UseAlias>,
     pub(crate) macro_bindings: BTreeSet<String>,
@@ -163,6 +165,7 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
 
     fn visit_block(&mut self, block: &'ast syn::Block) {
         let outer_bindings = self.local_bindings.clone();
+        let outer_item_bindings = self.local_item_bindings.clone();
         let outer_aliases = self.aliases.clone();
         let outer_glob_imports = self.glob_imports.clone();
         let outer_macro_bindings = self.macro_bindings.clone();
@@ -224,6 +227,7 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
                 }
                 if let Some(name) = declared_item_name(item) {
                     self.local_bindings.insert(name.clone());
+                    self.local_item_bindings.insert(name.clone());
                     block_scope_bindings.insert(name);
                 }
             }
@@ -247,6 +251,7 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
             }
         }
         self.local_bindings = outer_bindings;
+        self.local_item_bindings = outer_item_bindings;
         self.aliases = outer_aliases;
         self.glob_imports = outer_glob_imports;
         self.macro_bindings = outer_macro_bindings;
@@ -449,6 +454,17 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
         if is_dependency_neutral_token_macro(&identity) {
             return;
         }
+        if known_dependency_neutral_external_macro(
+            &identity,
+            &self.aliases,
+            self.external_crates,
+            self.declared_items,
+            &self.local_item_bindings,
+            macro_item.path.leading_colon.is_some(),
+            0,
+        ) {
+            return;
+        }
         if is_dependency_neutral_expression_macro(&identity) {
             if !visit_macro_expressions(self, macro_item.tokens.clone()) {
                 self.macro_spans.push(macro_item.span().start());
@@ -491,6 +507,53 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
         }
         syn::visit::visit_attribute(self, attribute);
     }
+}
+
+fn known_dependency_neutral_external_macro(
+    path: &[String],
+    aliases: &BTreeMap<String, Vec<UseAlias>>,
+    external_crates: &BTreeSet<String>,
+    declared_items: &BTreeSet<String>,
+    local_item_bindings: &BTreeSet<String>,
+    external_root_proven: bool,
+    alias_depth: usize,
+) -> bool {
+    const MAX_ALIAS_DEPTH: usize = 16;
+    if alias_depth > MAX_ALIAS_DEPTH {
+        return false;
+    }
+    let Some(first) = path.first() else {
+        return false;
+    };
+    if !external_root_proven && let Some(candidates) = aliases.get(first) {
+        return !candidates.is_empty()
+            && candidates.iter().all(|alias| {
+                let Some(root) = alias.path.first() else {
+                    return false;
+                };
+                let external_root_proven = external_root_proven || alias.absolute_external;
+                if !external_root_proven
+                    && (declared_items.contains(root) || local_item_bindings.contains(root))
+                {
+                    return false;
+                }
+                let mut expanded = alias.path.clone();
+                expanded.extend_from_slice(&path[1..]);
+                known_dependency_neutral_external_macro(
+                    &expanded,
+                    aliases,
+                    external_crates,
+                    declared_items,
+                    local_item_bindings,
+                    external_root_proven,
+                    alias_depth + 1,
+                )
+            });
+    }
+    path == ["syn", "Token"]
+        && external_crates.contains("syn")
+        && (external_root_proven
+            || (!declared_items.contains("syn") && !local_item_bindings.contains("syn")))
 }
 
 fn dependency_neutral_attribute_paths(

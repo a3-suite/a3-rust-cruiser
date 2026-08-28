@@ -49,6 +49,40 @@ mod self_module_boundary_sdd_projection {
     }
 
     #[test]
+    fn should_enforce_current_dependencies_with_compilation_profile() {
+        // Arrange
+        let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let design = ModuleBoundaryDesign::load(project_root);
+
+        // Act
+        let output = run_check_with_profile(
+            project_root,
+            project_root,
+            env!("CARGO_PKG_NAME"),
+            &format!("bin:{}", env!("CARGO_PKG_NAME")),
+            "compilation",
+        );
+        let report = report_from(&output, &[0]);
+
+        // Assert
+        assert_eq!(
+            report["analysis_context"]["analysis_profile"],
+            "compilation"
+        );
+        assert_eq!(report["decision"], "conformant");
+        assert_eq!(report["analysis_issues"], json!([]));
+        assert_eq!(report["violations"], json!([]));
+        assert_eq!(
+            observed_top_level_modules(&report),
+            design.top_level_modules
+        );
+        assert_eq!(
+            observed_component_dependencies(&report, &design),
+            design.dependencies
+        );
+    }
+
+    #[test]
     fn should_accept_sdd_declared_component_dependencies() {
         // Arrange
         let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -359,6 +393,16 @@ fn module_file(module: &str) -> String {
 }
 
 fn run_check(project_root: &Path, design_root: &Path, package: &str, target: &str) -> Output {
+    run_check_with_profile(project_root, design_root, package, target, "source-union")
+}
+
+fn run_check_with_profile(
+    project_root: &Path,
+    design_root: &Path,
+    package: &str,
+    target: &str,
+    analysis_profile: &str,
+) -> Output {
     Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"))
         .arg("check")
         .arg(project_root)
@@ -381,7 +425,7 @@ fn run_check(project_root: &Path, design_root: &Path, package: &str, target: &st
         .arg("--target-triple")
         .arg(host_triple())
         .arg("--analysis-profile")
-        .arg("source-union")
+        .arg(analysis_profile)
         .arg("--format")
         .arg("json")
         .output()

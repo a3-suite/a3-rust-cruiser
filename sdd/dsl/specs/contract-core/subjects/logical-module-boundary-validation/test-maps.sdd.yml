@@ -528,6 +528,18 @@ test_maps:
         check_refs:
           - check-conformant-decision
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_dependency_neutral_external_macro_with_proven_identity_is_conformant
+        check_refs:
+          - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_absolute_external_macro_import_ignore_local_item_shadow
+        check_refs:
+          - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_absolute_external_macro_root_ignore_lexical_aliases
+        check_refs:
+          - check-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_dependency_neutral_builtin_derive_is_conformant
         check_refs:
           - check-conformant-decision
@@ -727,6 +739,38 @@ test_maps:
           - check-analysis-issue-affected-scope
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unsupported_derive_macro_is_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_shadowed_dependency_neutral_external_macro_is_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_absolute_unknown_external_macro_root_not_resolve_through_lexical_alias
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_local_item_shadowing_external_macro_crate_is_indeterminate
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issues
+          - check-analysis-issue-code
+          - check-analysis-issue-reason
+          - check-analysis-issue-affected-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_ambiguous_dependency_neutral_external_macro_import_is_indeterminate
         check_refs:
           - check-indeterminate
           - check-analysis-issues

@@ -474,10 +474,12 @@ impl Observer {
         let mut visitor = PathVisitor {
             cfg_context: &self.cfg_context,
             external_crates: &self.external_crates,
+            declared_items: &variant.declared_items,
             observe_attribute_paths: analysis_profile == AnalysisProfile::Compilation,
             paths: Vec::new(),
             scoped_uses: Vec::new(),
             local_bindings: BTreeSet::new(),
+            local_item_bindings: BTreeSet::new(),
             aliases: variant.use_aliases.clone(),
             glob_imports: variant.glob_imports.clone(),
             macro_bindings,

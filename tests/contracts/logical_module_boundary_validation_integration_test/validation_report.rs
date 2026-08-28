@@ -788,6 +788,128 @@ fn should_dependency_neutral_standard_macro_is_conformant() {
 }
 
 #[test]
+fn should_dependency_neutral_external_macro_with_proven_identity_is_conformant() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("dependency-neutral-external-macro");
+    fixture.write_manifest("[dependencies]\nsyn = \"2\"\n");
+    fixture.write(
+        "src/main.rs",
+        "use syn::Token;\nuse syn::Token as SynToken;\nuse ::syn::Token as AbsoluteToken;\ntype Comma = Token![,];\ntype Semicolon = SynToken![;];\ntype Colon = AbsoluteToken![:];\nfn main() { let syn = (); let _: Option<Token![,]> = None; let _ = syn; }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn should_absolute_external_macro_import_ignore_local_item_shadow() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("absolute-external-macro-with-local-shadow");
+    fixture.write_manifest("[dependencies]\nsyn = \"2\"\n");
+    fixture.write(
+        "src/main.rs",
+        "mod syn { pub struct Local; }\nuse ::syn::Token as AbsoluteToken;\ntype Colon = AbsoluteToken![:];\nfn main() { let _ = syn::Local; }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn should_absolute_external_macro_root_ignore_lexical_aliases() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("absolute-external-macro-with-lexical-alias");
+    fixture.write_manifest("[dependencies]\nsyn = \"2\"\n");
+    fixture.write(
+        "src/main.rs",
+        "mod local {}\nuse crate::local as syn;\nuse ::syn::Token as AbsoluteToken;\ntype Comma = AbsoluteToken![,];\ntype Colon = ::syn::Token![:];\nfn main() {}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn should_shadowed_dependency_neutral_external_macro_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("shadowed-dependency-neutral-external-macro");
+    fixture.write_manifest("[dependencies]\nsyn = \"2\"\n");
+    fixture.write(
+        "src/main.rs",
+        "use syn::Token;\nmod internal { pub fn value() {} }\nfn main() {\n    macro_rules! Token { ($token:tt) => { crate::internal::value() }; }\n    Token![,];\n}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn should_absolute_unknown_external_macro_root_not_resolve_through_lexical_alias() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("absolute-unknown-external-macro-with-lexical-alias");
+    fixture.write_manifest("[dependencies]\nsyn = \"2\"\n");
+    fixture.write(
+        "src/main.rs",
+        "use syn as other;\nuse ::other::Token as AbsoluteToken;\nfn main() { AbsoluteToken![,]; }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn should_local_item_shadowing_external_macro_crate_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("local-item-shadowing-external-macro-crate");
+    fixture.write_manifest("[dependencies]\nsyn = \"2\"\n");
+    fixture.write(
+        "src/main.rs",
+        "mod syn { pub struct Token; }\nuse syn::Token;\nfn main() { Token![,]; }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
+fn should_ambiguous_dependency_neutral_external_macro_import_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("shadowed-external-macro-crate");
+    fixture.write_manifest("[dependencies]\nsyn = \"2\"\n");
+    fixture.write(
+        "src/main.rs",
+        "mod local { pub struct Token; }\nuse local::Token;\nuse syn::Token;\nfn main() { Token![,]; }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
 fn should_safe_local_single_arm_macro_is_conformant() {
     // Arrange
     let fixture = policy_sensitive_fixture("safe-local-macro");
