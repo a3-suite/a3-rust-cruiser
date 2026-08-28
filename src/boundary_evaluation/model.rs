@@ -263,6 +263,30 @@ impl AnalysisIssue {
         }
     }
 
+    pub fn component_attribution_unresolved_for_dependency(
+        source_module: String,
+        target_module: String,
+        evidence: SourceEvidence,
+        candidate_components: Vec<String>,
+        dependency_kind: DependencyKind,
+        reason: String,
+    ) -> Self {
+        Self {
+            code: "analysis.ambiguous-component-attribution".to_owned(),
+            reason,
+            affected_scope: target_module.clone(),
+            observation: AnalysisObservation {
+                outcome: AnalysisObservationOutcome::ComponentAttributionUnresolved,
+                source_module: Some(source_module),
+                evidence: Some(evidence),
+                candidate_targets: vec![target_module],
+                candidate_components,
+                dependency_kinds: vec![dependency_kind],
+            },
+            policy_impact: PolicyImpact::possible(Vec::new()),
+        }
+    }
+
     // A producer must call this only after proving that the observed syntax cannot alter an edge.
     #[allow(dead_code)]
     pub fn dependency_neutral(

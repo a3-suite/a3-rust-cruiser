@@ -475,6 +475,12 @@ test_maps:
           - check-analysis-observation-outcome
           - check-analysis-policy-impact-outcome
           - check-possible-policy-impact
+          - check-structural-attribution-has-no-policy-impact
+          - check-component-attribution-edge-source
+          - check-component-attribution-edge-evidence
+          - check-component-attribution-edge-target
+          - check-component-attribution-edge-components
+          - check-component-attribution-edge-kind
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: many-component-assignments-remain-invariant
     tests:
@@ -487,19 +493,19 @@ test_maps:
           - check-analysis-policy-impact-outcome
           - check-no-policy-impact
   - verification_id: verification.logical-module-boundary.validation-report
-    case_id: overlapping-rust-module-projections-are-indeterminate
+    case_id: unobserved-overlapping-rust-module-projections-are-conformant
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_overlapping_rust_module_projections_remain_indeterminate_when_unobserved
+        symbol: should_unobserved_overlapping_rust_module_projections_are_conformant
         check_refs:
-          - check-indeterminate-decision
+          - check-conformant-decision
           - check-analysis-issues
           - check-analysis-issue-code
           - check-analysis-issue-reason
           - check-analysis-issue-affected-scope
           - check-analysis-observation-outcome
           - check-analysis-policy-impact-outcome
-          - check-possible-policy-impact
+          - check-no-policy-impact
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: known-compilation-context-is-resolved
     tests:

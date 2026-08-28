@@ -90,6 +90,7 @@ where
         ));
     }
     assess_policy_impact(&mut analysis_issues, &policy);
+    validate_analysis_issues(&analysis_issues)?;
     let (violations, policy_evaluation) = evaluate(&graph, &policy);
     let possible_issue_count = analysis_issues
         .iter()

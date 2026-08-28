@@ -630,6 +630,8 @@ contracts:
       SDD投影で生じた曖昧なcomponent帰属（many-to-oneまたは親子重複）は、対象moduleとcomponent集合を伴うAnalysisIssueとして
       観測する。全component帰属候補を列挙し、各候補でlogical dependency graphの直接辺に基づく許可・禁止を評価する。
       全候補で評価が同一ならpolicy impactをnoneとして確定判断し、全候補で禁止される依存だけを確定違反へ投影する。
+      構造上のcomponent帰属曖昧性だけではpolicy impactをpossibleにせず、候補間で評価が異なる実依存edgeだけをpossibleとして
+      source module、target module、source evidence、候補component集合、dependency kindとともに報告する。
       各候補は検証済み宣言DAGの部分graphとして評価し、候補間差分、完全列挙不能、または宣言DAGと矛盾する候補を含む場合は
       policy impactをpossibleとして判定不能にする。一対一で対応するcomponent間では宣言済み依存以外をerrorのforbidden ruleへ投影する。
       moduleはid、declarationはparent・child・evidence、dependencyはsource・target・kind・evidence、
@@ -694,6 +696,11 @@ contracts:
         input_predicate:
           kind: input
           term: input.ambiguous_component_attribution
+          op: present
+      - id: assignment-dependent-component-attribution-edge
+        input_predicate:
+          kind: input
+          term: input.assignment_dependent_component_attribution_edge
           op: present
       - id: report-request-present
         input_predicate:
@@ -845,6 +852,51 @@ contracts:
               kind: value_set
               values:
                 - analysis.ambiguous-component-attribution
+      - id: component-attribution-edge-source-present
+        when: assignment-dependent-component-attribution-edge
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.analysis_issues.observation.source_module
+      - id: component-attribution-edge-evidence-present
+        when: assignment-dependent-component-attribution-edge
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.analysis_issues.observation.evidence
+      - id: component-attribution-edge-target-present
+        when: assignment-dependent-component-attribution-edge
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.analysis_issues.observation.candidate_targets
+      - id: component-attribution-edge-components-present
+        when: assignment-dependent-component-attribution-edge
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.analysis_issues.observation.candidate_components
+      - id: component-attribution-edge-kind-present
+        when: assignment-dependent-component-attribution-edge
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.analysis_issues.observation.dependency_kinds
       - id: analysis-issue-reason-present
         when: report-request-present
         observation_ref: observation.validation.result
@@ -1064,7 +1116,7 @@ contracts:
       - id: ambiguous-component-attribution-report
         goal: >-
           many-to-one moduleのissue code・module scope・決定的に整列したcomponent集合を確認し、
-          曖昧なmoduleに関係する違反を生成せず、一対一module間で安全に確定する違反を保持することを確認する
+          全候補で禁止される依存と一対一module間で安全に確定する違反を保持し、候補間で評価が異なるedgeだけを判定不能にすることを確認する
         guarantee_refs:
           - conformant-decision
           - non-conformant-decision
@@ -1077,6 +1129,11 @@ contracts:
           - analysis-policy-impact-outcome-supported
           - analysis-issue-has-no-policy-impact
           - analysis-issue-has-possible-policy-impact
+          - component-attribution-edge-source-present
+          - component-attribution-edge-evidence-present
+          - component-attribution-edge-target-present
+          - component-attribution-edge-components-present
+          - component-attribution-edge-kind-present
           - report-ordering-canonical
           - report-violations-present
       - id: json-report-projection

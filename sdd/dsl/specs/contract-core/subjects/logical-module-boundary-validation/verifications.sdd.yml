@@ -658,7 +658,17 @@ verifications:
         input:
           ambiguous_component_attribution: true
           analysis_issue_policy_impact_possible: true
+          analysis_issue_policy_impact_none: true
           component_assignment_outcome: assignment-dependent
+          assignment_dependent_component_attribution_edge:
+            source_module: crate::shared
+            target_module: crate::infrastructure
+            candidate_components:
+              - application
+              - domain
+              - infrastructure
+            dependency_kind: import
+            source_evidence: src/shared.rs
           report_request: true
         checks:
           - id: check-indeterminate-decision
@@ -671,6 +681,18 @@ verifications:
             guarantee_ref: analysis-policy-impact-outcome-supported
           - id: check-possible-policy-impact
             guarantee_ref: analysis-issue-has-possible-policy-impact
+          - id: check-structural-attribution-has-no-policy-impact
+            guarantee_ref: analysis-issue-has-no-policy-impact
+          - id: check-component-attribution-edge-source
+            guarantee_ref: component-attribution-edge-source-present
+          - id: check-component-attribution-edge-evidence
+            guarantee_ref: component-attribution-edge-evidence-present
+          - id: check-component-attribution-edge-target
+            guarantee_ref: component-attribution-edge-target-present
+          - id: check-component-attribution-edge-components
+            guarantee_ref: component-attribution-edge-components-present
+          - id: check-component-attribution-edge-kind
+            guarantee_ref: component-attribution-edge-kind-present
       - id: many-component-assignments-remain-invariant
         intent_id: ambiguous-component-attribution-report
         input:
@@ -690,16 +712,17 @@ verifications:
             guarantee_ref: analysis-policy-impact-outcome-supported
           - id: check-no-policy-impact
             guarantee_ref: analysis-issue-has-no-policy-impact
-      - id: overlapping-rust-module-projections-are-indeterminate
+      - id: unobserved-overlapping-rust-module-projections-are-conformant
         intent_id: ambiguous-component-attribution-report
         input:
           ambiguous_component_attribution: true
-          analysis_issue_policy_impact_possible: true
-          component_assignment_outcome: assignment-dependent
+          complete_without_violation: true
+          analysis_issue_policy_impact_none: true
+          component_assignment_outcome: no-observed-edge
           report_request: true
         checks:
-          - id: check-indeterminate-decision
-            guarantee_ref: indeterminate-decision
+          - id: check-conformant-decision
+            guarantee_ref: conformant-decision
           - id: check-analysis-issues
             guarantee_ref: analysis-issues-present
           - id: check-analysis-issue-code
@@ -712,8 +735,8 @@ verifications:
             guarantee_ref: analysis-observation-outcome-supported
           - id: check-analysis-policy-impact-outcome
             guarantee_ref: analysis-policy-impact-outcome-supported
-          - id: check-possible-policy-impact
-            guarantee_ref: analysis-issue-has-possible-policy-impact
+          - id: check-no-policy-impact
+            guarantee_ref: analysis-issue-has-no-policy-impact
       - id: known-compilation-context-is-resolved
         intent_id: analysis-issue-classification
         input:

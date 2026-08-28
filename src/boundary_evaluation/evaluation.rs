@@ -113,14 +113,22 @@ struct AttributedDependency {
     kind: DependencyKind,
 }
 
-#[derive(Debug, Default)]
-struct AttributionPresence {
-    possible: bool,
-    definite: bool,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AttributionOutcome {
+    InvariantForbidden,
+    AssignmentDependent,
+}
+
+#[derive(Debug)]
+struct ComponentAttributionAssessment {
+    dependency: Dependency,
+    source_components: Vec<String>,
+    target_components: Vec<String>,
+    outcome: AttributionOutcome,
 }
 
 pub fn assess_component_attribution(
-    issues: &mut [AnalysisIssue],
+    issues: &mut Vec<AnalysisIssue>,
     graph: &ObservedDependencyGraph,
     model: &ComponentAttributionModel,
 ) -> Vec<BoundaryRule> {
@@ -132,14 +140,27 @@ pub fn assess_component_attribution(
             (!module_candidates.is_empty()).then_some((module.id.clone(), module_candidates))
         })
         .collect::<BTreeMap<_, _>>();
-    let (definite_violations, invariant) = analyze_component_attribution(graph, model, &candidates);
-    if invariant {
-        for issue in issues.iter_mut().filter(|issue| {
-            issue.observation.outcome == AnalysisObservationOutcome::ComponentAttributionUnresolved
-        }) {
-            issue.policy_impact = PolicyImpact::none();
-        }
+    for issue in issues.iter_mut().filter(|issue| {
+        issue.observation.outcome == AnalysisObservationOutcome::ComponentAttributionUnresolved
+    }) {
+        issue.policy_impact = PolicyImpact::none();
     }
+    let assessments = analyze_component_attribution(graph, model, &candidates);
+    let definite_violations = assessments
+        .iter()
+        .filter(|assessment| assessment.outcome == AttributionOutcome::InvariantForbidden)
+        .map(|assessment| AttributedDependency {
+            source: assessment.dependency.source.clone(),
+            target: assessment.dependency.target.clone(),
+            kind: assessment.dependency.kind,
+        })
+        .collect::<BTreeSet<_>>();
+    issues.extend(
+        assessments
+            .into_iter()
+            .filter(|assessment| assessment.outcome == AttributionOutcome::AssignmentDependent)
+            .map(component_attribution_issue),
+    );
 
     definite_violations
         .into_iter()
@@ -160,9 +181,8 @@ fn analyze_component_attribution(
     graph: &ObservedDependencyGraph,
     model: &ComponentAttributionModel,
     candidates: &BTreeMap<String, Vec<String>>,
-) -> (BTreeSet<AttributedDependency>, bool) {
-    let has_ambiguous_module = candidates.values().any(|values| values.len() > 1);
-    let mut presence = BTreeMap::<AttributedDependency, AttributionPresence>::new();
+) -> Vec<ComponentAttributionAssessment> {
+    let mut assessments = Vec::new();
     for dependency in graph
         .dependencies
         .iter()
@@ -192,24 +212,43 @@ fn analyze_component_attribution(
         if !any {
             continue;
         }
-        let key = AttributedDependency {
-            source: dependency.source.clone(),
-            target: dependency.target.clone(),
-            kind: dependency.kind,
-        };
-        let entry = presence.entry(key).or_default();
-        entry.possible |= any;
-        entry.definite |= all;
+        assessments.push(ComponentAttributionAssessment {
+            dependency: dependency.clone(),
+            source_components: source_components.clone(),
+            target_components: target_components.clone(),
+            outcome: if all {
+                AttributionOutcome::InvariantForbidden
+            } else {
+                AttributionOutcome::AssignmentDependent
+            },
+        });
     }
-    let invariant = has_ambiguous_module
-        && presence
-            .values()
-            .all(|value| value.possible == value.definite);
-    let definite = presence
+    assessments
+}
+
+fn component_attribution_issue(assessment: ComponentAttributionAssessment) -> AnalysisIssue {
+    let candidate_components = assessment
+        .source_components
+        .iter()
+        .chain(&assessment.target_components)
+        .cloned()
+        .collect::<BTreeSet<_>>()
         .into_iter()
-        .filter_map(|(dependency, value)| value.definite.then_some(dependency))
         .collect();
-    (definite, invariant)
+    AnalysisIssue::component_attribution_unresolved_for_dependency(
+        assessment.dependency.source.clone(),
+        assessment.dependency.target.clone(),
+        assessment.dependency.evidence,
+        candidate_components,
+        assessment.dependency.kind,
+        format!(
+            "Dependency {} -> {} has assignment-dependent logical component attribution: source [{}], target [{}]",
+            assessment.dependency.source,
+            assessment.dependency.target,
+            assessment.source_components.join(", "),
+            assessment.target_components.join(", ")
+        ),
+    )
 }
 
 fn component_candidates(module: &str, model: &ComponentAttributionModel) -> Vec<String> {

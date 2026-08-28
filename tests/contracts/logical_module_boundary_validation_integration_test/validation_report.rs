@@ -68,14 +68,21 @@ fn should_ambiguous_component_attribution_retains_safe_violations_as_non_conform
     assert_eq!(report["decision"], "non-conformant");
     assert_eq!(report["ordering"], "canonical");
     assert_issue(&report, "analysis.ambiguous-component-attribution");
+    let structural_issue = report["analysis_issues"]
+        .as_array()
+        .and_then(|issues| {
+            issues.iter().find(|issue| {
+                issue["code"] == "analysis.ambiguous-component-attribution"
+                    && issue["observation"].get("source_module").is_none()
+            })
+        })
+        .expect("structural attribution issue");
+    assert_eq!(structural_issue["affected_scope"], "crate::shared");
     assert_eq!(
-        report["analysis_issues"][0]["affected_scope"],
-        "crate::shared"
-    );
-    assert_eq!(
-        report["analysis_issues"][0]["reason"],
+        structural_issue["reason"],
         "Rust module crate::shared represents multiple logical components: application, domain"
     );
+    assert_eq!(structural_issue["policy_impact"]["outcome"], "none");
     let violations = report["violations"]
         .as_array()
         .expect("violations should be an array");
@@ -146,10 +153,50 @@ fn should_assignment_dependent_component_outcomes_remain_indeterminate_without_s
     // Assert
     assert_eq!(report["decision"], "indeterminate");
     assert_issue(&report, "analysis.ambiguous-component-attribution");
+    let issues = report["analysis_issues"]
+        .as_array()
+        .expect("analysis issues should be an array");
+    let structural_issue = issues
+        .iter()
+        .find(|issue| {
+            issue["code"] == "analysis.ambiguous-component-attribution"
+                && issue["observation"].get("source_module").is_none()
+        })
+        .expect("structural attribution issue should remain observable");
+    assert_eq!(structural_issue["policy_impact"]["outcome"], "none");
+    let edge_issue = issues
+        .iter()
+        .find(|issue| {
+            issue["code"] == "analysis.ambiguous-component-attribution"
+                && issue["policy_impact"]["outcome"] == "possible"
+        })
+        .expect("assignment-dependent edge should remain possible");
     assert_eq!(
-        report["analysis_issues"][0]["policy_impact"]["outcome"],
-        "possible"
+        issues
+            .iter()
+            .filter(|issue| issue["policy_impact"]["outcome"] == "possible")
+            .count(),
+        1
     );
+    assert_eq!(edge_issue["affected_scope"], "crate::infrastructure");
+    assert_eq!(edge_issue["observation"]["source_module"], "crate::shared");
+    assert_eq!(
+        edge_issue["observation"]["candidate_targets"],
+        serde_json::json!(["crate::infrastructure"])
+    );
+    assert_eq!(
+        edge_issue["observation"]["candidate_components"],
+        serde_json::json!(["application", "domain", "infrastructure"])
+    );
+    assert_eq!(
+        edge_issue["observation"]["dependency_kinds"],
+        serde_json::json!(["import"])
+    );
+    assert_eq!(
+        edge_issue["observation"]["evidence"]["path"],
+        "src/shared.rs"
+    );
+    assert_eq!(edge_issue["policy_impact"]["outcome"], "possible");
     assert_eq!(report["violations"], serde_json::json!([]));
 }
 
@@ -198,7 +245,7 @@ fn should_many_component_assignments_remain_invariant() {
 }
 
 #[test]
-fn should_overlapping_rust_module_projections_remain_indeterminate_when_unobserved() {
+fn should_unobserved_overlapping_rust_module_projections_are_conformant() {
     // Arrange
     let fixture = TempFixture::new("overlapping-rust-module-sdd-policy-input");
     write_sdd_policy_input(&fixture);
@@ -211,13 +258,14 @@ fn should_overlapping_rust_module_projections_remain_indeterminate_when_unobserv
     let output = run_sdd_check(&fixture, true);
 
     // Assert
-    let report = completed_json(&output, 2);
-    assert_eq!(report["decision"], "indeterminate");
+    let report = completed_json(&output, 0);
+    assert_eq!(report["decision"], "conformant");
     assert_issue(&report, "analysis.ambiguous-component-attribution");
-    assert_eq!(
-        report["analysis_issues"][0]["policy_impact"]["outcome"],
-        "possible"
-    );
+    assert!(report["analysis_issues"].as_array().is_some_and(|issues| {
+        issues
+            .iter()
+            .all(|issue| issue["policy_impact"]["outcome"] == "none")
+    }));
 }
 
 #[test]
