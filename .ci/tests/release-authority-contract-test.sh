@@ -85,17 +85,17 @@ mkdir -p "$control_root"
 git -C "$control_root" init -q
 printf '[package]\nname = "release-fixture"\nversion = "1.2.2"\n' > "$control_root/Cargo.toml"
 git -C "$control_root" add Cargo.toml
-git -C "$control_root" -c user.name=test -c user.email=test@example.invalid commit -qm initial
+git -C "$control_root" -c user.name=test -c user.email=test.invalid commit -qm initial
 from_tag="v1.2.2"
-git -C "$control_root" -c user.name=test -c user.email=test@example.invalid tag -a "$from_tag" -m "$from_tag"
+git -C "$control_root" -c user.name=test -c user.email=test.invalid tag -a "$from_tag" -m "$from_tag"
 from_tag_object_sha="$(git -C "$control_root" rev-parse "refs/tags/$from_tag^{tag}")"
 from_commit="$(git -C "$control_root" rev-parse "refs/tags/$from_tag^{commit}")"
 printf '[package]\nname = "release-fixture"\nversion = "1.2.3"\n' > "$control_root/Cargo.toml"
 git -C "$control_root" add Cargo.toml
-git -C "$control_root" -c user.name=test -c user.email=test@example.invalid commit -qm release
+git -C "$control_root" -c user.name=test -c user.email=test.invalid commit -qm release
 source_sha="$(git -C "$control_root" rev-parse HEAD)"
 tag_name="v1.2.3"
-git -C "$control_root" -c user.name=test -c user.email=test@example.invalid tag -a "$tag_name" -m "$tag_name"
+git -C "$control_root" -c user.name=test -c user.email=test.invalid tag -a "$tag_name" -m "$tag_name"
 tag_object_sha="$(git -C "$control_root" rev-parse "refs/tags/$tag_name^{tag}")"
 
 initial_control_root="$test_root/initial-control"
@@ -103,13 +103,12 @@ mkdir -p "$initial_control_root"
 git -C "$initial_control_root" init -q
 printf '[package]\nname = "release-fixture"\nversion = "1.2.3"\n' > "$initial_control_root/Cargo.toml"
 git -C "$initial_control_root" add Cargo.toml
-git -C "$initial_control_root" -c user.name=test -c user.email=test@example.invalid commit -qm initial
+git -C "$initial_control_root" -c user.name=test -c user.email=test.invalid commit -qm initial
 initial_source_sha="$(git -C "$initial_control_root" rev-parse HEAD)"
 initial_tag_name="v1.2.3"
-git -C "$initial_control_root" -c user.name=test -c user.email=test@example.invalid tag -a "$initial_tag_name" -m "$initial_tag_name"
+git -C "$initial_control_root" -c user.name=test -c user.email=test.invalid tag -a "$initial_tag_name" -m "$initial_tag_name"
 initial_tag_object_sha="$(git -C "$initial_control_root" rev-parse "refs/tags/$initial_tag_name^{tag}")"
 
-control_sha="1111111111111111111111111111111111111111"
 release_notes=$'## リリース\n - Version: 1.2.3\n - Tag: v1.2.3\n - Range: v1.2.2 -> v1.2.3\n\n## 重要な変更\n - Approved notes with `$` and `backticks`.\n\n## 主な変更内容\n - Release authority verification.\n'
 initial_release_notes=$'## リリース\n - Version: 1.2.3\n - Tag: v1.2.3\n - Range: initial -> v1.2.3\n\n## 重要な変更\n - Initial approved notes.\n\n## 主な変更内容\n - Initial release authority verification.\n'
 
@@ -131,7 +130,6 @@ write_request() {
     --arg event workflow_dispatch \
     --arg repository owner/repository \
     --arg run_id 123 \
-    --arg control_sha "$control_sha" \
     --arg version 1.2.3 \
     --arg from "$requested_from" \
     --arg range_kind "$requested_range_kind" \
@@ -139,9 +137,10 @@ write_request() {
     --arg tag "$requested_tag" \
     --arg target_commit "$requested_source_sha" \
     --arg target "GitHub Release" \
+    --arg title "Release 1.2.3" \
     --arg release_notes "$requested_notes" \
     --argjson approval "$approval" \
-    '{event: $event, repository: $repository, run_id: $run_id, control_sha: $control_sha, version: $version, "range-kind": $range_kind, from: (if $from == "" then null else $from end), to: $to, tag: $tag, target_commit: $target_commit, target: $target, release_notes: $release_notes, approval: $approval}' \
+    '{event: $event, repository: $repository, run_id: $run_id, version: $version, "range-kind": $range_kind, from: (if $from == "" then null else $from end), to: $to, tag: $tag, ref: ("refs/tags/" + $tag), ref_name: $tag, ref_type: "tag", target_commit: $target_commit, target: $target, title: $title, create_draft: true, final_draft: false, prerelease: false, release_notes: $release_notes, approval: $approval}' \
     > "$path"
 }
 
@@ -150,11 +149,17 @@ run_validator() {
   local output_dir="$2"
   local github_output="$3"
   local selected_control_root="${4:-$control_root}"
+  local selected_control_sha selected_head_sha selected_head_branch
+  selected_control_sha="$(git -C "$selected_control_root" rev-parse HEAD)"
+  selected_head_sha="$(jq -r '.target_commit' "$request_file")"
+  selected_head_branch="$(jq -r '.ref_name' "$request_file")"
 
   GH_TOKEN=test-token \
   PATH="$mock_bin:$PATH" \
-  EXPECTED_CONTROL_SHA="$control_sha" \
+  EXPECTED_CONTROL_SHA="$selected_control_sha" \
   EXPECTED_EVENT=workflow_dispatch \
+  EXPECTED_HEAD_BRANCH="${EXPECTED_HEAD_BRANCH_OVERRIDE:-$selected_head_branch}" \
+  EXPECTED_HEAD_SHA="${EXPECTED_HEAD_SHA_OVERRIDE:-$selected_head_sha}" \
   EXPECTED_REPOSITORY=owner/repository \
   EXPECTED_RUN_ID=123 \
   GITHUB_OUTPUT="$github_output" \
@@ -180,9 +185,9 @@ should_accept_approved_authority_without_branch_policy() {
     --arg tag_object_sha "$tag_object_sha" \
     --arg from_commit "$from_commit" \
     --arg from_tag_object_sha "$from_tag_object_sha" \
-    '.contract_id == "git.release-flow" and .approval == true and .["range-kind"] == "continuing" and .from == "v1.2.2" and .from_commit == $from_commit and .from_tag_object_sha == $from_tag_object_sha and .source_sha == $source_sha and .tag == $tag and .tag_object_sha == $tag_object_sha' \
+    '.contract_id == "git.release-flow" and .approval == true and .title == "Release 1.2.3" and .create_draft == true and .final_draft == false and .prerelease == false and .["range-kind"] == "continuing" and .from == "v1.2.2" and .from_commit == $from_commit and .from_tag_object_sha == $from_tag_object_sha and .source_sha == $source_sha and .tag == $tag and .tag_object_sha == $tag_object_sha' \
     "$case_root/authority/release-authority.json" >/dev/null
-  grep -Fx "control_sha=$control_sha" "$case_root/github-output" >/dev/null
+  grep -Fx "control_sha=$(git -C "$control_root" rev-parse HEAD)" "$case_root/github-output" >/dev/null
   printf '%s' "$release_notes" > "$case_root/expected-release-notes.md"
   cmp "$case_root/expected-release-notes.md" "$case_root/authority/release-notes.md"
 }
@@ -332,7 +337,7 @@ should_reject_tag_that_does_not_match_version() {
   local case_root="$test_root/tag-version-mismatch"
   local non_policy_tag="release-authority-test"
   mkdir -p "$case_root"
-  git -C "$control_root" -c user.name=test -c user.email=test@example.invalid tag -a "$non_policy_tag" -m "$non_policy_tag"
+  git -C "$control_root" -c user.name=test -c user.email=test.invalid tag -a "$non_policy_tag" -m "$non_policy_tag"
   write_request "$case_root/request.json" true "$non_policy_tag"
 
   # Act
@@ -417,8 +422,8 @@ should_reject_non_ancestor_release_range_start() {
   local non_ancestor_tag=v1.2.1 empty_tree non_ancestor_commit
   mkdir -p "$case_root"
   empty_tree="$(git -C "$control_root" mktree < /dev/null)"
-  non_ancestor_commit="$(printf 'unrelated release\n' | git -C "$control_root" -c user.name=test -c user.email=test@example.invalid commit-tree "$empty_tree")"
-  git -C "$control_root" -c user.name=test -c user.email=test@example.invalid tag -a "$non_ancestor_tag" "$non_ancestor_commit" -m "$non_ancestor_tag"
+  non_ancestor_commit="$(printf 'unrelated release\n' | git -C "$control_root" -c user.name=test -c user.email=test.invalid commit-tree "$empty_tree")"
+  git -C "$control_root" -c user.name=test -c user.email=test.invalid tag -a "$non_ancestor_tag" "$non_ancestor_commit" -m "$non_ancestor_tag"
   write_request "$case_root/request.json" true "$tag_name" "$non_ancestor_tag"
 
   # Act
@@ -436,7 +441,7 @@ should_reject_non_latest_release_range_start() {
   local old_tag=v1.2.0 old_commit
   mkdir -p "$case_root"
   old_commit="$(git -C "$control_root" rev-parse "${from_tag}^{commit}")"
-  git -C "$control_root" -c user.name=test -c user.email=test@example.invalid tag -a "$old_tag" "$old_commit" -m "$old_tag"
+  git -C "$control_root" -c user.name=test -c user.email=test.invalid tag -a "$old_tag" "$old_commit" -m "$old_tag"
   write_request "$case_root/request.json" true "$tag_name" "$old_tag"
 
   # Act
@@ -589,7 +594,7 @@ should_reject_changed_release_tag_annotation() {
   mkdir -p "$case_root"
   git -C "$control_root" clone -q . "$annotation_root"
   git -C "$annotation_root" tag -d "$tag_name" >/dev/null
-  git -C "$annotation_root" -c user.name=test -c user.email=test@example.invalid tag -a "$tag_name" -m "$tag_name" -m "release notes"
+  git -C "$annotation_root" -c user.name=test -c user.email=test.invalid tag -a "$tag_name" -m "$tag_name" -m "release notes"
   write_request "$case_root/request.json" true "$tag_name" "$from_tag" "$release_notes"
 
   # Act
@@ -609,7 +614,7 @@ should_reject_changed_release_range_start_annotation() {
   git -C "$control_root" clone -q . "$annotation_root"
   from_commit="$(git -C "$annotation_root" rev-parse "${from_tag}^{commit}")"
   git -C "$annotation_root" tag -d "$from_tag" >/dev/null
-  git -C "$annotation_root" -c user.name=test -c user.email=test@example.invalid tag -a "$from_tag" "$from_commit" -m "release notes"
+  git -C "$annotation_root" -c user.name=test -c user.email=test.invalid tag -a "$from_tag" "$from_commit" -m "release notes"
   write_request "$case_root/request.json" true "$tag_name" "$from_tag" "$release_notes"
 
   # Act
@@ -629,7 +634,7 @@ should_reject_release_tag_annotation_with_trailing_blank_line() {
   git -C "$control_root" clone -q . "$annotation_root"
   git -C "$annotation_root" tag -d "$tag_name" >/dev/null
   printf '%s\n\n' "$tag_name" > "$message_file"
-  git -C "$annotation_root" -c user.name=test -c user.email=test@example.invalid tag -a "$tag_name" --cleanup=verbatim -F "$message_file"
+  git -C "$annotation_root" -c user.name=test -c user.email=test.invalid tag -a "$tag_name" --cleanup=verbatim -F "$message_file"
   write_request "$case_root/request.json" true "$tag_name" "$from_tag" "$release_notes"
 
   # Act
@@ -714,6 +719,58 @@ should_reject_changed_published_release_notes() {
   [[ $status -ne 0 ]]
 }
 
+should_reject_request_not_bound_to_workflow_run_source() {
+  local case_root="$test_root/source-binding" status=0
+  mkdir -p "$case_root"
+  write_request "$case_root/request.json" true "$tag_name" "$from_tag" "$release_notes"
+  EXPECTED_HEAD_SHA_OVERRIDE=1111111111111111111111111111111111111111 \
+    run_validator "$case_root/request.json" "$case_root/authority" "$case_root/github-output" > /dev/null 2> "$case_root/error" || status=$?
+  [[ $status -ne 0 ]]
+  grep -Fx "request source SHA mismatch" "$case_root/error" >/dev/null
+}
+
+should_reject_request_not_dispatched_from_approved_tag() {
+  local case_root="$test_root/tag-ref-binding" status=0
+  mkdir -p "$case_root"
+  write_request "$case_root/request.json" true "$tag_name" "$from_tag" "$release_notes"
+  jq '.ref = "refs/heads/main" | .ref_name = "main" | .ref_type = "branch"' "$case_root/request.json" > "$case_root/request.tmp"
+  mv "$case_root/request.tmp" "$case_root/request.json"
+  run_validator "$case_root/request.json" "$case_root/authority" "$case_root/github-output" > /dev/null 2> "$case_root/error" || status=$?
+  [[ $status -ne 0 ]]
+  grep -Fx "release request must run from the approved tag ref" "$case_root/error" >/dev/null
+}
+
+should_reject_workflow_run_branch_not_bound_to_approved_tag() {
+  local case_root="$test_root/workflow-branch-binding" status=0
+  mkdir -p "$case_root"
+  write_request "$case_root/request.json" true "$tag_name" "$from_tag" "$release_notes"
+  EXPECTED_HEAD_BRANCH_OVERRIDE=main \
+    run_validator "$case_root/request.json" "$case_root/authority" "$case_root/github-output" > /dev/null 2> "$case_root/error" || status=$?
+  [[ $status -ne 0 ]]
+  grep -Fx "release request workflow branch identity mismatch" "$case_root/error" >/dev/null
+}
+
+should_reject_incomplete_publication_authority() {
+  local field expression expected_error case_root status
+  for field in title create_draft final_draft prerelease; do
+    case_root="$test_root/publication-$field"
+    mkdir -p "$case_root"
+    write_request "$case_root/request.json" true "$tag_name" "$from_tag" "$release_notes"
+    case "$field" in
+      title) expression='.title = ""'; expected_error='release request has an invalid or unapproved schema' ;;
+      create_draft) expression='.create_draft = false'; expected_error='release state does not match the publication contract' ;;
+      final_draft) expression='.final_draft = true'; expected_error='release state does not match the publication contract' ;;
+      prerelease) expression='.prerelease = true'; expected_error='release state does not match the publication contract' ;;
+    esac
+    jq "$expression" "$case_root/request.json" > "$case_root/request.tmp"
+    mv "$case_root/request.tmp" "$case_root/request.json"
+    status=0
+    run_validator "$case_root/request.json" "$case_root/authority" "$case_root/github-output" > /dev/null 2> "$case_root/error" || status=$?
+    [[ $status -ne 0 ]]
+    grep -Fx "$expected_error" "$case_root/error" >/dev/null
+  done
+}
+
 should_accept_approved_authority_without_branch_policy
 should_accept_initial_release_authority
 should_reject_initial_release_with_non_null_from
@@ -747,6 +804,10 @@ should_reject_release_notes_version_mismatch
 should_reject_release_notes_tag_mismatch
 should_accept_matching_published_release_notes
 should_reject_changed_published_release_notes
+should_reject_request_not_bound_to_workflow_run_source
+should_reject_request_not_dispatched_from_approved_tag
+should_reject_workflow_run_branch_not_bound_to_approved_tag
+should_reject_incomplete_publication_authority
 should_reject_initial_release_when_previous_tag_exists
 
 bash "$repository_root/.ci/tests/publish-release-contract-test.sh"

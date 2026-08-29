@@ -26,8 +26,8 @@ on:
         description: Approved release tag
         required: true
         type: string
-      target_commit:
-        description: Approved release commit SHA
+      title:
+        description: Approved GitHub Release title
         required: true
         type: string
       target:
@@ -44,6 +44,21 @@ on:
         required: true
         default: false
         type: boolean
+      create_draft:
+        description: Approved draft state at GitHub Release creation
+        required: true
+        default: true
+        type: boolean
+      final_draft:
+        description: Approved draft state after required publication work
+        required: true
+        default: false
+        type: boolean
+      prerelease:
+        description: Approved prerelease state; must match the project publication contract
+        required: true
+        default: false
+        type: boolean
 
 permissions: {}
 
@@ -56,34 +71,47 @@ jobs:
       - name: Record release request
         env:
           REQUEST_APPROVAL: ${{ toJSON(inputs.approval) }}
-          REQUEST_CONTROL_SHA: ${{ github.sha }}
+          REQUEST_CREATE_DRAFT: ${{ toJSON(inputs.create_draft) }}
           REQUEST_EVENT: ${{ github.event_name }}
           REQUEST_FROM: ${{ inputs.from }}
+          REQUEST_FINAL_DRAFT: ${{ toJSON(inputs.final_draft) }}
+          REQUEST_PRERELEASE: ${{ toJSON(inputs.prerelease) }}
           REQUEST_RANGE_KIND: ${{ inputs.range_kind }}
+          REQUEST_REF: ${{ github.ref }}
+          REQUEST_REF_NAME: ${{ github.ref_name }}
+          REQUEST_REF_TYPE: ${{ github.ref_type }}
           REQUEST_RELEASE_NOTES: ${{ inputs.release_notes }}
           REQUEST_REPOSITORY: ${{ github.repository }}
           REQUEST_RUN_ID: ${{ github.run_id }}
           REQUEST_TAG: ${{ inputs.tag }}
           REQUEST_TARGET: ${{ inputs.target }}
-          REQUEST_TARGET_COMMIT: ${{ inputs.target_commit }}
+          REQUEST_TARGET_COMMIT: ${{ github.sha }}
+          REQUEST_TITLE: ${{ inputs.title }}
           REQUEST_TO: ${{ inputs.to }}
           REQUEST_VERSION: ${{ inputs.version }}
         run: |
+          [[ "$(jq --version)" == "jq-1.7" ]] || { echo "unexpected jq version" >&2; exit 1; }
           jq -n \
             --argjson approval "$REQUEST_APPROVAL" \
-            --arg control_sha "$REQUEST_CONTROL_SHA" \
+            --argjson create_draft "$REQUEST_CREATE_DRAFT" \
             --arg event "$REQUEST_EVENT" \
             --arg from "$REQUEST_FROM" \
+            --argjson final_draft "$REQUEST_FINAL_DRAFT" \
+            --argjson prerelease "$REQUEST_PRERELEASE" \
             --arg range_kind "$REQUEST_RANGE_KIND" \
+            --arg ref "$REQUEST_REF" \
+            --arg ref_name "$REQUEST_REF_NAME" \
+            --arg ref_type "$REQUEST_REF_TYPE" \
             --arg release_notes "$REQUEST_RELEASE_NOTES" \
             --arg repository "$REQUEST_REPOSITORY" \
             --arg run_id "$REQUEST_RUN_ID" \
             --arg tag "$REQUEST_TAG" \
             --arg target "$REQUEST_TARGET" \
             --arg target_commit "$REQUEST_TARGET_COMMIT" \
+            --arg title "$REQUEST_TITLE" \
             --arg to "$REQUEST_TO" \
             --arg version "$REQUEST_VERSION" \
-            '{approval: $approval, control_sha: $control_sha, event: $event, from: (if $from == "" then null else $from end), "range-kind": $range_kind, release_notes: $release_notes, repository: $repository, run_id: $run_id, tag: $tag, target: $target, target_commit: $target_commit, to: $to, version: $version}' \
+            '{approval: $approval, create_draft: $create_draft, event: $event, final_draft: $final_draft, from: (if $from == "" then null else $from end), prerelease: $prerelease, "range-kind": $range_kind, ref: $ref, ref_name: $ref_name, ref_type: $ref_type, release_notes: $release_notes, repository: $repository, run_id: $run_id, tag: $tag, target: $target, target_commit: $target_commit, title: $title, to: $to, version: $version}' \
             > release-request.json
       - name: Upload release request
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

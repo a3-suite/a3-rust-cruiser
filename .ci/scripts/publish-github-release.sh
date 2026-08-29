@@ -7,6 +7,7 @@ authority_handoff="${2:?release authority directory is required}"
 linux_handoff="${3:?Linux handoff directory is required}"
 macos_handoff="${4:?macOS handoff directory is required}"
 script_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+release_assets_contract="$script_root/../release-assets.json"
 required=(EXPECTED_AUTHORITY_ARTIFACT_DIGEST EXPECTED_AUTHORITY_ARTIFACT_ID EXPECTED_LINUX_ARTIFACT_DIGEST EXPECTED_LINUX_ARTIFACT_ID EXPECTED_MACOS_ARTIFACT_DIGEST EXPECTED_MACOS_ARTIFACT_ID EXPECTED_PLATFORMS GITHUB_RUN_ID GH_TOKEN RELEASE_AUTHORITY_FINGERPRINT RELEASE_CONTROL_SHA RELEASE_REPOSITORY RELEASE_SOURCE_SHA RELEASE_TAG_NAME RELEASE_TAG_OBJECT_SHA RELEASE_TAG_REF RELEASE_VERSION RUNNER_TEMP)
 for name in "${required[@]}"; do [[ -n "${!name:-}" ]] || { echo "$name is required" >&2; exit 1; }; done
 
@@ -59,7 +60,7 @@ jq -e \
   --arg tag_object_sha "$RELEASE_TAG_OBJECT_SHA" \
   --arg tag_ref "$RELEASE_TAG_REF" \
   --arg version "$RELEASE_VERSION" \
-  'type == "object" and (keys | sort) == ["approval", "contract_id", "control_sha", "from", "from_commit", "from_tag_object_sha", "range-kind", "release_notes_sha256", "repository", "request_run_id", "schema_version", "source_sha", "tag", "tag_object_sha", "tag_ref", "target", "to", "version"] and .schema_version == 1 and .contract_id == "git.release-flow" and .approval == true and .repository == $repository and .control_sha == $control_sha and .source_sha == $source_sha and .tag == $tag and .tag_ref == $tag_ref and .tag_object_sha == $tag_object_sha and .version == $version and .to == .tag and .target == "GitHub Release" and ([.request_run_id, .release_notes_sha256] | all(type == "string" and length > 0)) and ((.["range-kind"] == "initial" and .from == null and .from_commit == null and .from_tag_object_sha == null) or (.["range-kind"] == "continuing" and ([.from, .from_commit, .from_tag_object_sha] | all(type == "string" and length > 0))))' \
+  'type == "object" and (keys | sort) == ["approval", "contract_id", "control_sha", "create_draft", "final_draft", "from", "from_commit", "from_tag_object_sha", "prerelease", "range-kind", "release_notes_sha256", "repository", "request_run_id", "schema_version", "source_sha", "tag", "tag_object_sha", "tag_ref", "target", "title", "to", "version"] and .schema_version == 1 and .contract_id == "git.release-flow" and .approval == true and (.create_draft | type == "boolean") and (.final_draft | type == "boolean") and (.prerelease | type == "boolean") and .repository == $repository and .control_sha == $control_sha and .source_sha == $source_sha and .tag == $tag and .tag_ref == $tag_ref and .tag_object_sha == $tag_object_sha and .version == $version and .to == .tag and .target == "GitHub Release" and ([.request_run_id, .release_notes_sha256, .title] | all(type == "string" and length > 0)) and ((.["range-kind"] == "initial" and .from == null and .from_commit == null and .from_tag_object_sha == null) or (.["range-kind"] == "continuing" and ([.from, .from_commit, .from_tag_object_sha] | all(type == "string" and length > 0))))' \
   "$authority_file" >/dev/null || { echo "release authority is invalid" >&2; exit 1; }
 release_notes_sha256="$(sha256sum "$release_notes_file" | awk '{print $1}')"
 [[ "$release_notes_sha256" == "$(jq -r '.release_notes_sha256' "$authority_file")" ]] || { echo "release notes digest mismatch" >&2; exit 1; }
@@ -70,6 +71,14 @@ release_range_kind="$(jq -r '.["range-kind"]' "$authority_file")"
 release_from="$(jq -r '.from // empty' "$authority_file")"
 release_from_commit="$(jq -r '.from_commit // empty' "$authority_file")"
 release_from_tag_object_sha="$(jq -r '.from_tag_object_sha // empty' "$authority_file")"
+release_title="$(jq -r '.title' "$authority_file")"
+create_draft="$(jq -r '.create_draft' "$authority_file")"
+final_draft="$(jq -r '.final_draft' "$authority_file")"
+release_prerelease="$(jq -r '.prerelease' "$authority_file")"
+contract_create_draft="$(jq -r '.publication_state.create_draft' "$release_assets_contract")"
+contract_final_draft="$(jq -r '.publication_state.final_draft' "$release_assets_contract")"
+contract_prerelease="$(jq -r '.publication_state.prerelease' "$release_assets_contract")"
+[[ "$create_draft" == "$contract_create_draft" && "$final_draft" == "$contract_final_draft" && "$release_prerelease" == "$contract_prerelease" ]] || { echo "release authority state does not match the publication contract" >&2; exit 1; }
 
 verify_continuing_release_state() {
   local latest_release_json from_ref
@@ -106,9 +115,11 @@ verify_handoff() {
   expected_assets+=("$asset_name")
 }
 
-jq -e '. == ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]' <<< "$EXPECTED_PLATFORMS" >/dev/null || { echo "unexpected release platform policy" >&2; exit 1; }
-verify_handoff "$linux_handoff" x86_64-unknown-linux-gnu
-verify_handoff "$macos_handoff" aarch64-apple-darwin
+jq -e --argjson expected "$(jq -c '[.platforms[].target]' "$release_assets_contract")" '. == $expected and length == 2' <<< "$EXPECTED_PLATFORMS" >/dev/null || { echo "unexpected release platform policy" >&2; exit 1; }
+linux_target="$(jq -er '.platforms[] | select(.runner == "ubuntu-24.04") | .target' "$release_assets_contract")"
+macos_target="$(jq -er '.platforms[] | select(.runner == "macos-15") | .target' "$release_assets_contract")"
+verify_handoff "$linux_handoff" "$linux_target"
+verify_handoff "$macos_handoff" "$macos_target"
 sort -o "$checksums_file" "$checksums_file"
 expected_assets+=(SHA256SUMS)
 
@@ -131,13 +142,13 @@ release_count="$(jq --arg tag "$RELEASE_TAG_NAME" '[.[][] | select(.tag_name == 
 [[ "$(git -C "$control_root" rev-parse --verify "${RELEASE_TAG_REF}^{commit}")" == "$RELEASE_SOURCE_SHA" ]] || { echo "release tag changed during validation" >&2; exit 1; }
 verify_live_tag
 
-release_json="$(gh api --method POST -H 'X-GitHub-Api-Version: 2022-11-28' "repos/$RELEASE_REPOSITORY/releases" -f tag_name="$RELEASE_TAG_NAME" -f target_commitish="$RELEASE_SOURCE_SHA" -f name="$RELEASE_TAG_NAME" -F "body=@$release_notes_file" -F draft=true -F prerelease=false -F generate_release_notes=false)"
+release_json="$(gh api --method POST -H 'X-GitHub-Api-Version: 2022-11-28' "repos/$RELEASE_REPOSITORY/releases" -f tag_name="$RELEASE_TAG_NAME" -f target_commitish="$RELEASE_SOURCE_SHA" -f name="$release_title" -F "body=@$release_notes_file" -F draft="$create_draft" -F prerelease="$release_prerelease" -F generate_release_notes=false)"
 printf '%s' "$release_json" | bash "$script_root/verify-release-body.sh" "$release_notes_file"
 release_id="$(jq -r '.id' <<< "$release_json")"
 [[ "$release_id" =~ ^[0-9]+$ ]] || { echo "GitHub did not return a release id" >&2; exit 1; }
-jq -e --arg tag "$RELEASE_TAG_NAME" --argjson id "$release_id" '.id == $id and .tag_name == $tag and .name == $tag and .draft == true and .prerelease == false' <<< "$release_json" >/dev/null || { echo "created release is not the expected draft" >&2; exit 1; }
+jq -e --arg tag "$RELEASE_TAG_NAME" --arg title "$release_title" --argjson draft "$create_draft" --argjson prerelease "$release_prerelease" --argjson id "$release_id" '.id == $id and .tag_name == $tag and .name == $title and .draft == $draft and .prerelease == $prerelease' <<< "$release_json" >/dev/null || { echo "created release is not the expected draft" >&2; exit 1; }
 releases_json="$(gh api --paginate --slurp -H 'X-GitHub-Api-Version: 2022-11-28' "repos/$RELEASE_REPOSITORY/releases?per_page=100")"
-jq -e --arg tag "$RELEASE_TAG_NAME" --argjson id "$release_id" '. as $pages | ([$pages[][] | select(.tag_name == $tag and .id == $id and .draft == true and .prerelease == false)] | length == 1) and ([$pages[][] | select(.tag_name == $tag)] | length == 1)' <<< "$releases_json" >/dev/null || { echo "release identity is not a unique draft after creation" >&2; exit 1; }
+jq -e --arg tag "$RELEASE_TAG_NAME" --argjson draft "$create_draft" --argjson prerelease "$release_prerelease" --argjson id "$release_id" '. as $pages | ([$pages[][] | select(.tag_name == $tag and .id == $id and .draft == $draft and .prerelease == $prerelease)] | length == 1) and ([$pages[][] | select(.tag_name == $tag)] | length == 1)' <<< "$releases_json" >/dev/null || { echo "release identity is not unique after creation" >&2; exit 1; }
 for asset_name in "${expected_assets[@]}"; do
   content_type=application/gzip; [[ "$asset_name" == SHA256SUMS ]] && content_type=text/plain
   gh api --method POST -H 'X-GitHub-Api-Version: 2022-11-28' -H "Content-Type: $content_type" --input "$staging_root/$asset_name" "https://uploads.github.com/repos/$RELEASE_REPOSITORY/releases/$release_id/assets?name=$asset_name" >/dev/null
@@ -145,22 +156,24 @@ done
 
 release_json="$(gh api -H 'X-GitHub-Api-Version: 2022-11-28' "repos/$RELEASE_REPOSITORY/releases/$release_id")"
 printf '%s' "$release_json" | bash "$script_root/verify-release-body.sh" "$release_notes_file"
-jq -e --arg tag "$RELEASE_TAG_NAME" --argjson id "$release_id" '.id == $id and .tag_name == $tag and .name == $tag and .draft == true and .prerelease == false' <<< "$release_json" >/dev/null || { echo "release changed before publication" >&2; exit 1; }
+jq -e --arg tag "$RELEASE_TAG_NAME" --arg title "$release_title" --argjson draft "$create_draft" --argjson prerelease "$release_prerelease" --argjson id "$release_id" '.id == $id and .tag_name == $tag and .name == $title and .draft == $draft and .prerelease == $prerelease' <<< "$release_json" >/dev/null || { echo "release changed before publication" >&2; exit 1; }
 verify_asset_set "$release_json"
 releases_json="$(gh api --paginate --slurp -H 'X-GitHub-Api-Version: 2022-11-28' "repos/$RELEASE_REPOSITORY/releases?per_page=100")"
-jq -e --arg tag "$RELEASE_TAG_NAME" --argjson id "$release_id" '. as $pages | ([$pages[][] | select(.tag_name == $tag and .id == $id and .draft == true)] | length == 1) and ([$pages[][] | select(.tag_name == $tag)] | length == 1)' <<< "$releases_json" >/dev/null || { echo "release is not a unique draft before publication" >&2; exit 1; }
+jq -e --arg tag "$RELEASE_TAG_NAME" --argjson draft "$create_draft" --argjson id "$release_id" '. as $pages | ([$pages[][] | select(.tag_name == $tag and .id == $id and .draft == $draft)] | length == 1) and ([$pages[][] | select(.tag_name == $tag)] | length == 1)' <<< "$releases_json" >/dev/null || { echo "release is not unique before publication" >&2; exit 1; }
 verify_live_tag
 if [[ "$release_range_kind" == initial ]]; then
   bash "$script_root/verify-initial-release-state.sh" "$RELEASE_REPOSITORY" "$RELEASE_TAG_NAME"
 fi
 verify_continuing_release_state
-release_json="$(gh api --method PATCH -H 'X-GitHub-Api-Version: 2022-11-28' "repos/$RELEASE_REPOSITORY/releases/$release_id" -F draft=false)"
+if [[ "$create_draft" == true && "$final_draft" == false ]]; then
+  release_json="$(gh api --method PATCH -H 'X-GitHub-Api-Version: 2022-11-28' "repos/$RELEASE_REPOSITORY/releases/$release_id" -F draft="$final_draft")"
+fi
 printf '%s' "$release_json" | bash "$script_root/verify-release-body.sh" "$release_notes_file"
-jq -e --arg tag "$RELEASE_TAG_NAME" '.draft == false and .prerelease == false and .tag_name == $tag and .name == $tag' <<< "$release_json" >/dev/null || { echo "release publication state mismatch" >&2; exit 1; }
+jq -e --arg tag "$RELEASE_TAG_NAME" --arg title "$release_title" --argjson draft "$final_draft" --argjson prerelease "$release_prerelease" '.draft == $draft and .prerelease == $prerelease and .tag_name == $tag and .name == $title' <<< "$release_json" >/dev/null || { echo "release publication state mismatch" >&2; exit 1; }
 verify_live_tag
 release_json="$(gh api -H 'X-GitHub-Api-Version: 2022-11-28' "repos/$RELEASE_REPOSITORY/releases/$release_id")"
 printf '%s' "$release_json" | bash "$script_root/verify-release-body.sh" "$release_notes_file"
-jq -e --arg tag "$RELEASE_TAG_NAME" --argjson id "$release_id" '.id == $id and .draft == false and .prerelease == false and .tag_name == $tag and .name == $tag' <<< "$release_json" >/dev/null || { echo "published release state mismatch" >&2; exit 1; }
+jq -e --arg tag "$RELEASE_TAG_NAME" --arg title "$release_title" --argjson draft "$final_draft" --argjson prerelease "$release_prerelease" --argjson id "$release_id" '.id == $id and .draft == $draft and .prerelease == $prerelease and .tag_name == $tag and .name == $title' <<< "$release_json" >/dev/null || { echo "published release state mismatch" >&2; exit 1; }
 verify_asset_set "$release_json"
 releases_json="$(gh api --paginate --slurp -H 'X-GitHub-Api-Version: 2022-11-28' "repos/$RELEASE_REPOSITORY/releases?per_page=100")"
-jq -e --arg tag "$RELEASE_TAG_NAME" --argjson id "$release_id" '. as $pages | ([$pages[][] | select(.tag_name == $tag and .id == $id and .draft == false and .prerelease == false)] | length == 1) and ([$pages[][] | select(.tag_name == $tag)] | length == 1)' <<< "$releases_json" >/dev/null || { echo "published release identity is not unique" >&2; exit 1; }
+jq -e --arg tag "$RELEASE_TAG_NAME" --argjson draft "$final_draft" --argjson prerelease "$release_prerelease" --argjson id "$release_id" '. as $pages | ([$pages[][] | select(.tag_name == $tag and .id == $id and .draft == $draft and .prerelease == $prerelease)] | length == 1) and ([$pages[][] | select(.tag_name == $tag)] | length == 1)' <<< "$releases_json" >/dev/null || { echo "published release identity is not unique" >&2; exit 1; }

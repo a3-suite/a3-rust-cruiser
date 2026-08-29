@@ -6,31 +6,42 @@ request_file="${1:?release request JSON is required}"
 control_root="${2:?trusted control checkout is required}"
 authority_output="${3:?release authority output directory is required}"
 script_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+release_assets_contract="$script_root/../release-assets.json"
 
 : "${EXPECTED_CONTROL_SHA:?EXPECTED_CONTROL_SHA is required}"
 : "${EXPECTED_EVENT:?EXPECTED_EVENT is required}"
+: "${EXPECTED_HEAD_BRANCH:?EXPECTED_HEAD_BRANCH is required}"
+: "${EXPECTED_HEAD_SHA:?EXPECTED_HEAD_SHA is required}"
 : "${EXPECTED_REPOSITORY:?EXPECTED_REPOSITORY is required}"
 : "${EXPECTED_RUN_ID:?EXPECTED_RUN_ID is required}"
 : "${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}"
 
 [[ -f "$request_file" && ! -L "$request_file" ]] || { echo "release request must be a regular file" >&2; exit 1; }
+[[ "$(git -C "$control_root" rev-parse HEAD)" == "$EXPECTED_CONTROL_SHA" ]] || { echo "release control checkout identity mismatch" >&2; exit 1; }
 jq -e '
   type == "object" and
-  (keys | sort) == ["approval", "control_sha", "event", "from", "range-kind", "release_notes", "repository", "run_id", "tag", "target", "target_commit", "to", "version"] and
-  .approval == true and
-  ([.control_sha, .event, .release_notes, .repository, .run_id, .tag, .target, .target_commit, .to, .version] | all(type == "string" and length > 0)) and
+  (keys | sort) == ["approval", "create_draft", "event", "final_draft", "from", "prerelease", "range-kind", "ref", "ref_name", "ref_type", "release_notes", "repository", "run_id", "tag", "target", "target_commit", "title", "to", "version"] and
+  .approval == true and (.create_draft | type == "boolean") and (.final_draft | type == "boolean") and (.prerelease | type == "boolean") and
+  ([.event, .ref, .ref_name, .ref_type, .release_notes, .repository, .run_id, .tag, .target, .target_commit, .title, .to, .version] | all(type == "string" and length > 0)) and
   ((.["range-kind"] == "initial" and .from == null) or (.["range-kind"] == "continuing" and (.from | type == "string" and length > 0)))
 ' "$request_file" >/dev/null || { echo "release request has an invalid or unapproved schema" >&2; exit 1; }
 
 request_event="$(jq -r '.event' "$request_file")"
-control_sha="$(jq -r '.control_sha' "$request_file")"
+control_sha="$EXPECTED_CONTROL_SHA"
+release_create_draft="$(jq -r '.create_draft' "$request_file")"
+release_final_draft="$(jq -r '.final_draft' "$request_file")"
+release_prerelease="$(jq -r '.prerelease' "$request_file")"
 release_range_kind="$(jq -r '.["range-kind"]' "$request_file")"
 release_from="$(jq -r '.from // empty' "$request_file")"
 request_repository="$(jq -r '.repository' "$request_file")"
 request_run_id="$(jq -r '.run_id' "$request_file")"
+request_ref="$(jq -r '.ref' "$request_file")"
+request_ref_name="$(jq -r '.ref_name' "$request_file")"
+request_ref_type="$(jq -r '.ref_type' "$request_file")"
 tag_name="$(jq -r '.tag' "$request_file")"
 release_target="$(jq -r '.target' "$request_file")"
 source_sha="$(jq -r '.target_commit' "$request_file")"
+release_title="$(jq -r '.title' "$request_file")"
 release_to="$(jq -r '.to' "$request_file")"
 release_version="$(jq -r '.version' "$request_file")"
 tag_ref="refs/tags/$tag_name"
@@ -38,12 +49,35 @@ tag_ref="refs/tags/$tag_name"
 [[ "$request_event" == "$EXPECTED_EVENT" ]] || { echo "request event mismatch" >&2; exit 1; }
 [[ "$request_repository" == "$EXPECTED_REPOSITORY" ]] || { echo "request repository mismatch" >&2; exit 1; }
 [[ "$request_run_id" == "$EXPECTED_RUN_ID" ]] || { echo "request run id mismatch" >&2; exit 1; }
-[[ "$control_sha" == "$EXPECTED_CONTROL_SHA" ]] || { echo "request control SHA mismatch" >&2; exit 1; }
 [[ "$control_sha" =~ ^[0-9a-f]{40}$ ]] || { echo "control SHA must be a full commit SHA" >&2; exit 1; }
 [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || { echo "source SHA must be a full commit SHA" >&2; exit 1; }
+[[ "$source_sha" == "$EXPECTED_HEAD_SHA" ]] || { echo "request source SHA mismatch" >&2; exit 1; }
+[[ "$request_ref_type" == tag && "$request_ref_name" == "$tag_name" && "$request_ref" == "$tag_ref" ]] || { echo "release request must run from the approved tag ref" >&2; exit 1; }
+[[ "$EXPECTED_HEAD_BRANCH" == "$tag_name" ]] || { echo "release request workflow branch identity mismatch" >&2; exit 1; }
 [[ "$tag_name" == "v$release_version" ]] || { echo "release tag must match v{version}" >&2; exit 1; }
 [[ "$release_to" == "$tag_name" ]] || { echo "release range endpoint must match the approved tag" >&2; exit 1; }
-[[ "$release_target" == "GitHub Release" ]] || { echo "release target does not match this publisher" >&2; exit 1; }
+jq -e '
+  type == "object" and
+  (keys | sort) == ["platforms", "publication_state", "publication_target", "schema_version"] and
+  .schema_version == 1 and .publication_target == "GitHub Release" and
+  (.publication_state |
+    type == "object" and
+    (keys | sort) == ["create_draft", "final_draft", "prerelease"] and
+    (.create_draft | type == "boolean") and
+    (.final_draft | type == "boolean") and
+    (.prerelease | type == "boolean")) and
+  (.platforms |
+    type == "array" and length == 2 and
+    all(.[];
+      type == "object" and
+      (keys | sort) == ["runner", "target"] and
+      (.runner | type == "string" and length > 0) and
+      (.target | type == "string" and length > 0)) and
+    ([.[].runner] | unique | length) == 2 and
+    ([.[].target] | unique | length) == 2)
+' "$release_assets_contract" >/dev/null || { echo "release asset contract is invalid" >&2; exit 1; }
+[[ "$release_target" == "$(jq -r '.publication_target' "$release_assets_contract")" ]] || { echo "release target does not match this publisher" >&2; exit 1; }
+[[ "$release_create_draft" == "$(jq -r '.publication_state.create_draft' "$release_assets_contract")" && "$release_final_draft" == "$(jq -r '.publication_state.final_draft' "$release_assets_contract")" && "$release_prerelease" == "$(jq -r '.publication_state.prerelease' "$release_assets_contract")" ]] || { echo "release state does not match the publication contract" >&2; exit 1; }
 git -C "$control_root" check-ref-format "$tag_ref" >/dev/null || { echo "approved tag is not a valid Git ref" >&2; exit 1; }
 
 verify_tag_annotation() {
@@ -82,7 +116,7 @@ resolved_tag="$(git -C "$control_root" rev-parse --verify "${tag_ref}^{commit}")
 package_version="$(git -C "$control_root" show "${source_sha}:Cargo.toml" | awk '/^\[package\][[:space:]]*$/ { p=1; next } /^\[/ { p=0 } p && /^[[:space:]]*version[[:space:]]*=/ { v=$0; sub(/^[^=]*=[[:space:]]*"/, "", v); sub(/"[[:space:]]*$/, "", v); print v; exit }')"
 [[ "$package_version" == "$release_version" ]] || { echo "tag version does not match Cargo.toml" >&2; exit 1; }
 
-expected_platforms='["x86_64-unknown-linux-gnu","aarch64-apple-darwin"]'
+expected_platforms="$(jq -c '[.platforms[].target]' "$release_assets_contract")"
 [[ ! -e "$authority_output" ]] || { echo "release authority output already exists" >&2; exit 1; }
 mkdir -p "$authority_output"
 release_notes_file="$authority_output/release-notes.md"
@@ -106,9 +140,13 @@ jq -n \
   --arg tag_object_sha "$tag_object_sha" \
   --arg tag_ref "$tag_ref" \
   --arg target "$release_target" \
+  --arg title "$release_title" \
   --arg to "$release_to" \
   --arg version "$release_version" \
-  '{schema_version: 1, contract_id: "git.release-flow", approval: true, repository: $repository, request_run_id: $request_run_id, control_sha: $control_sha, version: $version, "range-kind": $range_kind, from: (if $range_kind == "initial" then null else $from end), from_commit: (if $range_kind == "initial" then null else $from_commit end), from_tag_object_sha: (if $range_kind == "initial" then null else $from_tag_object_sha end), to: $to, tag: $tag, tag_ref: $tag_ref, tag_object_sha: $tag_object_sha, source_sha: $source_sha, target: $target, release_notes_sha256: $release_notes_sha256}' \
+  --argjson create_draft "$release_create_draft" \
+  --argjson final_draft "$release_final_draft" \
+  --argjson prerelease "$release_prerelease" \
+  '{schema_version: 1, contract_id: "git.release-flow", approval: true, repository: $repository, request_run_id: $request_run_id, control_sha: $control_sha, version: $version, "range-kind": $range_kind, from: (if $range_kind == "initial" then null else $from end), from_commit: (if $range_kind == "initial" then null else $from_commit end), from_tag_object_sha: (if $range_kind == "initial" then null else $from_tag_object_sha end), to: $to, tag: $tag, tag_ref: $tag_ref, tag_object_sha: $tag_object_sha, source_sha: $source_sha, target: $target, title: $title, create_draft: $create_draft, final_draft: $final_draft, prerelease: $prerelease, release_notes_sha256: $release_notes_sha256}' \
   > "$authority_file"
 authority_fingerprint="$( { jq -cS . "$authority_file"; cat "$release_notes_file"; } | sha256sum | awk '{print $1}')"
 {

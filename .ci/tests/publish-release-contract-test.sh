@@ -38,7 +38,7 @@ done
 
 release_json() {
   local draft="$1"
-  local title="${2:-$MOCK_TAG_NAME}"
+  local title="${2:-$MOCK_RELEASE_TITLE}"
   jq -n \
     --rawfile body "$MOCK_RELEASE_BODY_FILE" \
     --arg name "$title" \
@@ -138,7 +138,7 @@ case "$endpoint" in
     if [[ "$method" == PATCH ]]; then
       : > "$MOCK_STATE_ROOT/published"
       : > "$MOCK_STATE_ROOT/release-patch"
-      if [[ "$MOCK_SCENARIO" == title-patch ]]; then release_json false changed-title; else release_json false "$MOCK_TAG_NAME"; fi
+      if [[ "$MOCK_SCENARIO" == title-patch ]]; then release_json false changed-title; else release_json false; fi
     elif [[ -f "$MOCK_STATE_ROOT/published" ]]; then
       if [[ "$MOCK_SCENARIO" == title-published ]]; then
         release_json false changed-title
@@ -162,18 +162,18 @@ mkdir -p "$control_root"
 git -C "$control_root" init -q
 printf '[package]\nname = "release-fixture"\nversion = "1.2.2"\n' > "$control_root/Cargo.toml"
 git -C "$control_root" add Cargo.toml
-git -C "$control_root" -c user.name=test -c user.email=test@example.invalid commit -qm initial
+git -C "$control_root" -c user.name=test -c user.email=test.invalid commit -qm initial
 from_tag=v1.2.2
-git -C "$control_root" -c user.name=test -c user.email=test@example.invalid tag -a "$from_tag" -m "$from_tag"
+git -C "$control_root" -c user.name=test -c user.email=test.invalid tag -a "$from_tag" -m "$from_tag"
 from_tag_object_sha="$(git -C "$control_root" rev-parse "refs/tags/$from_tag^{tag}")"
 from_commit="$(git -C "$control_root" rev-parse "refs/tags/$from_tag^{commit}")"
 printf '[package]\nname = "release-fixture"\nversion = "1.2.3"\n' > "$control_root/Cargo.toml"
 git -C "$control_root" add Cargo.toml
-git -C "$control_root" -c user.name=test -c user.email=test@example.invalid commit -qm release
+git -C "$control_root" -c user.name=test -c user.email=test.invalid commit -qm release
 source_sha="$(git -C "$control_root" rev-parse HEAD)"
 tag_name=v1.2.3
 tag_ref="refs/tags/$tag_name"
-git -C "$control_root" -c user.name=test -c user.email=test@example.invalid tag -a "$tag_name" -m "$tag_name"
+git -C "$control_root" -c user.name=test -c user.email=test.invalid tag -a "$tag_name" -m "$tag_name"
 tag_object_sha="$(git -C "$control_root" rev-parse "$tag_ref^{tag}")"
 
 write_handoff() {
@@ -206,17 +206,18 @@ write_authority() {
     --arg tag "$tag_name" \
     --arg tag_object_sha "$tag_object_sha" \
     --arg tag_ref "$tag_ref" \
+    --arg title "Release 1.2.3" \
     --arg range_kind "$range_kind" \
     --argjson from "$from_json" \
     --arg notes_sha "$notes_sha" \
-    '{schema_version:1,contract_id:"git.release-flow",approval:true,repository:"owner/repository",control_sha:$control_sha,source_sha:$source_sha,tag:$tag,tag_ref:$tag_ref,tag_object_sha:$tag_object_sha,version:"1.2.3",to:$tag,target:"GitHub Release",request_run_id:"123",release_notes_sha256:$notes_sha,"range-kind":$range_kind,from:$from,from_commit:(if $range_kind == "initial" then null else $from_commit end),from_tag_object_sha:(if $range_kind == "initial" then null else $from_tag_object_sha end)}' \
+    '{schema_version:1,contract_id:"git.release-flow",approval:true,repository:"owner/repository",control_sha:$control_sha,source_sha:$source_sha,tag:$tag,tag_ref:$tag_ref,tag_object_sha:$tag_object_sha,version:"1.2.3",to:$tag,target:"GitHub Release",title:$title,create_draft:true,final_draft:false,prerelease:false,request_run_id:"123",release_notes_sha256:$notes_sha,"range-kind":$range_kind,from:$from,from_commit:(if $range_kind == "initial" then null else $from_commit end),from_tag_object_sha:(if $range_kind == "initial" then null else $from_tag_object_sha end)}' \
     > "$authority_root/release-authority.json"
 }
 
 run_publisher() {
   local case_root="$1" range_kind="$2" from_json="$3" scenario="$4"
   local authority_root="$case_root/authority" linux_root="$case_root/linux" macos_root="$case_root/macos"
-  local authority_fingerprint linux_name macos_name linux_sha macos_sha checksums_sha assets_json
+  local authority_fingerprint linux_name macos_name linux_sha macos_sha checksums_sha assets_json expected_platforms
   mkdir -p "$case_root/state" "$case_root/runner-temp"
   write_authority "$authority_root" "$range_kind" "$from_json"
   if [[ "$scenario" == local-object-mismatch ]]; then
@@ -224,6 +225,9 @@ run_publisher() {
     mv "$authority_root/release-authority.tmp" "$authority_root/release-authority.json"
   elif [[ "$scenario" == local-commit-mismatch ]]; then
     jq '.from_commit = "1111111111111111111111111111111111111111"' "$authority_root/release-authority.json" > "$authority_root/release-authority.tmp"
+    mv "$authority_root/release-authority.tmp" "$authority_root/release-authority.json"
+  elif [[ "$scenario" == authority-create-draft-mismatch ]]; then
+    jq '.create_draft = false' "$authority_root/release-authority.json" > "$authority_root/release-authority.tmp"
     mv "$authority_root/release-authority.tmp" "$authority_root/release-authority.json"
   fi
   write_handoff "$linux_root" x86_64-unknown-linux-gnu
@@ -239,13 +243,17 @@ run_publisher() {
     --arg macos "$macos_name" --arg macos_digest "sha256:$macos_sha" \
     --arg checksums_digest "sha256:$checksums_sha" \
     '[{name:$linux,digest:$linux_digest},{name:$macos,digest:$macos_digest},{name:"SHA256SUMS",digest:$checksums_digest}]')"
+  expected_platforms='["x86_64-unknown-linux-gnu","aarch64-apple-darwin"]'
+  if [[ "$scenario" == platform-extra ]]; then
+    expected_platforms='["x86_64-unknown-linux-gnu","aarch64-apple-darwin","x86_64-apple-darwin"]'
+  fi
 
   GH_TOKEN=test-token \
   PATH="$mock_bin:$PATH" \
   EXPECTED_AUTHORITY_ARTIFACT_DIGEST=sha256:authority EXPECTED_AUTHORITY_ARTIFACT_ID=11 \
   EXPECTED_LINUX_ARTIFACT_DIGEST=sha256:linux EXPECTED_LINUX_ARTIFACT_ID=12 \
   EXPECTED_MACOS_ARTIFACT_DIGEST=sha256:macos EXPECTED_MACOS_ARTIFACT_ID=13 \
-  EXPECTED_PLATFORMS='["x86_64-unknown-linux-gnu","aarch64-apple-darwin"]' \
+  EXPECTED_PLATFORMS="$expected_platforms" \
   GITHUB_RUN_ID=123 RELEASE_AUTHORITY_FINGERPRINT="$authority_fingerprint" \
   RELEASE_CONTROL_SHA="$source_sha" RELEASE_REPOSITORY=owner/repository RELEASE_SOURCE_SHA="$source_sha" \
   RELEASE_TAG_NAME="$tag_name" RELEASE_TAG_OBJECT_SHA="$tag_object_sha" RELEASE_TAG_REF="$tag_ref" RELEASE_VERSION=1.2.3 \
@@ -253,6 +261,7 @@ run_publisher() {
   MOCK_AUTHORITY_DIGEST=sha256:authority MOCK_LINUX_DIGEST=sha256:linux MOCK_MACOS_DIGEST=sha256:macos \
   MOCK_FROM_COMMIT="$from_commit" MOCK_FROM_TAG_OBJECT_SHA="$from_tag_object_sha" \
   MOCK_RELEASE_BODY_FILE="$authority_root/release-notes.md" MOCK_ASSETS_JSON="$assets_json" MOCK_SCENARIO="$scenario" \
+  MOCK_RELEASE_TITLE="Release 1.2.3" \
   MOCK_SOURCE_SHA="$source_sha" MOCK_STATE_ROOT="$case_root/state" MOCK_TAG_NAME="$tag_name" MOCK_TAG_OBJECT_SHA="$tag_object_sha" \
     bash "$publisher" "$control_root" "$authority_root" "$linux_root" "$macos_root"
 }
@@ -310,6 +319,24 @@ should_reject_invalid_authority_before_release_creation() {
   [[ ! -e "$case_root/state/release-post" ]]
 }
 
+should_reject_authority_state_outside_publication_contract() {
+  local case_root="$test_root/authority-state" status=0
+  mkdir -p "$case_root"
+  run_publisher "$case_root" continuing '"v1.2.2"' authority-create-draft-mismatch > /dev/null 2> "$case_root/error" || status=$?
+  [[ $status -ne 0 ]]
+  grep -Fx 'release authority state does not match the publication contract' "$case_root/error" >/dev/null
+  [[ ! -e "$case_root/state/release-post" ]]
+}
+
+should_reject_platform_inventory_without_complete_handoff_adapter() {
+  local case_root="$test_root/platform-extra" status=0
+  mkdir -p "$case_root"
+  run_publisher "$case_root" continuing '"v1.2.2"' platform-extra > /dev/null 2> "$case_root/error" || status=$?
+  [[ $status -ne 0 ]]
+  grep -Fx 'unexpected release platform policy' "$case_root/error" >/dev/null
+  [[ ! -e "$case_root/state/release-post" ]]
+}
+
 should_reject_non_policy_tag_before_release_creation() {
   # Arrange
   local case_root="$test_root/non-policy-tag" status=0
@@ -317,7 +344,7 @@ should_reject_non_policy_tag_before_release_creation() {
   mkdir -p "$case_root"
   tag_name=release-authority-test
   tag_ref="refs/tags/$tag_name"
-  git -C "$control_root" -c user.name=test -c user.email=test@example.invalid tag -a "$tag_name" -m "$tag_name"
+  git -C "$control_root" -c user.name=test -c user.email=test.invalid tag -a "$tag_name" -m "$tag_name"
   tag_object_sha="$(git -C "$control_root" rev-parse "$tag_ref^{tag}")"
 
   # Act
@@ -464,6 +491,8 @@ should_publish_initial_release
 should_publish_continuing_release
 should_stop_initial_release_when_stable_release_appears
 should_reject_invalid_authority_before_release_creation
+should_reject_authority_state_outside_publication_contract
+should_reject_platform_inventory_without_complete_handoff_adapter
 should_reject_non_policy_tag_before_release_creation
 should_reject_changed_release_title_in_post_response
 should_reject_changed_release_title_in_draft_readback

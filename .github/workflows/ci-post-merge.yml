@@ -22,6 +22,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Verify CI tool versions
+        run: bash .ci/scripts/verify-ci-tools.sh ubuntu-24.04
       - name: Install Rust toolchain
         run: rustup toolchain install --no-self-update
       - name: Verify Rust toolchain
@@ -29,7 +31,7 @@ jobs:
       - name: Validate CI scripts
         run: bash -n .ci/scripts/*.sh
       - name: Run CI contract tests
-        run: bash .ci/tests/release-authority-contract-test.sh
+        run: bash .ci/tests/run-ci-contract-tests.sh
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Run Clippy
