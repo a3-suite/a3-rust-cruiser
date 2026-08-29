@@ -32,6 +32,8 @@ jobs:
         run: bash .ci/scripts/verify-rust-toolchain.sh
       - name: Validate CI scripts
         run: bash -n .ci/scripts/*.sh
+      - name: Run CI contract tests
+        run: bash .ci/tests/release-authority-contract-test.sh
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Run Clippy
