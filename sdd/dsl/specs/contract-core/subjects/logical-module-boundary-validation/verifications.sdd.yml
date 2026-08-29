@@ -206,6 +206,30 @@ verifications:
         checks:
           - id: check-valid-many-to-one-sdd-policy-accepted
             guarantee_ref: valid-sdd-boundary-policy-input-accepted
+      - id: one-to-many-sdd-projection-is-accepted
+        intent_id: one-to-many-sdd-projection-semantics
+        input:
+          valid_sdd_boundary_policy:
+            projection_shape: one-to-many
+          one_to_many_projected_scope_dependency:
+            origin: secondary-projected-rust-module
+            declared: false
+        checks:
+          - id: check-valid-one-to-many-sdd-policy-accepted
+            guarantee_ref: valid-sdd-boundary-policy-input-accepted
+          - id: check-one-to-many-projected-scope-enforced
+            guarantee_ref: one-to-many-projected-scope-is-enforced
+      - id: same-component-overlapping-projections-are-not-ambiguous
+        intent_id: one-to-many-sdd-projection-semantics
+        input:
+          valid_sdd_boundary_policy:
+            projection_shape: one-to-many-overlapping-parent-child
+          same_component_overlapping_projections: true
+        checks:
+          - id: check-same-component-overlap-is-not-ambiguous
+            guarantee_ref: same-component-overlap-is-not-ambiguous
+          - id: check-same-component-overlap-does-not-duplicate-violations
+            guarantee_ref: same-component-overlap-does-not-duplicate-violations
       - id: non-rust-sdd-projection-is-excluded
         intent_id: sdd-boundary-policy-input-acceptance
         input:
@@ -667,6 +691,20 @@ verifications:
               - application
               - domain
               - infrastructure
+              - storage
+            component_dependency_candidates:
+              - source_component: application
+                target_component: infrastructure
+                outcome: allowed
+              - source_component: application
+                target_component: storage
+                outcome: forbidden
+              - source_component: domain
+                target_component: infrastructure
+                outcome: forbidden
+              - source_component: domain
+                target_component: storage
+                outcome: allowed
             dependency_kind: import
             source_evidence: src/shared.rs
           report_request: true
@@ -691,6 +729,14 @@ verifications:
             guarantee_ref: component-attribution-edge-target-present
           - id: check-component-attribution-edge-components
             guarantee_ref: component-attribution-edge-components-present
+          - id: check-component-attribution-edge-candidate-outcomes
+            guarantee_ref: analysis-issue-component-dependency-candidates-present
+          - id: check-component-attribution-edge-candidate-source
+            guarantee_ref: component-attribution-edge-candidate-source-present
+          - id: check-component-attribution-edge-candidate-target
+            guarantee_ref: component-attribution-edge-candidate-target-present
+          - id: check-component-attribution-edge-candidate-outcome
+            guarantee_ref: component-attribution-edge-candidate-outcome-supported
           - id: check-component-attribution-edge-kind
             guarantee_ref: component-attribution-edge-kind-present
       - id: many-component-assignments-remain-invariant
@@ -812,6 +858,8 @@ verifications:
             guarantee_ref: analysis-observation-outcome-supported
           - id: check-analysis-policy-impact-outcome
             guarantee_ref: analysis-policy-impact-outcome-supported
+          - id: check-analysis-issue-component-dependency-candidates
+            guarantee_ref: analysis-issue-component-dependency-candidates-present
           - id: check-report-serialization
             guarantee_ref: report-serialization-supported
           - id: check-report-ordering
@@ -820,6 +868,23 @@ verifications:
             guarantee_ref: report-decision-supported
           - id: check-report-violations
             guarantee_ref: report-violations-present
+      - id: text-component-dependency-candidate-outcomes
+        intent_id: text-report-projection
+        input:
+          assignment_dependent_component_attribution_edge: true
+          report_request:
+            format: text
+        checks:
+          - id: check-analysis-issue-component-dependency-candidates
+            guarantee_ref: analysis-issue-component-dependency-candidates-present
+          - id: check-component-attribution-edge-candidate-source
+            guarantee_ref: component-attribution-edge-candidate-source-present
+          - id: check-component-attribution-edge-candidate-target
+            guarantee_ref: component-attribution-edge-candidate-target-present
+          - id: check-component-attribution-edge-candidate-outcome
+            guarantee_ref: component-attribution-edge-candidate-outcome-supported
+          - id: check-report-ordering
+            guarantee_ref: report-ordering-canonical
       - id: text-report
         intent_id: text-report-projection
         input:
@@ -838,6 +903,8 @@ verifications:
             guarantee_ref: analysis-observation-outcome-supported
           - id: check-analysis-policy-impact-outcome
             guarantee_ref: analysis-policy-impact-outcome-supported
+          - id: check-analysis-issue-component-dependency-candidates
+            guarantee_ref: analysis-issue-component-dependency-candidates-present
           - id: check-report-serialization
             guarantee_ref: report-serialization-supported
           - id: check-report-ordering

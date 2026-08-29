@@ -23,7 +23,7 @@ pub(crate) struct SddDesignInput {
 
 pub(crate) struct PreparedSddDesign {
     nodes: BTreeMap<String, String>,
-    mappings: BTreeMap<String, String>,
+    mappings: BTreeSet<(String, String)>,
     declared_dependencies: BTreeSet<(String, String)>,
 }
 
@@ -32,7 +32,7 @@ impl PreparedSddDesign {
     pub(crate) fn valid_for_test() -> Self {
         Self {
             nodes: BTreeMap::from([("node".to_owned(), "src/application.rs".to_owned())]),
-            mappings: BTreeMap::from([("component".to_owned(), "node".to_owned())]),
+            mappings: BTreeSet::from([("component".to_owned(), "node".to_owned())]),
             declared_dependencies: BTreeSet::new(),
         }
     }
@@ -63,21 +63,29 @@ pub(crate) fn prepare_sdd_design(input: SddDesignInput) -> Result<PreparedSddDes
             .map(|node| (node.node_id, node.path)),
         "directory node ID",
     )?;
-    let mappings = unique_pairs(
-        projection
-            .mappings
-            .into_iter()
-            .map(|mapping| (mapping.component_id, mapping.node_id)),
-        "projected component ID",
-    )?;
-
-    if mappings.keys().cloned().collect::<BTreeSet<_>>() != component_ids {
+    let mut mappings = BTreeSet::new();
+    for mapping in projection.mappings {
+        if mapping.component_id.is_empty() || mapping.node_id.is_empty() {
+            return Err(invalid_sdd("projection mapping IDs must not be empty"));
+        }
+        mappings.insert((mapping.component_id, mapping.node_id));
+    }
+    let projected_component_ids = mappings
+        .iter()
+        .map(|(component_id, _)| component_id.clone())
+        .collect::<BTreeSet<_>>();
+    if let Some(component_id) = projected_component_ids.difference(&component_ids).next() {
+        return Err(invalid_sdd(format!(
+            "projection references unknown logical component: {component_id}"
+        )));
+    }
+    if projected_component_ids != component_ids {
         return Err(invalid_sdd(
-            "each logical component must have exactly one projection",
+            "each logical component must have at least one projection",
         ));
     }
 
-    for node_id in mappings.values() {
+    for (_, node_id) in &mappings {
         if !nodes.contains_key(node_id) {
             return Err(invalid_sdd(format!(
                 "projection references unknown directory node: {node_id}"
@@ -121,8 +129,7 @@ pub(crate) fn project_sdd_policy(
         declared_dependencies,
     } = prepared;
 
-    let mut component_modules = BTreeMap::new();
-    let mut module_components = BTreeMap::<String, Vec<String>>::new();
+    let mut component_modules = BTreeMap::<String, BTreeSet<String>>::new();
     let mut module_nodes = BTreeMap::new();
     for (component_id, node_id) in mappings {
         let path = nodes
@@ -144,11 +151,27 @@ pub(crate) fn project_sdd_policy(
                 "multiple directory nodes project to the same Rust module: {module}"
             )));
         }
-        module_components
-            .entry(module.clone())
+        component_modules
+            .entry(component_id)
             .or_default()
-            .push(component_id.clone());
-        component_modules.insert(component_id, module);
+            .insert(module);
+    }
+    for modules in component_modules.values_mut() {
+        let roots = modules.clone();
+        modules.retain(|module| {
+            !roots
+                .iter()
+                .any(|root| root != module && module_is_within(module, root))
+        });
+    }
+    let mut module_components = BTreeMap::<String, BTreeSet<String>>::new();
+    for (component_id, modules) in &component_modules {
+        for module in modules {
+            module_components
+                .entry(module.clone())
+                .or_default()
+                .insert(component_id.clone());
+        }
     }
 
     let mut ambiguous_components = BTreeSet::new();
@@ -157,15 +180,16 @@ pub(crate) fn project_sdd_policy(
         .iter()
         .filter(|(_, components)| components.len() > 1)
     {
+        let candidate_components = components.iter().cloned().collect::<Vec<_>>();
         ambiguous_components.extend(components.iter().cloned());
         analysis_issues.push(AnalysisIssue::component_attribution_unresolved(
             "analysis.ambiguous-component-attribution",
             format!(
                 "Rust module {module} represents multiple logical components: {}",
-                components.join(", ")
+                candidate_components.join(", ")
             ),
             module.clone(),
-            components.clone(),
+            candidate_components,
         ));
     }
     for (ancestor, ancestor_components) in &module_components {
@@ -179,6 +203,9 @@ pub(crate) fn project_sdd_policy(
                 .chain(descendant_components)
                 .cloned()
                 .collect::<BTreeSet<_>>();
+            if components.len() < 2 {
+                continue;
+            }
             ambiguous_components.extend(components.iter().cloned());
             let candidate_components = components.iter().cloned().collect::<Vec<_>>();
             analysis_issues.push(AnalysisIssue::component_attribution_unresolved(
@@ -194,8 +221,8 @@ pub(crate) fn project_sdd_policy(
     }
 
     let mut rules = Vec::new();
-    for (source_component, source_module) in &component_modules {
-        for (target_component, target_module) in &component_modules {
+    for (source_component, source_modules) in &component_modules {
+        for (target_component, target_modules) in &component_modules {
             if source_component != target_component
                 && !ambiguous_components.contains(source_component)
                 && !ambiguous_components.contains(target_component)
@@ -206,8 +233,14 @@ pub(crate) fn project_sdd_policy(
                     id: format!("sdd-forbidden-{:04}", rules.len() + 1),
                     kind: RuleKind::Forbidden,
                     severity: Severity::Error,
-                    from: module_patterns(source_module),
-                    to: module_patterns(target_module),
+                    from: source_modules
+                        .iter()
+                        .flat_map(|module| module_patterns(module))
+                        .collect(),
+                    to: target_modules
+                        .iter()
+                        .flat_map(|module| module_patterns(module))
+                        .collect(),
                     modules: Vec::new(),
                     dependency_kinds: Vec::new(),
                 });
@@ -345,6 +378,10 @@ fn is_rust_module_segment(segment: &str) -> bool {
 
 fn module_patterns(module: &str) -> Vec<String> {
     vec![module.to_owned(), format!("{module}::**")]
+}
+
+fn module_is_within(module: &str, root: &str) -> bool {
+    module == root || module.starts_with(&format!("{root}::"))
 }
 
 pub(crate) fn invalid_sdd(message: impl Into<String>) -> CruiserError {

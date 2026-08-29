@@ -18,7 +18,7 @@ description: GitHub Releaseの固定版a3-rust-cruiser CLIをセットアップ�
 - YAML boundary policyはSDDに依存しない標準入力として扱い、対象プロジェクトがSDD設計を所有しない場合にSDD入力を要求しない。
 - セットアップでは固定versionだけを使用し、`latest`やbranchから取得しない。
 - `indeterminate` と実行エラーを適合として扱わない。
-- SDDのmany-to-one projectionまたは親子関係で重なるRust module scopeは入力不正とせず、component帰属が曖昧な解析範囲を`analysis_issues`で確認する。
+- SDDで1つのcomponentが複数nodeへ投影される場合は全Rust module scopeを同じcomponentとして検証する。many-to-one projectionまたは異なるcomponentの親子関係で重なるRust module scopeは入力不正とせず、component帰属が曖昧な解析範囲を`analysis_issues`で確認する。
 - SDDのproject全体projectionにある正規source nodeのうち、Rust module解析対象外と確定できるnodeはboundary policy導出対象から除外する。
 - 除外指定を、違反を隠して適合させる目的で追加しない。
 

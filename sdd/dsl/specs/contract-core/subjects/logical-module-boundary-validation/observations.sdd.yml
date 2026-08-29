@@ -102,6 +102,9 @@ observations:
         - selector: result.violations.dependency_kind
           kind: observation_field
           meaning: 違反した依存のDependencyKind
+        - selector: result.violations.dependency_identity
+          kind: observation_field
+          meaning: rule IDから独立したsource、target、dependency kindの組で表す違反依存edge identity
         - selector: result.violations.evidence.path
           kind: observation_field
           meaning: 違反依存を観測したプロジェクトルート相対のUTF-8ソースパス
@@ -135,6 +138,9 @@ observations:
         - selector: result.analysis_issues.code
           kind: observation_field
           meaning: 解析問題を分類するstable code
+        - selector: result.analysis_issues.ambiguous_component_attribution
+          kind: observation_field
+          meaning: codeがanalysis.ambiguous-component-attributionである解析問題の部分集合
         - selector: result.analysis_issues.reason
           kind: observation_field
           meaning: 解析を完了できない理由
@@ -156,6 +162,18 @@ observations:
         - selector: result.analysis_issues.observation.candidate_components
           kind: observation_field
           meaning: 帰属候補のlogical component IDをcanonical順に並べた集合
+        - selector: result.analysis_issues.observation.component_dependency_candidates
+          kind: observation_field
+          meaning: 全AnalysisIssueに存在し、source/target component候補の組とallowedまたはforbiddenの評価をcanonical順に並べた集合。component帰属edge以外では空集合
+        - selector: result.analysis_issues.observation.component_dependency_candidates.source_component
+          kind: observation_field
+          meaning: component帰属候補組の依存元logical component ID
+        - selector: result.analysis_issues.observation.component_dependency_candidates.target_component
+          kind: observation_field
+          meaning: component帰属候補組の依存先logical component ID
+        - selector: result.analysis_issues.observation.component_dependency_candidates.outcome
+          kind: observation_field
+          meaning: component帰属候補組に対するallowedまたはforbiddenの評価
         - selector: result.analysis_issues.observation.dependency_kinds
           kind: observation_field
           meaning: 解析問題が追加または変更し得るdependency kindをcanonical順に並べた集合
@@ -164,7 +182,7 @@ observations:
           meaning: 現在policyへの影響をnoneまたはpossibleで表す評価結果
         - selector: result.analysis_issues.policy_impact.rule_ids
           kind: observation_field
-          meaning: 影響し得る現在policyのrule IDをcanonical順に並べた集合
+          meaning: 影響し得る現在policyのrule IDをcanonical順に並べた集合。logical component帰属評価はBoundaryPolicy ruleではないため、この集合ではなくcomponent_dependency_candidatesへ根拠を保持する
         - selector: result.decision
           kind: observation_field
           meaning: conformant、non-conformant、indeterminateのいずれかで表すValidationDecision

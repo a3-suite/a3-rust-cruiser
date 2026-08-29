@@ -78,6 +78,8 @@ pub fn build(result: ValidationResult, serialization: &str) -> ValidationReport 
         issue.observation.candidate_targets.dedup();
         issue.observation.candidate_components.sort();
         issue.observation.candidate_components.dedup();
+        issue.observation.component_dependency_candidates.sort();
+        issue.observation.component_dependency_candidates.dedup();
         issue.observation.dependency_kinds.sort();
         issue.observation.dependency_kinds.dedup();
         issue.policy_impact.rule_ids.sort();
@@ -151,6 +153,21 @@ fn analysis_issue_value(issue: &AnalysisIssue) -> Value {
     observation.insert(
         "candidate_components".to_owned(),
         json!(issue.observation.candidate_components),
+    );
+    observation.insert(
+        "component_dependency_candidates".to_owned(),
+        json!(
+            issue
+                .observation
+                .component_dependency_candidates
+                .iter()
+                .map(|candidate| json!({
+                    "source_component": candidate.source_component,
+                    "target_component": candidate.target_component,
+                    "outcome": candidate.outcome.as_str(),
+                }))
+                .collect::<Vec<_>>()
+        ),
     );
     observation.insert(
         "dependency_kinds".to_owned(),
@@ -352,6 +369,19 @@ pub fn to_text(report: &ValidationReport) -> String {
             "    candidate_components: [{}]\n",
             issue.observation.candidate_components.join(", ")
         ));
+        if issue.observation.component_dependency_candidates.is_empty() {
+            output.push_str("    component_dependency_candidates: []\n");
+        } else {
+            output.push_str("    component_dependency_candidates:\n");
+            for candidate in &issue.observation.component_dependency_candidates {
+                output.push_str(&format!(
+                    "      - {} -> {} ({})\n",
+                    candidate.source_component,
+                    candidate.target_component,
+                    candidate.outcome.as_str()
+                ));
+            }
+        }
         output.push_str(&format!(
             "    dependency_kinds: [{}]\n",
             issue

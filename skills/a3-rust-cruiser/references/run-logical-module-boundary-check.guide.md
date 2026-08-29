@@ -27,7 +27,7 @@
    ```
 
    project全体のprojectionにRust module解析対象外の正規source nodeが含まれる場合、そのnodeが入力不正にならずboundary policy導出対象から除外されることを確認する。
-   projectionで複数のlogical componentが同じdirectory nodeへ対応する場合、またはcomponentのRust module scopeが親子関係で重なる場合は有効入力として実行し、`analysis.ambiguous-component-attribution`の対象module・component集合と`policy_impact`を確認する。検証済み宣言DAGの部分graphとして全帰属候補を評価し、評価が同じ場合は確定判断する。候補間差分または候補の完全列挙不能がある場合は終了コード`2` / `decision: indeterminate`になる。
+   projectionで1つのlogical componentが複数directory nodeへ対応する場合は、その全Rust module scopeを同じcomponentとして検証する。複数のlogical componentが同じdirectory nodeへ対応する場合、または異なるcomponentのRust module scopeが親子関係で重なる場合は有効入力として実行し、`analysis.ambiguous-component-attribution`の対象module・component集合と`policy_impact`を確認する。検証済み宣言DAGの部分graphとして全帰属候補を評価し、評価が同じ場合は確定判断する。候補間差分がある場合は`observation.component_dependency_candidates`でsource/target component候補ごとの`allowed` / `forbidden`を確認する。これらはBoundaryPolicy ruleではないため、`policy_impact.rule_ids`が空でも同fieldを根拠として追跡する。候補間差分または候補の完全列挙不能がある場合は終了コード`2` / `decision: indeterminate`になる。
 
 4. 対象プロジェクトが feature、cfg、解析範囲を明示している場合だけ、対応する `--feature`、`--cfg`、`--include`、`--exclude` を追加する。
 5. 複数の package または target が対象なら、解析コンテキストごとに独立して実行する。

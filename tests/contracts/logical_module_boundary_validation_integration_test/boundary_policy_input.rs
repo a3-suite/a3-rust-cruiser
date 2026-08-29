@@ -35,6 +35,97 @@ fn should_many_to_one_sdd_projection_with_non_rust_nodes_is_accepted() {
 }
 
 #[test]
+fn should_one_component_to_multiple_nodes_is_accepted_and_applied() {
+    // Arrange
+    let fixture = TempFixture::new("one-to-many-sdd-policy-input");
+    fixture.write(
+        "src/main.rs",
+        "mod application;\nmod application_service;\nmod domain;\nfn main() {}\n",
+    );
+    fixture.write("src/application.rs", "pub fn marker() {}\n");
+    fixture.write(
+        "src/application_service.rs",
+        "use crate::domain::Entity;\npub fn run() -> Entity { Entity }\n",
+    );
+    fixture.write("src/domain.rs", "pub struct Entity;\n");
+    fixture.write(
+        "logical-structure.sdd.yml",
+        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: application\n  - component_id: domain\ndependencies: []\n",
+    );
+    fixture.write(
+        "projection.sdd.yml",
+        "version: 1\nname: projection\nprojection_id: fixture-source\nmappings:\n  - component_id: application\n    node_id: src-application\n  - component_id: application\n    node_id: src-application-service\n  - component_id: domain\n    node_id: src-domain\n",
+    );
+    fixture.write(
+        "directory-structure.sdd.yml",
+        "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n  - node_id: src-application\n    role: source\n    path: src/application.rs\n  - node_id: src-application-service\n    role: source\n    path: src/application_service.rs\n  - node_id: src-domain\n    role: source\n    path: src/domain.rs\n",
+    );
+
+    // Act
+    let output = run_sdd_check(&fixture, true);
+
+    // Assert
+    assert_completed_output(&output, 1, "non-conformant");
+    let report = accepted_json(&output);
+    assert!(report["violations"].as_array().is_some_and(|violations| {
+        violations.iter().any(|violation| {
+            violation["source"] == "crate::application_service"
+                && violation["target"] == "crate::domain"
+        })
+    }));
+}
+
+#[test]
+fn should_overlapping_nodes_for_one_component_do_not_create_ambiguous_attribution() {
+    // Arrange
+    let fixture = TempFixture::new("one-component-overlapping-nodes-sdd-policy-input");
+    fixture.write(
+        "src/main.rs",
+        "mod application;\nmod domain;\nfn main() {}\n",
+    );
+    fixture.write("src/application/mod.rs", "pub mod service;\n");
+    fixture.write(
+        "src/application/service.rs",
+        "use crate::domain::Entity;\npub fn run() -> Entity { Entity }\n",
+    );
+    fixture.write("src/domain.rs", "pub struct Entity;\n");
+    fixture.write(
+        "logical-structure.sdd.yml",
+        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: application\n  - component_id: domain\ndependencies: []\n",
+    );
+    fixture.write(
+        "projection.sdd.yml",
+        "version: 1\nname: projection\nprojection_id: fixture-source\nmappings:\n  - component_id: application\n    node_id: src-application\n  - component_id: application\n    node_id: src-application-service\n  - component_id: domain\n    node_id: src-domain\n",
+    );
+    fixture.write(
+        "directory-structure.sdd.yml",
+        "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n  - node_id: src-application\n    role: source\n    path: src/application\n  - node_id: src-application-service\n    role: source\n    path: src/application/service.rs\n  - node_id: src-domain\n    role: source\n    path: src/domain.rs\n",
+    );
+
+    // Act
+    let output = run_sdd_check(&fixture, true);
+
+    // Assert
+    assert_completed_output(&output, 1, "non-conformant");
+    let report = accepted_json(&output);
+    let matching_violations = report["violations"]
+        .as_array()
+        .expect("violations must be an array")
+        .iter()
+        .filter(|violation| {
+            violation["source"] == "crate::application::service"
+                && violation["target"] == "crate::domain"
+        })
+        .count();
+    assert_eq!(matching_violations, 1);
+    assert!(report["analysis_issues"].as_array().is_some_and(|issues| {
+        issues
+            .iter()
+            .all(|issue| issue["code"] != "analysis.ambiguous-component-attribution")
+    }));
+}
+
+#[test]
 fn should_incomplete_sdd_design_input_is_rejected() {
     // Arrange
     let fixture = TempFixture::new("incomplete-sdd-policy-input");
@@ -178,13 +269,13 @@ fn should_inconsistent_sdd_design_inputs_are_rejected() {
             "missing-component-projection",
             "projection.sdd.yml",
             "mappings:\n  - component_id: application\n    node_id: src-application\n",
-            "each logical component must have exactly one projection",
+            "each logical component must have at least one projection",
         ),
         (
-            "duplicate-component-projection",
+            "unknown-component-projection",
             "projection.sdd.yml",
-            "mappings:\n  - component_id: application\n    node_id: src-application\n  - component_id: application\n    node_id: src-domain\n",
-            "duplicate projected component ID",
+            "mappings:\n  - component_id: application\n    node_id: src-application\n  - component_id: domain\n    node_id: src-domain\n  - component_id: unknown\n    node_id: src-domain\n",
+            "projection references unknown logical component",
         ),
         (
             "unknown-directory-node",

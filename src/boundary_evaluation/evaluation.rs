@@ -2,9 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::model::{
     AnalysisIssue, AnalysisObservationOutcome, BoundaryPolicy, BoundaryRule, BoundaryViolation,
-    ComponentAttributionModel, Dependency, DependencyKind, ObservedDependencyGraph,
-    PolicyEvaluation, PolicyImpact, RuleKind, Severity, TargetScope, ValidationDecision,
-    ViolationKind,
+    ComponentAttributionModel, ComponentDependencyCandidate, ComponentDependencyOutcome,
+    Dependency, DependencyKind, ObservedDependencyGraph, PolicyEvaluation, PolicyImpact, RuleKind,
+    Severity, TargetScope, ValidationDecision, ViolationKind,
 };
 use super::pattern::matches_pattern;
 
@@ -124,6 +124,7 @@ struct ComponentAttributionAssessment {
     dependency: Dependency,
     source_components: Vec<String>,
     target_components: Vec<String>,
+    component_dependency_candidates: Vec<ComponentDependencyCandidate>,
     outcome: AttributionOutcome,
 }
 
@@ -199,6 +200,7 @@ fn analyze_component_attribution(
         }
         let mut any = false;
         let mut all = true;
+        let mut component_dependency_candidates = Vec::new();
         for source_component in source_components {
             for target_component in target_components {
                 let violation = source_component != target_component
@@ -207,6 +209,15 @@ fn analyze_component_attribution(
                         .contains(&(source_component.clone(), target_component.clone()));
                 any |= violation;
                 all &= violation;
+                component_dependency_candidates.push(ComponentDependencyCandidate {
+                    source_component: source_component.clone(),
+                    target_component: target_component.clone(),
+                    outcome: if violation {
+                        ComponentDependencyOutcome::Forbidden
+                    } else {
+                        ComponentDependencyOutcome::Allowed
+                    },
+                });
             }
         }
         if !any {
@@ -216,6 +227,7 @@ fn analyze_component_attribution(
             dependency: dependency.clone(),
             source_components: source_components.clone(),
             target_components: target_components.clone(),
+            component_dependency_candidates,
             outcome: if all {
                 AttributionOutcome::InvariantForbidden
             } else {
@@ -240,6 +252,7 @@ fn component_attribution_issue(assessment: ComponentAttributionAssessment) -> An
         assessment.dependency.target.clone(),
         assessment.dependency.evidence,
         candidate_components,
+        assessment.component_dependency_candidates,
         assessment.dependency.kind,
         format!(
             "Dependency {} -> {} has assignment-dependent logical component attribution: source [{}], target [{}]",
@@ -255,7 +268,11 @@ fn component_candidates(module: &str, model: &ComponentAttributionModel) -> Vec<
     model
         .component_modules
         .iter()
-        .filter(|(_, root)| module == root.as_str() || module.starts_with(&format!("{root}::")))
+        .filter(|(_, roots)| {
+            roots
+                .iter()
+                .any(|root| module == root || module.starts_with(&format!("{root}::")))
+        })
         .map(|(component, _)| component.clone())
         .collect()
 }

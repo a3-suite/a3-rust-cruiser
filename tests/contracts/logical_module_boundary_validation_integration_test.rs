@@ -239,6 +239,14 @@ fn runtime_item_macro_fixture(name: &str, definitions: &str) -> TempFixture {
 }
 
 fn run_sdd_check(fixture: &TempFixture, include_directory_structure: bool) -> Output {
+    run_sdd_check_with_format(fixture, include_directory_structure, "json")
+}
+
+fn run_sdd_check_with_format(
+    fixture: &TempFixture,
+    include_directory_structure: bool,
+    format: &str,
+) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"));
     command
         .arg("check")
@@ -261,7 +269,7 @@ fn run_sdd_check(fixture: &TempFixture, include_directory_structure: bool) -> Ou
             "--target-triple",
             "x86_64-unknown-linux-gnu",
             "--format",
-            "json",
+            format,
         ])
         .output()
         .expect("binary should run")
@@ -435,6 +443,7 @@ fn assert_issue(report: &Value, code: &str) {
     ));
     assert!(issue["observation"]["candidate_targets"].is_array());
     assert!(issue["observation"]["candidate_components"].is_array());
+    assert!(issue["observation"]["component_dependency_candidates"].is_array());
     assert!(issue["observation"]["dependency_kinds"].is_array());
     assert!(matches!(
         issue["policy_impact"]["outcome"].as_str(),

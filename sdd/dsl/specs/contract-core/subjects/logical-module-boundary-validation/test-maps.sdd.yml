@@ -234,6 +234,22 @@ test_maps:
         check_refs:
           - check-valid-many-to-one-sdd-policy-accepted
   - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: one-to-many-sdd-projection-is-accepted
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: should_one_component_to_multiple_nodes_is_accepted_and_applied
+        check_refs:
+          - check-valid-one-to-many-sdd-policy-accepted
+          - check-one-to-many-projected-scope-enforced
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: same-component-overlapping-projections-are-not-ambiguous
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: should_overlapping_nodes_for_one_component_do_not_create_ambiguous_attribution
+        check_refs:
+          - check-same-component-overlap-is-not-ambiguous
+          - check-same-component-overlap-does-not-duplicate-violations
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
     case_id: non-rust-sdd-projection-is-excluded
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
@@ -480,6 +496,10 @@ test_maps:
           - check-component-attribution-edge-evidence
           - check-component-attribution-edge-target
           - check-component-attribution-edge-components
+          - check-component-attribution-edge-candidate-outcomes
+          - check-component-attribution-edge-candidate-source
+          - check-component-attribution-edge-candidate-target
+          - check-component-attribution-edge-candidate-outcome
           - check-component-attribution-edge-kind
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: many-component-assignments-remain-invariant
@@ -668,6 +688,7 @@ test_maps:
           - check-analysis-issue-affected-scope
           - check-analysis-observation-outcome
           - check-analysis-policy-impact-outcome
+          - check-analysis-issue-component-dependency-candidates
           - check-report-serialization
           - check-report-ordering
           - check-report-decision
@@ -684,6 +705,7 @@ test_maps:
           - check-analysis-issue-affected-scope
           - check-analysis-observation-outcome
           - check-analysis-policy-impact-outcome
+          - check-analysis-issue-component-dependency-candidates
           - check-report-serialization
           - check-report-ordering
           - check-report-decision
@@ -695,6 +717,17 @@ test_maps:
           - check-report-ordering
           - check-report-decision
           - check-report-violations
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: text-component-dependency-candidate-outcomes
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_text_report_projects_component_dependency_candidate_outcomes
+        check_refs:
+          - check-analysis-issue-component-dependency-candidates
+          - check-component-attribution-edge-candidate-source
+          - check-component-attribution-edge-candidate-target
+          - check-component-attribution-edge-candidate-outcome
+          - check-report-ordering
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: unresolved-reference-is-indeterminate
     tests:

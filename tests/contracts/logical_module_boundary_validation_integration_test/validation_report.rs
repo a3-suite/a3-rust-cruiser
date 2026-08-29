@@ -146,6 +146,14 @@ fn should_assignment_dependent_component_outcomes_remain_indeterminate_without_s
     // Arrange
     let fixture = many_to_one_sdd_fixture();
     fixture.write("src/reporting.rs", "pub fn report() {}\n");
+    fixture.write(
+        "logical-structure.sdd.yml",
+        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: domain\n  - component_id: application\n  - component_id: infrastructure\n  - component_id: storage\n  - component_id: reporting\n  - component_id: ci-publish-script-adapter\ndependencies:\n  - from_component_id: application\n    to_component_id: infrastructure\n  - from_component_id: domain\n    to_component_id: storage\n",
+    );
+    fixture.write(
+        "projection.sdd.yml",
+        "version: 1\nname: projection\nprojection_id: fixture-source\nmappings:\n  - component_id: domain\n    node_id: src-shared\n  - component_id: application\n    node_id: src-shared\n  - component_id: infrastructure\n    node_id: src-infrastructure\n  - component_id: storage\n    node_id: src-infrastructure\n  - component_id: reporting\n    node_id: src-reporting\n  - component_id: ci-publish-script-adapter\n    node_id: ci-scripts\n",
+    );
 
     // Act
     let report = completed_json(&run_sdd_check(&fixture, true), 2);
@@ -186,7 +194,32 @@ fn should_assignment_dependent_component_outcomes_remain_indeterminate_without_s
     );
     assert_eq!(
         edge_issue["observation"]["candidate_components"],
-        serde_json::json!(["application", "domain", "infrastructure"])
+        serde_json::json!(["application", "domain", "infrastructure", "storage"])
+    );
+    assert_eq!(
+        edge_issue["observation"]["component_dependency_candidates"],
+        serde_json::json!([
+            {
+                "source_component": "application",
+                "target_component": "infrastructure",
+                "outcome": "allowed"
+            },
+            {
+                "source_component": "application",
+                "target_component": "storage",
+                "outcome": "forbidden"
+            },
+            {
+                "source_component": "domain",
+                "target_component": "infrastructure",
+                "outcome": "forbidden"
+            },
+            {
+                "source_component": "domain",
+                "target_component": "storage",
+                "outcome": "allowed"
+            }
+        ])
     );
     assert_eq!(
         edge_issue["observation"]["dependency_kinds"],
@@ -197,7 +230,27 @@ fn should_assignment_dependent_component_outcomes_remain_indeterminate_without_s
         "src/shared.rs"
     );
     assert_eq!(edge_issue["policy_impact"]["outcome"], "possible");
+    assert_eq!(
+        edge_issue["policy_impact"]["rule_ids"],
+        serde_json::json!([])
+    );
     assert_eq!(report["violations"], serde_json::json!([]));
+}
+
+#[test]
+fn should_text_report_projects_component_dependency_candidate_outcomes() {
+    // Arrange
+    let fixture = many_to_one_sdd_fixture();
+    fixture.write("src/reporting.rs", "pub fn report() {}\n");
+
+    // Act
+    let payload = completed_text(&run_sdd_check_with_format(&fixture, true, "text"), 2);
+
+    // Assert
+    assert!(payload.contains(
+        "component_dependency_candidates:\n      - application -> infrastructure (allowed)\n      - domain -> infrastructure (forbidden)"
+    ));
+    assert!(payload.contains("component_dependency_candidates: []"));
 }
 
 #[test]
@@ -312,6 +365,10 @@ fn should_json_report_projects_common_validation_result() {
         "unresolved-dependency-candidate"
     );
     assert_eq!(issue["policy_impact"]["outcome"], "possible");
+    assert_eq!(
+        issue["observation"]["component_dependency_candidates"],
+        serde_json::json!([])
+    );
 }
 
 #[test]
@@ -332,6 +389,7 @@ fn should_text_report_projects_common_validation_result() {
     assert!(payload.contains("violations:\n  - forbidden-application forbidden"));
     assert!(payload.contains("analysis_issues:\n  - analysis."));
     assert!(payload.contains("observation: unresolved-dependency-candidate"));
+    assert!(payload.contains("component_dependency_candidates: []"));
     assert!(payload.contains("policy_impact: possible [possible-crate-cycle]"));
 }
 

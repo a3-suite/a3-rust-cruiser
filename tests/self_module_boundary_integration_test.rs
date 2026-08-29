@@ -197,7 +197,7 @@ mod self_module_boundary_sdd_projection {
 
 #[derive(Debug)]
 struct ModuleBoundaryDesign {
-    component_modules: BTreeMap<String, String>,
+    module_components: BTreeMap<String, String>,
     dependencies: BTreeSet<(String, String)>,
     top_level_modules: BTreeSet<String>,
 }
@@ -219,16 +219,16 @@ impl ModuleBoundaryDesign {
             .into_iter()
             .map(|node| (node.node_id, node.path))
             .collect();
-        let component_modules: BTreeMap<_, _> = projection
-            .mappings
-            .into_iter()
-            .map(|mapping| {
-                let path = nodes.get(&mapping.node_id).unwrap_or_else(|| {
-                    panic!("projection references unknown node {}", mapping.node_id)
-                });
-                (mapping.component_id, rust_module_id(path))
-            })
-            .collect();
+        let mut component_modules = BTreeMap::<String, BTreeSet<String>>::new();
+        for mapping in projection.mappings {
+            let path = nodes.get(&mapping.node_id).unwrap_or_else(|| {
+                panic!("projection references unknown node {}", mapping.node_id)
+            });
+            component_modules
+                .entry(mapping.component_id)
+                .or_default()
+                .insert(rust_module_id(path));
+        }
         let component_ids: BTreeSet<_> = logical
             .components
             .into_iter()
@@ -237,40 +237,57 @@ impl ModuleBoundaryDesign {
         assert_eq!(
             component_modules.keys().cloned().collect::<BTreeSet<_>>(),
             component_ids,
-            "every logical component must have exactly one physical projection"
+            "every logical component must have at least one physical projection"
         );
 
         let dependencies = logical
             .dependencies
             .into_iter()
-            .map(|dependency| {
-                (
-                    component_modules[&dependency.from_component_id].clone(),
-                    component_modules[&dependency.to_component_id].clone(),
-                )
+            .flat_map(|dependency| {
+                component_modules[&dependency.from_component_id]
+                    .iter()
+                    .flat_map(|source| {
+                        component_modules[&dependency.to_component_id]
+                            .iter()
+                            .map(move |target| (source.clone(), target.clone()))
+                    })
+                    .collect::<Vec<_>>()
             })
             .collect();
+        let mut module_components = BTreeMap::new();
+        for (component, modules) in &component_modules {
+            for module in modules {
+                assert!(
+                    module_components
+                        .insert(module.clone(), component.clone())
+                        .is_none(),
+                    "self boundary fixtures require unambiguous component projections"
+                );
+            }
+        }
         let top_level_modules = component_modules
             .values()
+            .flatten()
             .map(|module| top_level_module(module))
             .collect();
         assert!(
             component_modules
                 .values()
+                .flatten()
                 .all(|module| top_level_module(module) == *module),
             "self boundary fixtures require components projected to crate-root modules"
         );
 
         Self {
-            component_modules,
+            module_components,
             dependencies,
             top_level_modules,
         }
     }
 
     fn first_forbidden_dependency(&self) -> Option<(String, String)> {
-        for source in self.component_modules.values() {
-            for target in self.component_modules.values() {
+        for source in self.module_components.keys() {
+            for target in self.module_components.keys() {
                 let dependency = (source.clone(), target.clone());
                 if source != target && !self.dependencies.contains(&dependency) {
                     return Some(dependency);
@@ -372,7 +389,7 @@ fn write_component_fixture(
         "[package]\nname = \"self-boundary-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
     );
     fixture.write("src/main.rs", &fixture_entrypoint(design));
-    for module in design.component_modules.values() {
+    for module in design.module_components.keys() {
         let mut body = String::new();
         for (_, target) in dependencies.iter().filter(|(source, _)| source == module) {
             body.push_str(&format!("use {target};\n"));
@@ -501,16 +518,16 @@ fn observed_component_dependencies(
 
 fn component_for<'a>(module: &str, design: &'a ModuleBoundaryDesign) -> Option<&'a str> {
     design
-        .component_modules
-        .values()
-        .filter(|component| {
-            module == component.as_str()
+        .module_components
+        .iter()
+        .filter(|(root, _)| {
+            module == root.as_str()
                 || module
-                    .strip_prefix(component.as_str())
+                    .strip_prefix(root.as_str())
                     .is_some_and(|suffix| suffix.starts_with("::"))
         })
-        .max_by_key(|component| component.len())
-        .map(String::as_str)
+        .max_by_key(|(root, _)| root.len())
+        .map(|(root, _)| root.as_str())
 }
 
 struct ScratchDirectory {

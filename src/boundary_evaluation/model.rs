@@ -106,7 +106,7 @@ pub struct LoadedBoundaryPolicy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentAttributionModel {
-    pub component_modules: BTreeMap<String, String>,
+    pub component_modules: BTreeMap<String, BTreeSet<String>>,
     pub declared_dependencies: BTreeSet<(String, String)>,
 }
 
@@ -191,6 +191,28 @@ pub struct AnalysisIssue {
     pub policy_impact: PolicyImpact,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ComponentDependencyCandidate {
+    pub source_component: String,
+    pub target_component: String,
+    pub outcome: ComponentDependencyOutcome,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ComponentDependencyOutcome {
+    Allowed,
+    Forbidden,
+}
+
+impl ComponentDependencyOutcome {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Allowed => "allowed",
+            Self::Forbidden => "forbidden",
+        }
+    }
+}
+
 impl AnalysisIssue {
     pub fn unresolved_dependency_candidate(
         code: impl Into<String>,
@@ -211,6 +233,7 @@ impl AnalysisIssue {
                 evidence: Some(evidence),
                 candidate_targets,
                 candidate_components: Vec::new(),
+                component_dependency_candidates: Vec::new(),
                 dependency_kinds,
             },
             policy_impact: PolicyImpact::possible(Vec::new()),
@@ -235,6 +258,7 @@ impl AnalysisIssue {
                 evidence,
                 candidate_targets: Vec::new(),
                 candidate_components: Vec::new(),
+                component_dependency_candidates: Vec::new(),
                 dependency_kinds,
             },
             policy_impact: PolicyImpact::possible(Vec::new()),
@@ -257,6 +281,7 @@ impl AnalysisIssue {
                 evidence: None,
                 candidate_targets: Vec::new(),
                 candidate_components,
+                component_dependency_candidates: Vec::new(),
                 dependency_kinds: Vec::new(),
             },
             policy_impact: PolicyImpact::possible(Vec::new()),
@@ -268,6 +293,7 @@ impl AnalysisIssue {
         target_module: String,
         evidence: SourceEvidence,
         candidate_components: Vec<String>,
+        component_dependency_candidates: Vec<ComponentDependencyCandidate>,
         dependency_kind: DependencyKind,
         reason: String,
     ) -> Self {
@@ -281,6 +307,7 @@ impl AnalysisIssue {
                 evidence: Some(evidence),
                 candidate_targets: vec![target_module],
                 candidate_components,
+                component_dependency_candidates,
                 dependency_kinds: vec![dependency_kind],
             },
             policy_impact: PolicyImpact::possible(Vec::new()),
@@ -306,6 +333,7 @@ impl AnalysisIssue {
                 evidence,
                 candidate_targets: Vec::new(),
                 candidate_components: Vec::new(),
+                component_dependency_candidates: Vec::new(),
                 dependency_kinds: Vec::new(),
             },
             policy_impact: PolicyImpact::none(),
@@ -322,6 +350,7 @@ impl AnalysisIssue {
             self.observation.evidence.as_ref(),
             self.observation.candidate_targets.as_slice(),
             self.observation.candidate_components.as_slice(),
+            self.observation.component_dependency_candidates.as_slice(),
             self.observation.dependency_kinds.as_slice(),
             self.policy_impact.outcome,
             self.policy_impact.rule_ids.as_slice(),
@@ -335,6 +364,7 @@ impl AnalysisIssue {
                 other.observation.evidence.as_ref(),
                 other.observation.candidate_targets.as_slice(),
                 other.observation.candidate_components.as_slice(),
+                other.observation.component_dependency_candidates.as_slice(),
                 other.observation.dependency_kinds.as_slice(),
                 other.policy_impact.outcome,
                 other.policy_impact.rule_ids.as_slice(),
@@ -349,6 +379,7 @@ pub struct AnalysisObservation {
     pub evidence: Option<SourceEvidence>,
     pub candidate_targets: Vec<String>,
     pub candidate_components: Vec<String>,
+    pub component_dependency_candidates: Vec<ComponentDependencyCandidate>,
     pub dependency_kinds: Vec<DependencyKind>,
 }
 
