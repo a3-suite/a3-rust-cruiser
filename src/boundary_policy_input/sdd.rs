@@ -34,6 +34,31 @@ pub(super) fn project(
 
 fn read_yaml<T: for<'de> Deserialize<'de>>(path: &Path, kind: &str) -> Result<T> {
     let content = std::fs::read_to_string(path)?;
-    serde_yaml::from_str(&content)
+    let value: serde_yaml::Value = serde_yaml::from_str(&content)
+        .map_err(|error| invalid_sdd(format!("invalid {kind} YAML: {error}")))?;
+    validate_discriminator(&value, kind)?;
+    serde_yaml::from_value(value)
         .map_err(|error| invalid_sdd(format!("invalid {kind} YAML: {error}")))
+}
+
+fn validate_discriminator(value: &serde_yaml::Value, kind: &str) -> Result<()> {
+    let version = value
+        .get("version")
+        .and_then(serde_yaml::Value::as_u64)
+        .ok_or_else(|| invalid_sdd(format!("{kind} requires an integer version")))?;
+    let name = value
+        .get("name")
+        .and_then(serde_yaml::Value::as_str)
+        .ok_or_else(|| invalid_sdd(format!("{kind} requires a name")))?;
+    if name != kind {
+        return Err(invalid_sdd(format!(
+            "unexpected SDD name for {kind}: {name}"
+        )));
+    }
+    if version != 1 {
+        return Err(invalid_sdd(format!(
+            "unsupported {kind} version: {version}"
+        )));
+    }
+    Ok(())
 }

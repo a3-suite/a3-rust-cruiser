@@ -2,12 +2,15 @@ mod error;
 mod sdd_policy;
 mod use_case;
 
+#[cfg(test)]
+pub(crate) use crate::boundary_evaluation::UnresolvedModuleAttribution;
 pub(crate) use crate::boundary_evaluation::{
     AnalysisContext, AnalysisIssue, AnalysisProfile, BoundaryPolicy, BoundaryRule,
     BoundaryViolation, Dependency, DependencyKind, LoadedBoundaryPolicy, LogicalModule,
-    ModuleDeclaration, ObservedDependencyGraph, PolicyEvaluation, RuleKind, Severity,
-    SourceEvidence, TargetScope, ValidationDecision, ValidationResult, ViolationKind,
-    matches_pattern,
+    ModuleDeclaration, NormalizedSddCoverage, NormalizedSddPolicy, NormalizedSddProvenance,
+    NormalizedSddSourceArtifact, ObservedDependencyGraph, PolicyEvaluation, RuleKind,
+    ScopedComponentAttribution, Severity, SourceEvidence, TargetScope, ValidationDecision,
+    ValidationResult, ViolationKind, matches_pattern,
 };
 pub(crate) use error::{CruiserError, Result};
 pub(crate) use sdd_policy::{

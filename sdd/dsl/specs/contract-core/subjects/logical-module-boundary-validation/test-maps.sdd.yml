@@ -288,6 +288,56 @@ test_maps:
         symbol: should_cargo_target_root_component_projections_are_rejected
         check_refs:
           - check-inconsistent-sdd-policy-exit-code
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: unsupported-or-mixed-sdd-versions-are-rejected
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: should_unsupported_or_mixed_sdd_versions_are_rejected_before_analysis
+        check_refs:
+          - check-invalid-sdd-discriminator-exit-code
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: unknown-legacy-sdd-fields-are-rejected
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: should_unknown_legacy_sdd_fields_are_rejected_before_analysis
+        check_refs:
+          - check-unknown-legacy-sdd-field-exit-code
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: resolved-implementation-attribution-is-consumed-directly
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: should_public_resolved_implementation_attribution_is_accepted
+        check_refs:
+          - check-resolved-attribution-public-cli-acceptance
+          - check-resolved-attribution-coverage
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: invalid-resolved-implementation-attribution-is-rejected
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: should_invalid_resolved_attribution_is_rejected_before_analysis
+        check_refs:
+          - check-invalid-resolved-attribution-exit-code
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: resolved-attribution-and-other-policy-sources-are-rejected
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: should_resolved_attribution_is_exclusive_with_other_policy_sources
+        check_refs:
+          - check-exclusive-resolved-attribution-exit-code
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: unresolved-implementation-attribution-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: should_public_resolved_attribution_is_indeterminate_when_unresolved
+        check_refs:
+          - check-resolved-attribution-indeterminate
+  - verification_id: verification.logical-module-boundary.boundary-policy-input
+    case_id: resolved-attribution-forbidden-edge-is-non-conformant
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: should_public_resolved_attribution_forbidden_scope_edge_is_non_conformant
+        check_refs:
+          - check-resolved-attribution-non-conformant
   - verification_id: verification.logical-module-boundary.policy-evaluation
     case_id: forbidden-overrides-matching-allowed-rule
     tests:
@@ -693,6 +743,16 @@ test_maps:
           - check-report-ordering
           - check-report-decision
           - check-report-violations
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: resolved-attribution-json-report
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_public_resolved_attribution_report_schema_three_and_coverage
+        check_refs:
+          - check-resolved-attribution-json-schema-version
+          - check-resolved-attribution-report-serialization
+          - check-resolved-attribution-report-ordering
+          - check-resolved-attribution-report-decision
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: text-report
     tests:

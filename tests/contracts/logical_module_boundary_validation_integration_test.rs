@@ -57,6 +57,18 @@ fn write_sdd_policy_input(fixture: &TempFixture) {
     );
 }
 
+fn write_resolved_implementation_attribution(fixture: &TempFixture) {
+    fixture.write(
+        "resolved-implementation-attribution.sdd.yml",
+        &resolved_implementation_attribution(fixture),
+    );
+}
+
+fn resolved_implementation_attribution(_fixture: &TempFixture) -> String {
+    "version: 1\nname: resolved-implementation-attribution\nsource_provenance:\n  producer: owner-resolved-current-family\n  artifacts:\n    - dsl_name: logical-structure\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: fixture\n      sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n    - dsl_name: projection\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: fixture\n      sha256: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n    - dsl_name: physical-structure\n      version: 1\n      artifact_identity:\n        axes: {}\n      sha256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\nfile_attributions:\n  - observed_file_path: src/main.rs\n    canonical_scope: fixture\n    component_id: application\n    element_id: main\ncomponent_dependencies: []\nscope_dependencies: []\n"
+        .to_owned()
+}
+
 fn forbidden_fixture(label: &str, with_issue: bool) -> TempFixture {
     let fixture = dependency_fixture(label, "infrastructure");
     if with_issue {
@@ -240,6 +252,28 @@ fn runtime_item_macro_fixture(name: &str, definitions: &str) -> TempFixture {
 
 fn run_sdd_check(fixture: &TempFixture, include_directory_structure: bool) -> Output {
     run_sdd_check_with_format(fixture, include_directory_structure, "json")
+}
+
+fn run_resolved_attribution_check(fixture: &TempFixture, extra_args: &[&str]) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"));
+    command
+        .arg("check")
+        .arg(fixture.path())
+        .arg("--resolved-implementation-attribution")
+        .arg(fixture.join("resolved-implementation-attribution.sdd.yml"))
+        .arg("--package")
+        .arg(fixture.package())
+        .arg("--target")
+        .arg(fixture.target())
+        .args([
+            "--target-triple",
+            "x86_64-unknown-linux-gnu",
+            "--format",
+            "json",
+        ])
+        .args(extra_args)
+        .output()
+        .expect("binary should run")
 }
 
 fn run_sdd_check_with_format(

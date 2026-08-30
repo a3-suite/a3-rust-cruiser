@@ -277,6 +277,72 @@ verifications:
         checks:
           - id: check-inconsistent-sdd-policy-exit-code
             guarantee_ref: invalid-sdd-boundary-policy-input-exits-with-three
+      - id: unsupported-or-mixed-sdd-versions-are-rejected
+        intent_id: sdd-boundary-policy-input-rejection
+        input:
+          invalid_sdd_boundary_policy:
+            discriminator_state: unsupported-or-mixed
+        checks:
+          - id: check-invalid-sdd-discriminator-exit-code
+            guarantee_ref: invalid-sdd-boundary-policy-input-exits-with-three
+      - id: unknown-legacy-sdd-fields-are-rejected
+        intent_id: sdd-boundary-policy-input-rejection
+        input:
+          invalid_sdd_boundary_policy:
+            unknown_field: true
+        checks:
+          - id: check-unknown-legacy-sdd-field-exit-code
+            guarantee_ref: invalid-sdd-boundary-policy-input-exits-with-three
+      - id: resolved-implementation-attribution-is-consumed-directly
+        intent_id: resolved-implementation-attribution-public-cli-semantics
+        input:
+          valid_resolved_implementation_attribution:
+            public_cli_input: true
+            provenance_present: true
+            owner_selected_file_attribution: true
+            consumer_derived_selected_module_coverage: true
+            consumer_owned_analysis_context: true
+        checks:
+          - id: check-resolved-attribution-public-cli-acceptance
+            guarantee_ref: valid-resolved-implementation-attribution-input-accepted
+          - id: check-resolved-attribution-coverage
+            guarantee_ref: resolved-attribution-coverage-is-reported
+      - id: invalid-resolved-implementation-attribution-is-rejected
+        intent_id: resolved-implementation-attribution-public-cli-semantics
+        input:
+          invalid_resolved_implementation_attribution:
+            malformed: true
+            unknown_version: true
+            unknown_name: true
+            invalid_provenance: true
+            legacy_consumer_envelope_field: true
+            missing_required_dependency_collection: true
+        checks:
+          - id: check-invalid-resolved-attribution-exit-code
+            guarantee_ref: invalid-resolved-implementation-attribution-input-exits-with-three
+      - id: resolved-attribution-and-other-policy-sources-are-rejected
+        intent_id: resolved-implementation-attribution-public-cli-semantics
+        input:
+          invalid_resolved_implementation_attribution:
+            simultaneous_policy_sources: true
+        checks:
+          - id: check-exclusive-resolved-attribution-exit-code
+            guarantee_ref: invalid-resolved-implementation-attribution-input-exits-with-three
+      - id: unresolved-implementation-attribution-is-indeterminate
+        intent_id: resolved-implementation-attribution-public-cli-semantics
+        input:
+          unresolved_implementation_attribution:
+            missing_observed_file: true
+        checks:
+          - id: check-resolved-attribution-indeterminate
+            guarantee_ref: unresolved-implementation-attribution-is-indeterminate
+      - id: resolved-attribution-forbidden-edge-is-non-conformant
+        intent_id: resolved-implementation-attribution-public-cli-semantics
+        input:
+          forbidden_resolved_attribution_edge: true
+        checks:
+          - id: check-resolved-attribution-non-conformant
+            guarantee_ref: forbidden-resolved-attribution-edge-is-non-conformant
 
   - id: verification.logical-module-boundary.policy-evaluation
     contract_id: contract.logical-module-boundary.policy-evaluation
@@ -842,7 +908,7 @@ verifications:
         input:
           report_request:
             format: json
-          json_report_request: true
+          legacy_json_report_request: true
         checks:
           - id: check-json-schema-version
             guarantee_ref: json-schema-version-present
@@ -868,6 +934,21 @@ verifications:
             guarantee_ref: report-decision-supported
           - id: check-report-violations
             guarantee_ref: report-violations-present
+      - id: resolved-attribution-json-report
+        intent_id: json-report-projection
+        input:
+          report_request:
+            format: json
+          resolved_implementation_attribution_json_report_request: true
+        checks:
+          - id: check-resolved-attribution-json-schema-version
+            guarantee_ref: resolved-attribution-json-schema-version-is-three
+          - id: check-resolved-attribution-report-serialization
+            guarantee_ref: report-serialization-supported
+          - id: check-resolved-attribution-report-ordering
+            guarantee_ref: report-ordering-canonical
+          - id: check-resolved-attribution-report-decision
+            guarantee_ref: report-decision-supported
       - id: text-component-dependency-candidate-outcomes
         intent_id: text-report-projection
         input:
@@ -920,7 +1001,7 @@ verifications:
             format: json
             repeat_count: 2
             same_analysis_input: true
-          json_report_request: true
+          legacy_json_report_request: true
         checks:
           - id: check-json-schema-version
             guarantee_ref: json-schema-version-present

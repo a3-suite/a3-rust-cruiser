@@ -1,4 +1,5 @@
 mod loader;
+pub(crate) mod normalized_sdd;
 mod sdd;
 mod yaml;
 

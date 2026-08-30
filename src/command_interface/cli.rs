@@ -129,6 +129,7 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
         .get(1)
         .ok_or_else(|| CruiserError::InvalidInput(usage().to_owned()))?;
     let mut policy = None;
+    let mut resolved_implementation_attribution = None;
     let mut logical_structure = None;
     let mut projection = None;
     let mut directory_structure = None;
@@ -152,6 +153,10 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
         };
         match option {
             "--policy" | "-p" => policy = Some(PathBuf::from(takes_value(option, &mut index)?)),
+            "--resolved-implementation-attribution" => {
+                resolved_implementation_attribution =
+                    Some(PathBuf::from(takes_value(option, &mut index)?));
+            }
             "--logical-structure" => {
                 logical_structure = Some(PathBuf::from(takes_value(option, &mut index)?));
             }
@@ -202,6 +207,7 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
         project_root: PathBuf::from(project_root),
         policy_input: parse_policy_input(
             policy,
+            resolved_implementation_attribution,
             logical_structure,
             projection,
             directory_structure,
@@ -223,19 +229,27 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
 
 fn parse_policy_input(
     policy: Option<PathBuf>,
+    resolved_implementation_attribution: Option<PathBuf>,
     logical_structure: Option<PathBuf>,
     projection: Option<PathBuf>,
     directory_structure: Option<PathBuf>,
 ) -> Result<BoundaryPolicyInput> {
     let has_sdd_input =
         logical_structure.is_some() || projection.is_some() || directory_structure.is_some();
-    if policy.is_some() && has_sdd_input {
+    let source_count = usize::from(policy.is_some())
+        + usize::from(resolved_implementation_attribution.is_some())
+        + usize::from(has_sdd_input);
+    if source_count > 1 {
         return Err(CruiserError::InvalidInput(
-            "--policy cannot be combined with SDD boundary policy input".to_owned(),
+            "boundary policy inputs are mutually exclusive: use exactly one of --policy, --resolved-implementation-attribution, or the complete legacy SDD input"
+                .to_owned(),
         ));
     }
     if let Some(path) = policy {
         return Ok(BoundaryPolicyInput::Yaml { path });
+    }
+    if let Some(path) = resolved_implementation_attribution {
+        return Ok(BoundaryPolicyInput::ResolvedImplementationAttribution { path });
     }
     match (logical_structure, projection, directory_structure) {
         (Some(logical_structure), Some(projection), Some(directory_structure)) => {
@@ -246,7 +260,8 @@ fn parse_policy_input(
             })
         }
         (None, None, None) => Err(CruiserError::InvalidInput(
-            "--policy or complete SDD boundary policy input is required".to_owned(),
+            "--policy, --resolved-implementation-attribution, or complete legacy SDD boundary policy input is required"
+                .to_owned(),
         )),
         _ => Err(CruiserError::InvalidInput(
             "SDD boundary policy input requires --logical-structure, --projection, and --directory-structure"
@@ -262,7 +277,7 @@ fn sorted_unique(mut values: Vec<String>) -> Vec<String> {
 }
 
 fn usage() -> &'static str {
-    "Usage: a3-rust-cruiser check <PROJECT_ROOT> (--policy <BOUNDARY_POLICY_PATH> | --logical-structure <LOGICAL_STRUCTURE_PATH> --projection <PROJECTION_PATH> --directory-structure <DIRECTORY_STRUCTURE_PATH>) --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]"
+    "Usage: a3-rust-cruiser check <PROJECT_ROOT> (--policy <BOUNDARY_POLICY_PATH> | --resolved-implementation-attribution <RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH> | --logical-structure <LOGICAL_STRUCTURE_PATH> --projection <PROJECTION_PATH> --directory-structure <DIRECTORY_STRUCTURE_PATH>) --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]"
 }
 
 fn root_help() -> &'static str {
@@ -270,13 +285,13 @@ fn root_help() -> &'static str {
 }
 
 fn check_help() -> &'static str {
-    "Usage: a3-rust-cruiser check <PROJECT_ROOT> (--policy <BOUNDARY_POLICY_PATH> | --logical-structure <LOGICAL_STRUCTURE_PATH> --projection <PROJECTION_PATH> --directory-structure <DIRECTORY_STRUCTURE_PATH>) --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]\n\nAnalysis input:\n  -p, --policy <BOUNDARY_POLICY_PATH>\n      --logical-structure <LOGICAL_STRUCTURE_PATH>\n      --projection <PROJECTION_PATH>\n      --directory-structure <DIRECTORY_STRUCTURE_PATH>\n      --package <PACKAGE>\n      --target <TARGET>\n      --target-triple <TARGET_TRIPLE>\n      --analysis-profile <compilation|source-union>\n      --feature <FEATURE>\n      --cfg <CFG>\n      --include <MODULE_PATTERN>\n      --exclude <MODULE_PATTERN>\n\nOutput:\n  -f, --format <text|json>\n\nOptions:\n  -h, --help  Print help"
+    "Usage: a3-rust-cruiser check <PROJECT_ROOT> (--policy <BOUNDARY_POLICY_PATH> | --resolved-implementation-attribution <RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH> | --logical-structure <LOGICAL_STRUCTURE_PATH> --projection <PROJECTION_PATH> --directory-structure <DIRECTORY_STRUCTURE_PATH>) --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]\n\nAnalysis input:\n  -p, --policy <BOUNDARY_POLICY_PATH>\n      --resolved-implementation-attribution <RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH>\n      --logical-structure <LOGICAL_STRUCTURE_PATH>\n      --projection <PROJECTION_PATH>\n      --directory-structure <DIRECTORY_STRUCTURE_PATH>\n      --package <PACKAGE>\n      --target <TARGET>\n      --target-triple <TARGET_TRIPLE>\n      --analysis-profile <compilation|source-union>\n      --feature <FEATURE>\n      --cfg <CFG>\n      --include <MODULE_PATTERN>\n      --exclude <MODULE_PATTERN>\n\nOutput:\n  -f, --format <text|json>\n\nOptions:\n  -h, --help  Print help"
 }
 
 #[cfg(test)]
 mod tests {
     use super::{decision_exit_code, informational_output, parse_check_args};
-    use crate::boundary_validation::{AnalysisProfile, ValidationDecision};
+    use crate::boundary_validation::{AnalysisProfile, BoundaryPolicyInput, ValidationDecision};
 
     #[test]
     fn should_require_a_project_root_for_check() {
@@ -396,6 +411,84 @@ mod tests {
 
         // Assert
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_accept_resolved_implementation_attribution_as_the_policy_source() {
+        // Arrange
+        let arguments = vec![
+            "check",
+            ".",
+            "--resolved-implementation-attribution",
+            "resolved-implementation-attribution.sdd.yml",
+            "--package",
+            "fixture",
+            "--target",
+            "bin:fixture",
+            "--target-triple",
+            "x86_64-unknown-linux-gnu",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+
+        // Act
+        let result = parse_check_args(&arguments).expect("arguments should be valid");
+
+        // Assert
+        assert!(matches!(
+            result.policy_input,
+            BoundaryPolicyInput::ResolvedImplementationAttribution { path }
+                if path.as_path()
+                    == std::path::Path::new("resolved-implementation-attribution.sdd.yml")
+        ));
+    }
+
+    #[test]
+    fn should_reject_resolved_attribution_combined_with_another_policy_source() {
+        // Arrange
+        let cases = [
+            vec![
+                "--resolved-implementation-attribution",
+                "resolved.sdd.yml",
+                "--policy",
+                "policy.yaml",
+            ],
+            vec![
+                "--resolved-implementation-attribution",
+                "resolved.sdd.yml",
+                "--logical-structure",
+                "logical.sdd.yml",
+            ],
+            vec![
+                "--resolved-implementation-attribution",
+                "resolved.sdd.yml",
+                "--logical-structure",
+                "logical.sdd.yml",
+                "--projection",
+                "projection.sdd.yml",
+                "--directory-structure",
+                "directory.sdd.yml",
+            ],
+        ];
+
+        // Act
+        let results = cases.map(|policy_args| {
+            let mut arguments = vec!["check", "."];
+            arguments.extend(policy_args);
+            arguments.extend([
+                "--package",
+                "fixture",
+                "--target",
+                "bin:fixture",
+                "--target-triple",
+                "x86_64-unknown-linux-gnu",
+            ]);
+            parse_check_args(&arguments.into_iter().map(str::to_owned).collect::<Vec<_>>())
+        });
+
+        // Assert
+        assert!(results.into_iter().all(|result| result.is_err()));
     }
 
     #[test]

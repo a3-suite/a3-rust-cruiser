@@ -304,7 +304,7 @@ fn should_unobserved_overlapping_rust_module_projections_are_conformant() {
     write_sdd_policy_input(&fixture);
     fixture.write(
         "directory-structure.sdd.yml",
-        "nodes:\n  - node_id: src-application\n    path: src/application\n  - node_id: src-domain\n    path: src/application/domain.rs\n",
+        "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n  - node_id: src-application\n    path: src/application\n  - node_id: src-domain\n    path: src/application/domain.rs\n",
     );
 
     // Act
@@ -391,6 +391,34 @@ fn should_text_report_projects_common_validation_result() {
     assert!(payload.contains("observation: unresolved-dependency-candidate"));
     assert!(payload.contains("component_dependency_candidates: []"));
     assert!(payload.contains("policy_impact: possible [possible-crate-cycle]"));
+}
+
+#[test]
+fn should_public_resolved_attribution_report_schema_three_and_coverage() {
+    // Arrange
+    let fixture = TempFixture::new("normalized-public-report");
+    write_resolved_implementation_attribution(&fixture);
+
+    // Act
+    let report = completed_json(&run_resolved_attribution_check(&fixture, &[]), 0);
+
+    // Assert
+    assert_eq!(report["schema_version"], "3");
+    assert_eq!(report["serialization"], "json");
+    assert_eq!(report["ordering"], "canonical");
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(
+        report["normalized_sdd_coverage"]["covered_modules"][0],
+        "crate"
+    );
+    assert_eq!(
+        report["normalized_sdd_coverage"]["source_provenance"]["producer"],
+        "owner-resolved-current-family"
+    );
+    assert_eq!(
+        report["normalized_sdd_coverage"]["unresolved_modules"],
+        serde_json::json!([])
+    );
 }
 
 #[test]

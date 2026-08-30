@@ -6,7 +6,8 @@ use std::{
 use crate::boundary_evaluation::{
     AnalysisContext, AnalysisIssue, AnalysisObservationOutcome, BoundaryPolicy,
     LoadedBoundaryPolicy, ObservedDependencyGraph, PolicyImpactOutcome, RuleKind, ValidationResult,
-    assess_component_attribution, assess_policy_impact, decide, evaluate, is_valid_pattern,
+    assess_component_attribution, assess_normalized_sdd, assess_policy_impact, decide, evaluate,
+    is_valid_pattern,
 };
 
 use super::{CruiserError, Result};
@@ -25,6 +26,7 @@ pub trait BoundaryPolicyLoader {
 pub(crate) enum PreparedBoundaryPolicy {
     Yaml(BoundaryPolicy),
     Sdd(super::sdd_policy::PreparedSddDesign),
+    ResolvedImplementationAttribution(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +38,9 @@ pub enum BoundaryPolicyInput {
         logical_structure: PathBuf,
         projection: PathBuf,
         directory_structure: PathBuf,
+    },
+    ResolvedImplementationAttribution {
+        path: PathBuf,
     },
 }
 
@@ -72,6 +77,7 @@ where
     let target_source = match &prepared {
         PreparedBoundaryPolicy::Yaml(_) => None,
         PreparedBoundaryPolicy::Sdd(_) => Some(observer.target_source(project_root, &context)?),
+        PreparedBoundaryPolicy::ResolvedImplementationAttribution(_) => None,
     };
     let loaded = policy_loader.finalize(prepared, project_root, target_source.as_deref())?;
     let mut policy = loaded.policy;
@@ -82,12 +88,18 @@ where
     let (graph, observation_issues) = observer.observe(project_root, context)?;
     analysis_issues.extend(observation_issues);
     validate_analysis_issues(&analysis_issues)?;
+    let mut normalized_sdd_coverage = None;
     if let Some(component_attribution) = loaded.component_attribution.as_ref() {
         policy.rules.extend(assess_component_attribution(
             &mut analysis_issues,
             &graph,
             component_attribution,
         ));
+    }
+    if let Some(normalized_sdd) = loaded.normalized_sdd.as_ref() {
+        let (rules, coverage) = assess_normalized_sdd(&mut analysis_issues, &graph, normalized_sdd);
+        policy.rules.extend(rules);
+        normalized_sdd_coverage = Some(coverage);
     }
     assess_policy_impact(&mut analysis_issues, &policy);
     validate_analysis_issues(&analysis_issues)?;
@@ -103,6 +115,7 @@ where
         policy_evaluation,
         analysis_issues,
         decision,
+        normalized_sdd_coverage,
     })
 }
 
@@ -236,6 +249,7 @@ mod tests {
                 policy,
                 analysis_issues: Vec::new(),
                 component_attribution: None,
+                normalized_sdd: None,
             })
         }
     }
@@ -370,6 +384,7 @@ mod tests {
                 policy,
                 analysis_issues: Vec::new(),
                 component_attribution: None,
+                normalized_sdd: None,
             })
         }
     }

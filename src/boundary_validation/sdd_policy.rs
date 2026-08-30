@@ -45,6 +45,15 @@ pub(crate) fn prepare_sdd_design(input: SddDesignInput) -> Result<PreparedSddDes
         directories,
     } = input;
 
+    validate_legacy_discriminator(logical.version, &logical.name, 1, "logical-structure")?;
+    validate_legacy_discriminator(projection.version, &projection.name, 1, "projection")?;
+    validate_legacy_discriminator(
+        directories.version,
+        &directories.name,
+        1,
+        "directory-structure",
+    )?;
+
     let component_ids = unique_values(
         logical
             .components
@@ -116,6 +125,25 @@ pub(crate) fn prepare_sdd_design(input: SddDesignInput) -> Result<PreparedSddDes
         mappings,
         declared_dependencies,
     })
+}
+
+fn validate_legacy_discriminator(
+    version: u64,
+    name: &str,
+    expected_version: u64,
+    expected_name: &str,
+) -> Result<()> {
+    if name != expected_name {
+        return Err(invalid_sdd(format!(
+            "unexpected SDD name for {expected_name}: {name}"
+        )));
+    }
+    if version != expected_version {
+        return Err(invalid_sdd(format!(
+            "unsupported {expected_name} version: {version}"
+        )));
+    }
+    Ok(())
 }
 
 pub(crate) fn project_sdd_policy(
@@ -256,6 +284,7 @@ pub(crate) fn project_sdd_policy(
                 declared_dependencies,
             },
         ),
+        normalized_sdd: None,
     })
 }
 
@@ -392,42 +421,80 @@ pub(crate) fn invalid_sdd(message: impl Into<String>) -> CruiserError {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct LogicalStructure {
+    pub(crate) version: u64,
+    pub(crate) name: String,
+    #[serde(rename = "structure_id")]
+    pub(crate) _structure_id: String,
     pub(crate) components: Vec<LogicalComponent>,
+    #[serde(default)]
     pub(crate) dependencies: Vec<LogicalDependency>,
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct LogicalComponent {
     pub(crate) component_id: String,
+    #[serde(default)]
+    #[serde(rename = "responsibility")]
+    pub(crate) _responsibility: Option<String>,
+    #[serde(default)]
+    #[serde(rename = "kind_ref")]
+    pub(crate) _kind_ref: Option<String>,
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct LogicalDependency {
     pub(crate) from_component_id: String,
     pub(crate) to_component_id: String,
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Projection {
+    pub(crate) version: u64,
+    pub(crate) name: String,
+    #[serde(rename = "projection_id")]
+    pub(crate) _projection_id: String,
     pub(crate) mappings: Vec<ProjectionMapping>,
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct ProjectionMapping {
     pub(crate) component_id: String,
     pub(crate) node_id: String,
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct DirectoryStructure {
+    pub(crate) version: u64,
+    pub(crate) name: String,
+    #[serde(rename = "structure_id")]
+    pub(crate) _structure_id: String,
     pub(crate) nodes: Vec<DirectoryNode>,
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct DirectoryNode {
     pub(crate) node_id: String,
     pub(crate) path: String,
+    #[serde(default)]
+    #[serde(rename = "role")]
+    pub(crate) _role: Option<String>,
+    #[serde(default)]
+    #[serde(rename = "primary_area_kind")]
+    pub(crate) _primary_area_kind: Option<String>,
+    #[serde(default)]
+    #[serde(rename = "area_kinds")]
+    pub(crate) _area_kinds: Vec<String>,
+    #[serde(default)]
+    #[serde(rename = "responsibility")]
+    pub(crate) _responsibility: Option<String>,
 }
 
 #[cfg(test)]

@@ -14,7 +14,7 @@ observations:
       fields:
         - selector: result.schema_version
           kind: observation_field
-          meaning: JSON契約のmajor版を表す文字列。型付きAnalysisIssueを持つ版は2
+          meaning: JSON契約のmajor版を表す文字列。legacy policy入力は2、resolved-implementation-attribution入力とconsumer派生coverageを持つ公開CLI版は3
         - selector: result.serialization
           kind: observation_field
           meaning: 共通の検証結果を直列化したtextまたはjson
@@ -186,6 +186,9 @@ observations:
         - selector: result.decision
           kind: observation_field
           meaning: conformant、non-conformant、indeterminateのいずれかで表すValidationDecision
+        - selector: result.normalized_sdd_coverage
+          kind: observation_field
+          meaning: 公開CLIのresolved-implementation-attribution入力でだけ存在し、producer、dsl nameとartifact identity axesで識別したordered artifact instance provenance、consumerが公開CLIのAnalysisContextと全選択moduleのsource file exact joinから導出したcovered moduleと、module ID、observed file path集合、理由を持つunresolved moduleのcoverage証跡
   - id: observation.cli.process-outcome
     summary: CLIプロセスが返す終了状態と標準streamの種別
     boundary:

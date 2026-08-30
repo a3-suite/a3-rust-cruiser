@@ -40,6 +40,7 @@ pub struct SourceEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalModule {
     pub id: String,
+    pub source_paths: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,6 +103,50 @@ pub struct LoadedBoundaryPolicy {
     pub policy: BoundaryPolicy,
     pub analysis_issues: Vec<AnalysisIssue>,
     pub component_attribution: Option<ComponentAttributionModel>,
+    pub normalized_sdd: Option<NormalizedSddPolicy>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedSddPolicy {
+    pub provenance: NormalizedSddProvenance,
+    pub file_attributions: BTreeMap<String, ScopedComponentAttribution>,
+    pub declared_component_dependencies: BTreeSet<(String, String, String)>,
+    pub declared_scope_dependencies: BTreeSet<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopedComponentAttribution {
+    pub canonical_scope: String,
+    pub component_id: String,
+    pub element_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedSddProvenance {
+    pub producer: String,
+    pub artifacts: Vec<NormalizedSddSourceArtifact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NormalizedSddSourceArtifact {
+    pub dsl_name: String,
+    pub version: u64,
+    pub artifact_identity_axes: BTreeMap<String, String>,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedSddCoverage {
+    pub source_provenance: NormalizedSddProvenance,
+    pub covered_modules: Vec<String>,
+    pub unresolved_modules: Vec<UnresolvedModuleAttribution>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct UnresolvedModuleAttribution {
+    pub module_id: String,
+    pub observed_file_paths: Vec<String>,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -462,6 +507,7 @@ pub struct ValidationResult {
     pub policy_evaluation: PolicyEvaluation,
     pub analysis_issues: Vec<AnalysisIssue>,
     pub decision: ValidationDecision,
+    pub normalized_sdd_coverage: Option<NormalizedSddCoverage>,
 }
 
 #[cfg(test)]

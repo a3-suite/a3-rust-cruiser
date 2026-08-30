@@ -4,7 +4,8 @@ use serde_json::{Map, Value, json};
 
 use crate::boundary_validation::{
     AnalysisContext, AnalysisIssue, BoundaryViolation, Dependency, LogicalModule,
-    ModuleDeclaration, PolicyEvaluation, ValidationDecision, ValidationResult,
+    ModuleDeclaration, NormalizedSddCoverage, PolicyEvaluation, ValidationDecision,
+    ValidationResult,
 };
 
 pub struct ValidationReport {
@@ -20,6 +21,7 @@ pub struct ValidationReport {
     pub policy_evaluation: PolicyEvaluation,
     pub analysis_issues: Vec<AnalysisIssue>,
     pub decision: ValidationDecision,
+    pub normalized_sdd_coverage: Option<NormalizedSddCoverage>,
 }
 
 pub fn build(result: ValidationResult, serialization: &str) -> ValidationReport {
@@ -29,6 +31,7 @@ pub fn build(result: ValidationResult, serialization: &str) -> ValidationReport 
         policy_evaluation,
         mut analysis_issues,
         decision,
+        normalized_sdd_coverage,
     } = result;
     graph.analysis_context.features.sort();
     graph.analysis_context.features.dedup();
@@ -87,7 +90,11 @@ pub fn build(result: ValidationResult, serialization: &str) -> ValidationReport 
     }
     analysis_issues.sort_by(AnalysisIssue::canonical_cmp);
     ValidationReport {
-        schema_version: "2".to_owned(),
+        schema_version: if normalized_sdd_coverage.is_some() {
+            "3".to_owned()
+        } else {
+            "2".to_owned()
+        },
         serialization: serialization.to_owned(),
         ordering: "canonical".to_owned(),
         analysis_context: graph.analysis_context,
@@ -99,6 +106,7 @@ pub fn build(result: ValidationResult, serialization: &str) -> ValidationReport 
         policy_evaluation,
         analysis_issues,
         decision,
+        normalized_sdd_coverage,
     }
 }
 
@@ -112,7 +120,7 @@ pub fn to_json(report: &ValidationReport) -> Result<String, serde_json::Error> {
 }
 
 fn report_value(report: &ValidationReport) -> Value {
-    json!({
+    let mut value = json!({
         "schema_version": report.schema_version,
         "serialization": report.serialization,
         "ordering": report.ordering,
@@ -131,6 +139,32 @@ fn report_value(report: &ValidationReport) -> Value {
         },
         "analysis_issues": report.analysis_issues.iter().map(analysis_issue_value).collect::<Vec<_>>(),
         "decision": decision_name(report.decision),
+    });
+    if let Some(coverage) = &report.normalized_sdd_coverage {
+        value["normalized_sdd_coverage"] = normalized_sdd_coverage_value(coverage);
+    }
+    value
+}
+
+fn normalized_sdd_coverage_value(coverage: &NormalizedSddCoverage) -> Value {
+    json!({
+        "source_provenance": {
+            "producer": coverage.source_provenance.producer,
+            "artifacts": coverage.source_provenance.artifacts.iter().map(|artifact| json!({
+                "dsl_name": artifact.dsl_name,
+                "version": artifact.version,
+                "artifact_identity": {
+                    "axes": artifact.artifact_identity_axes,
+                },
+                "sha256": artifact.sha256,
+            })).collect::<Vec<_>>(),
+        },
+        "covered_modules": coverage.covered_modules,
+        "unresolved_modules": coverage.unresolved_modules.iter().map(|unresolved| json!({
+            "module_id": unresolved.module_id,
+            "observed_file_paths": unresolved.observed_file_paths,
+            "reason": unresolved.reason,
+        })).collect::<Vec<_>>(),
     })
 }
 
@@ -398,6 +432,42 @@ pub fn to_text(report: &ValidationReport) -> String {
             issue.policy_impact.rule_ids.join(", ")
         ));
     }
+    if let Some(coverage) = &report.normalized_sdd_coverage {
+        output.push_str("normalized_sdd_coverage:\n");
+        output.push_str("  source_provenance:\n");
+        output.push_str(&format!(
+            "    producer: {}\n",
+            coverage.source_provenance.producer
+        ));
+        output.push_str("    artifacts:\n");
+        for artifact in &coverage.source_provenance.artifacts {
+            output.push_str(&format!(
+                "      - {} v{} [{}] {}\n",
+                artifact.dsl_name,
+                artifact.version,
+                artifact
+                    .artifact_identity_axes
+                    .iter()
+                    .map(|(key, value)| format!("{key}={value}"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                artifact.sha256
+            ));
+        }
+        output.push_str("  covered_modules:\n");
+        for module in &coverage.covered_modules {
+            output.push_str(&format!("    - {module}\n"));
+        }
+        output.push_str("  unresolved_modules:\n");
+        for unresolved in &coverage.unresolved_modules {
+            output.push_str(&format!(
+                "    - {} [{}] {}\n",
+                unresolved.module_id,
+                unresolved.observed_file_paths.join(", "),
+                unresolved.reason
+            ));
+        }
+    }
     output.push_str(&format!(
         "policy_evaluation: dependency={} cycle={} forbidden={} allowed={} circular={}\n",
         report.policy_evaluation.dependency_outcome,
@@ -441,10 +511,13 @@ fn severity_name(severity: crate::boundary_validation::Severity) -> &'static str
 
 #[cfg(test)]
 mod tests {
-    use super::ValidationReport;
-    use super::to_text;
+    use std::collections::BTreeMap;
+
+    use super::{ValidationReport, to_json, to_text};
     use crate::boundary_validation::{
-        AnalysisContext, AnalysisProfile, PolicyEvaluation, ValidationDecision,
+        AnalysisContext, AnalysisProfile, NormalizedSddCoverage, NormalizedSddProvenance,
+        NormalizedSddSourceArtifact, PolicyEvaluation, UnresolvedModuleAttribution,
+        ValidationDecision,
     };
 
     #[test]
@@ -478,6 +551,7 @@ mod tests {
             },
             analysis_issues: Vec::new(),
             decision: ValidationDecision::Conformant,
+            normalized_sdd_coverage: None,
         };
 
         // Act
@@ -485,5 +559,84 @@ mod tests {
 
         // Assert
         assert!(text.contains("decision: conformant"));
+    }
+
+    #[test]
+    fn should_report_normalized_coverage_without_changing_legacy_schema() {
+        // Arrange
+        let coverage = NormalizedSddCoverage {
+            source_provenance: NormalizedSddProvenance {
+                producer: "owner-resolved-current-family".to_owned(),
+                artifacts: vec![NormalizedSddSourceArtifact {
+                    dsl_name: "logical-structure".to_owned(),
+                    version: 2,
+                    artifact_identity_axes: BTreeMap::from([(
+                        "scope_path".to_owned(),
+                        "scope-a".to_owned(),
+                    )]),
+                    sha256: "a".repeat(64),
+                }],
+            },
+            covered_modules: vec!["crate::application".to_owned()],
+            unresolved_modules: vec![UnresolvedModuleAttribution {
+                module_id: "crate::provider".to_owned(),
+                observed_file_paths: vec!["src/provider.rs".to_owned()],
+                reason: "no physical element matched".to_owned(),
+            }],
+        };
+        let mut report = empty_report();
+        let legacy_json = to_json(&report).expect("legacy JSON");
+        report.schema_version = "3".to_owned();
+        report.normalized_sdd_coverage = Some(coverage);
+
+        // Act
+        let normalized_json = to_json(&report).expect("normalized JSON");
+        let normalized_text = to_text(&report);
+
+        // Assert
+        assert!(legacy_json.contains("\"schema_version\": \"2\""));
+        assert!(!legacy_json.contains("normalized_sdd_coverage"));
+        assert!(normalized_json.contains("\"schema_version\": \"3\""));
+        assert!(normalized_json.contains("normalized_sdd_coverage"));
+        assert!(normalized_json.contains("source_provenance"));
+        assert!(normalized_json.contains("artifact_identity"));
+        assert!(!normalized_json.contains("family_id"));
+        assert!(!normalized_json.contains("artifact_digests"));
+        assert!(normalized_json.contains("observed_file_paths"));
+        assert!(normalized_text.contains("normalized_sdd_coverage:"));
+        assert!(normalized_text.contains("crate::provider [src/provider.rs]"));
+    }
+
+    fn empty_report() -> ValidationReport {
+        ValidationReport {
+            schema_version: "2".to_owned(),
+            serialization: "text".to_owned(),
+            ordering: "canonical".to_owned(),
+            analysis_context: AnalysisContext {
+                analysis_profile: AnalysisProfile::Compilation,
+                package: "fixture".to_owned(),
+                compilation_target: "bin:fixture".to_owned(),
+                features: Vec::new(),
+                cfg: Vec::new(),
+                target_triple: "x86_64-unknown-linux-gnu".to_owned(),
+                include: Vec::new(),
+                exclude: Vec::new(),
+            },
+            modules: Vec::new(),
+            module_declarations: Vec::new(),
+            dependencies: Vec::new(),
+            excluded_scopes: Vec::new(),
+            violations: Vec::new(),
+            policy_evaluation: PolicyEvaluation {
+                dependency_outcome: "allowed".to_owned(),
+                cycle_outcome: "acyclic".to_owned(),
+                forbidden_match_handling: "all-matches".to_owned(),
+                allowed_match_handling: "union".to_owned(),
+                cycle_handling: "independent".to_owned(),
+            },
+            analysis_issues: Vec::new(),
+            decision: ValidationDecision::Conformant,
+            normalized_sdd_coverage: None,
+        }
     }
 }

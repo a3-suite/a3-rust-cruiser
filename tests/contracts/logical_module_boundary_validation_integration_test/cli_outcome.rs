@@ -38,6 +38,9 @@ fn should_check_help_exits_with_zero() {
     assert!(output.stderr.is_empty());
     let stdout = String::from_utf8(output.stdout).expect("help is UTF-8");
     assert!(stdout.contains("Usage: a3-rust-cruiser check <PROJECT_ROOT>"));
+    assert!(stdout.contains(
+        "--resolved-implementation-attribution <RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH>"
+    ));
     assert!(stdout.contains("--analysis-profile <compilation|source-union>"));
 }
 
@@ -133,7 +136,7 @@ fn should_missing_boundary_policy_source_is_rejected() {
     // Assert
     assert_execution_failure(
         &output,
-        "--policy or complete SDD boundary policy input is required",
+        "--policy, --resolved-implementation-attribution, or complete legacy SDD boundary policy input is required",
     );
 }
 

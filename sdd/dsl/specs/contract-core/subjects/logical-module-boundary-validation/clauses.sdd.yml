@@ -177,7 +177,27 @@ contracts:
       YAMLとSDDの同時指定、SDD三入力の欠落、未知のcomponent/node参照、logical-structureのcomponent IDまたはdirectory-structureのnode IDの重複、
       componentの投影欠落、異なるdirectory nodeから同一Rust logical moduleへの投影、
       選択したCargo target rootへのcomponent投影、非正規project path、Rust解析対象内の未対応module pathは
-      解析開始前の入力失敗として扱う。
+      解析開始前の入力失敗として扱う。legacy SDD三入力はnameとversion 1を厳格に識別し、version 2、未知version、
+      mixed family、未知fieldをcomponent-onlyへ縮退させず入力失敗とする。
+      owner-resolved current familyが生成するresolved-implementation-attribution version 1一時出力を、公開CLIから変換なしで受理する。
+      top-level shapeはversion、name、source_provenance、file_attributions、component_dependencies、scope_dependenciesだけを持つ。
+      source provenanceはproducerと、
+      dsl_name、version、artifact_identity.axes、lowercase SHA-256からなる全resolved artifact instanceを持ち、
+      dsl_nameとaxesの組をidentityとする。logical-structureとprojectionはscope_path軸ごとの複数instanceを許可し、
+      global physical-structureは空axesの一instanceだけを要求する。owner authorityのないfamily_idは要求しない。
+      実在fileごとの一意なscope/component/element帰属と、ownerが投影したcomponent dependencyおよびscope dependencyを持つ。
+      file帰属はownerがexactまたはdeepest directory規則で選択済みの一時結果として消費し、consumer側でowner field bindingや
+      親directoryからの暗黙継承を再計算しない。未観測fileの余剰entryは許可し、producerはRust module ID、covered module、
+      unresolved moduleを入力へ持ち込まない。
+      package、compilation target、target triple、features、cfg、analysis profile、include、excludeは公開CLIのconsumer-owned
+      AnalysisContextとして独立に受理する。consumerは同じcheck内の一回のRust dependency観測から、
+      全選択moduleの全source fileをexact pathでfile帰属へ結合し、全fileが同じowner tupleへ解決したmoduleだけをcoveredとする。
+      file帰属の欠落、source fileなし、または一つのmodule内でowner tupleが競合する場合はunresolved coverageとして導出する。
+      解決済みmoduleは同一component、同scope別component、cross-scopeの順に
+      component dependencyまたはscope dependencyへ照合する。scope dependencyのcontract_refsはsubject_refとcontract_idの組を持ち、
+      traceabilityだけに用いて依存許可条件にしない。
+      帰属またはcoverageがunresolvedならconformantへ縮退させずindeterminate、禁止edgeを確定できればnon-conformantとする。
+      owner一時出力は`--resolved-implementation-attribution`から既存loader、evaluator、reportへ渡し、owner DSLを再解釈せず、legacy version 1入力をversion 2へ暗黙変換しない。
     conditions:
       - id: valid-boundary-policy-input
         input_predicate:
@@ -198,6 +218,26 @@ contracts:
         input_predicate:
           kind: input
           term: input.invalid_sdd_boundary_policy
+          op: present
+      - id: valid-resolved-implementation-attribution-input
+        input_predicate:
+          kind: input
+          term: input.valid_resolved_implementation_attribution
+          op: present
+      - id: invalid-resolved-implementation-attribution-input
+        input_predicate:
+          kind: input
+          term: input.invalid_resolved_implementation_attribution
+          op: present
+      - id: unresolved-implementation-attribution
+        input_predicate:
+          kind: input
+          term: input.unresolved_implementation_attribution
+          op: present
+      - id: forbidden-resolved-attribution-edge
+        input_predicate:
+          kind: input
+          term: input.forbidden_resolved_attribution_edge
           op: present
       - id: one-to-many-projected-scope-dependency
         input_predicate:
@@ -298,6 +338,73 @@ contracts:
               kind: value_set
               values:
                 - "3"
+      - id: resolved-attribution-coverage-is-reported
+        when: valid-resolved-implementation-attribution-input
+        observation_ref: observation.validation.result
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: result.normalized_sdd_coverage
+      - id: valid-resolved-implementation-attribution-input-accepted
+        when: valid-resolved-implementation-attribution-input
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.exit_code
+            right:
+              kind: value_set
+              values:
+                - "0"
+                - "1"
+                - "2"
+      - id: invalid-resolved-implementation-attribution-input-exits-with-three
+        when: invalid-resolved-implementation-attribution-input
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.exit_code
+            right:
+              kind: value_set
+              values:
+                - "3"
+      - id: unresolved-implementation-attribution-is-indeterminate
+        when: unresolved-implementation-attribution
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.decision
+            right:
+              kind: value_set
+              values:
+                - indeterminate
+      - id: forbidden-resolved-attribution-edge-is-non-conformant
+        when: forbidden-resolved-attribution-edge
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.decision
+            right:
+              kind: value_set
+              values:
+                - non-conformant
       - id: one-to-many-projected-scope-is-enforced
         when: one-to-many-projected-scope-dependency
         observation_ref: observation.validation.result
@@ -346,9 +453,17 @@ contracts:
         guarantee_refs:
           - valid-sdd-boundary-policy-input-accepted
       - id: sdd-boundary-policy-input-rejection
-        goal: 不完全または整合しないSDD設計入力が解析開始前の入力失敗になることを確認する
+        goal: 不完全、version/name不一致、mixed family、未知field、または整合しないlegacy SDD設計入力が解析開始前の入力失敗になることを確認する
         guarantee_refs:
           - invalid-sdd-boundary-policy-input-exits-with-three
+      - id: resolved-implementation-attribution-public-cli-semantics
+        goal: 公開CLIがcontextに束縛されたowner-resolved file帰属を単一observer結果へexact joinし、全選択moduleのscope edge、unresolved、coverageを判定してschema 3で報告することを確認する
+        guarantee_refs:
+          - valid-resolved-implementation-attribution-input-accepted
+          - invalid-resolved-implementation-attribution-input-exits-with-three
+          - resolved-attribution-coverage-is-reported
+          - unresolved-implementation-attribution-is-indeterminate
+          - forbidden-resolved-attribution-edge-is-non-conformant
       - id: one-to-many-sdd-projection-semantics
         goal: 同一componentへ投影された全Rust module scopeが境界評価へ適用され、同一component内の親子scope重複が曖昧帰属を生まないことを確認する
         guarantee_refs:
@@ -760,10 +875,15 @@ contracts:
           kind: input
           term: input.report_request
           op: present
-      - id: json-report-request
+      - id: legacy-json-report-request
         input_predicate:
           kind: input
-          term: input.json_report_request
+          term: input.legacy_json_report_request
+          op: present
+      - id: resolved-implementation-attribution-json-report-request
+        input_predicate:
+          kind: input
+          term: input.resolved_implementation_attribution_json_report_request
           op: present
     guarantees:
       - id: conformant-decision
@@ -850,7 +970,7 @@ contracts:
             kind: observation_field
             value: result.analysis_issues.policy_impact.rule_ids
       - id: json-schema-version-present
-        when: json-report-request
+        when: legacy-json-report-request
         observation_ref: observation.validation.result
         claim:
           kind: value-relation
@@ -863,6 +983,20 @@ contracts:
               kind: value_set
               values:
                 - "2"
+      - id: resolved-attribution-json-schema-version-is-three
+        when: resolved-implementation-attribution-json-report-request
+        observation_ref: observation.validation.result
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: result.schema_version
+            right:
+              kind: value_set
+              values:
+                - "3"
       - id: analysis-issues-present
         when: report-request-present
         observation_ref: observation.validation.result

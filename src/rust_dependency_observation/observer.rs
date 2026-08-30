@@ -206,8 +206,21 @@ fn observe(
 
     let modules = selected
         .iter()
-        .cloned()
-        .map(|id| LogicalModule { id })
+        .map(|id| {
+            let mut source_paths = observer
+                .records
+                .get(id)
+                .into_iter()
+                .flat_map(|record| record.variants.iter())
+                .map(|variant| observer.relative_path(&variant.path))
+                .collect::<Vec<_>>();
+            source_paths.sort();
+            source_paths.dedup();
+            LogicalModule {
+                id: id.clone(),
+                source_paths,
+            }
+        })
         .collect();
     observer.declarations.sort_by(|left, right| {
         (left.parent.as_str(), left.child.as_str())
@@ -848,11 +861,7 @@ impl Observer {
     }
 
     fn evidence(&self, path: &Path, start: LineColumn) -> SourceEvidence {
-        let relative = path
-            .strip_prefix(&self.project_root)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .replace(std::path::MAIN_SEPARATOR, "/");
+        let relative = self.relative_path(path);
         let column = fs::read_to_string(path)
             .ok()
             .and_then(|source| {
@@ -873,6 +882,13 @@ impl Observer {
             line: start.line,
             column,
         }
+    }
+
+    fn relative_path(&self, path: &Path) -> String {
+        path.strip_prefix(&self.project_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace(std::path::MAIN_SEPARATOR, "/")
     }
 }
 

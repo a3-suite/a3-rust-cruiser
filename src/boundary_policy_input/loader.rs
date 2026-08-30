@@ -3,7 +3,7 @@ use crate::boundary_validation::{
     Result, invalid_sdd,
 };
 
-use super::{sdd, yaml};
+use super::{normalized_sdd, sdd, yaml};
 
 pub(crate) struct ProjectBoundaryPolicyLoader;
 
@@ -19,6 +19,10 @@ impl BoundaryPolicyLoader for ProjectBoundaryPolicyLoader {
                 directory_structure,
             } => sdd::prepare(logical_structure, projection, directory_structure)
                 .map(PreparedBoundaryPolicy::Sdd),
+            BoundaryPolicyInput::ResolvedImplementationAttribution { path } => {
+                normalized_sdd::prepare(path)
+                    .map(PreparedBoundaryPolicy::ResolvedImplementationAttribution)
+            }
         }
     }
 
@@ -33,12 +37,16 @@ impl BoundaryPolicyLoader for ProjectBoundaryPolicyLoader {
                 policy,
                 analysis_issues: Vec::new(),
                 component_attribution: None,
+                normalized_sdd: None,
             }),
             PreparedBoundaryPolicy::Sdd(design) => {
                 let target_source = target_source.ok_or_else(|| {
                     invalid_sdd("selected Cargo target source is required for SDD policy input")
                 })?;
                 sdd::project(design, project_root, target_source)
+            }
+            PreparedBoundaryPolicy::ResolvedImplementationAttribution(prepared) => {
+                normalized_sdd::finalize(prepared, project_root)
             }
         }
     }
