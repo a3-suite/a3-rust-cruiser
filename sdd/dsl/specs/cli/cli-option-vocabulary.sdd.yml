@@ -22,21 +22,6 @@ options:
     kind: value
     value_name: RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH
     summary: ownerが解決したimplementation attribution一時出力のパス
-  - id: logical-structure
-    long: --logical-structure
-    kind: value
-    value_name: LOGICAL_STRUCTURE_PATH
-    summary: BoundaryPolicyへ投影するSDD logical-structureのパス
-  - id: projection
-    long: --projection
-    kind: value
-    value_name: PROJECTION_PATH
-    summary: logical componentとdirectory nodeを対応付けるSDD projectionのパス
-  - id: directory-structure
-    long: --directory-structure
-    kind: value
-    value_name: DIRECTORY_STRUCTURE_PATH
-    summary: directory nodeとRust source pathを対応付けるSDD directory-structureのパス
   - id: package
     long: --package
     kind: value

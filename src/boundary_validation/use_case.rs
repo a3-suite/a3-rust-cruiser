@@ -5,8 +5,8 @@ use std::{
 
 use crate::boundary_evaluation::{
     AnalysisContext, AnalysisIssue, AnalysisObservationOutcome, BoundaryPolicy,
-    LoadedBoundaryPolicy, ObservedDependencyGraph, PolicyImpactOutcome, RuleKind, ValidationResult,
-    assess_component_attribution, assess_normalized_sdd, assess_policy_impact, decide, evaluate,
+    BoundaryPolicyAssessment, LoadedBoundaryPolicy, ObservedDependencyGraph, PolicyImpactOutcome,
+    RuleKind, ValidationResult, assess_normalized_sdd, assess_policy_impact, decide, evaluate,
     is_valid_pattern,
 };
 
@@ -19,34 +19,21 @@ pub trait BoundaryPolicyLoader {
         &self,
         prepared: PreparedBoundaryPolicy,
         project_root: &Path,
-        target_source: Option<&Path>,
     ) -> Result<LoadedBoundaryPolicy>;
 }
 
 pub(crate) enum PreparedBoundaryPolicy {
     Yaml(BoundaryPolicy),
-    Sdd(super::sdd_policy::PreparedSddDesign),
     ResolvedImplementationAttribution(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BoundaryPolicyInput {
-    Yaml {
-        path: PathBuf,
-    },
-    SddDesign {
-        logical_structure: PathBuf,
-        projection: PathBuf,
-        directory_structure: PathBuf,
-    },
-    ResolvedImplementationAttribution {
-        path: PathBuf,
-    },
+    Yaml { path: PathBuf },
+    ResolvedImplementationAttribution { path: PathBuf },
 }
 
 pub trait DependencyObserver {
-    fn target_source(&self, project_root: &Path, context: &AnalysisContext) -> Result<PathBuf>;
-
     fn observe(
         &self,
         project_root: &Path,
@@ -74,14 +61,12 @@ where
         ));
     }
     let prepared = policy_loader.prepare(policy_input)?;
-    let target_source = match &prepared {
-        PreparedBoundaryPolicy::Yaml(_) => None,
-        PreparedBoundaryPolicy::Sdd(_) => Some(observer.target_source(project_root, &context)?),
-        PreparedBoundaryPolicy::ResolvedImplementationAttribution(_) => None,
-    };
-    let loaded = policy_loader.finalize(prepared, project_root, target_source.as_deref())?;
-    let mut policy = loaded.policy;
-    let mut analysis_issues = loaded.analysis_issues;
+    let loaded = policy_loader.finalize(prepared, project_root)?;
+    let LoadedBoundaryPolicy {
+        mut policy,
+        mut analysis_issues,
+        assessment,
+    } = loaded;
     validate_policy(&policy)?;
     validate_module_patterns(&context.include)?;
     validate_module_patterns(&context.exclude)?;
@@ -89,17 +74,13 @@ where
     analysis_issues.extend(observation_issues);
     validate_analysis_issues(&analysis_issues)?;
     let mut normalized_sdd_coverage = None;
-    if let Some(component_attribution) = loaded.component_attribution.as_ref() {
-        policy.rules.extend(assess_component_attribution(
-            &mut analysis_issues,
-            &graph,
-            component_attribution,
-        ));
-    }
-    if let Some(normalized_sdd) = loaded.normalized_sdd.as_ref() {
-        let (rules, coverage) = assess_normalized_sdd(&mut analysis_issues, &graph, normalized_sdd);
-        policy.rules.extend(rules);
-        normalized_sdd_coverage = Some(coverage);
+    match &assessment {
+        BoundaryPolicyAssessment::None => {}
+        BoundaryPolicyAssessment::ResolvedImplementationAttribution(model) => {
+            let (rules, coverage) = assess_normalized_sdd(&mut analysis_issues, &graph, model);
+            policy.rules.extend(rules);
+            normalized_sdd_coverage = Some(coverage);
+        }
     }
     assess_policy_impact(&mut analysis_issues, &policy);
     validate_analysis_issues(&analysis_issues)?;
@@ -222,8 +203,8 @@ fn is_kebab_case(value: &str) -> bool {
 mod tests {
     use super::{BoundaryPolicyLoader, DependencyObserver, PreparedBoundaryPolicy, validate};
     use crate::boundary_validation::{
-        AnalysisContext, AnalysisIssue, BoundaryPolicy, BoundaryRule, CruiserError,
-        LoadedBoundaryPolicy, ObservedDependencyGraph, Result, RuleKind, Severity,
+        AnalysisContext, AnalysisIssue, BoundaryPolicy, BoundaryPolicyAssessment, BoundaryRule,
+        CruiserError, LoadedBoundaryPolicy, ObservedDependencyGraph, Result, RuleKind, Severity,
         ValidationDecision,
     };
 
@@ -240,7 +221,6 @@ mod tests {
             &self,
             prepared: PreparedBoundaryPolicy,
             _project_root: &std::path::Path,
-            _target_source: Option<&std::path::Path>,
         ) -> Result<LoadedBoundaryPolicy> {
             let PreparedBoundaryPolicy::Yaml(policy) = prepared else {
                 panic!("stub policy loader only prepares YAML policies")
@@ -248,8 +228,7 @@ mod tests {
             Ok(LoadedBoundaryPolicy {
                 policy,
                 analysis_issues: Vec::new(),
-                component_attribution: None,
-                normalized_sdd: None,
+                assessment: BoundaryPolicyAssessment::None,
             })
         }
     }
@@ -257,14 +236,6 @@ mod tests {
     struct StubDependencyObserver;
 
     impl DependencyObserver for StubDependencyObserver {
-        fn target_source(
-            &self,
-            project_root: &std::path::Path,
-            _context: &AnalysisContext,
-        ) -> Result<std::path::PathBuf> {
-            Ok(project_root.join("src/main.rs"))
-        }
-
         fn observe(
             &self,
             _project_root: &std::path::Path,
@@ -288,14 +259,6 @@ mod tests {
     }
 
     impl DependencyObserver for AnalysisIssueObserver {
-        fn target_source(
-            &self,
-            project_root: &std::path::Path,
-            _context: &AnalysisContext,
-        ) -> Result<std::path::PathBuf> {
-            Ok(project_root.join("src/main.rs"))
-        }
-
         fn observe(
             &self,
             _project_root: &std::path::Path,
@@ -311,45 +274,6 @@ mod tests {
                 },
                 vec![self.issue.clone()],
             ))
-        }
-    }
-
-    struct PrepareFailureLoader;
-
-    impl BoundaryPolicyLoader for PrepareFailureLoader {
-        fn prepare(&self, _input: &super::BoundaryPolicyInput) -> Result<PreparedBoundaryPolicy> {
-            Err(CruiserError::InvalidInput(
-                "structural preflight failed".to_owned(),
-            ))
-        }
-
-        fn finalize(
-            &self,
-            _prepared: PreparedBoundaryPolicy,
-            _project_root: &std::path::Path,
-            _target_source: Option<&std::path::Path>,
-        ) -> Result<LoadedBoundaryPolicy> {
-            unreachable!("finalization must not run after a failed preflight")
-        }
-    }
-
-    struct TargetSourceMustNotBeCalled;
-
-    impl DependencyObserver for TargetSourceMustNotBeCalled {
-        fn target_source(
-            &self,
-            _project_root: &std::path::Path,
-            _context: &AnalysisContext,
-        ) -> Result<std::path::PathBuf> {
-            panic!("target source resolution must follow SDD structural preflight")
-        }
-
-        fn observe(
-            &self,
-            _project_root: &std::path::Path,
-            _context: AnalysisContext,
-        ) -> Result<(ObservedDependencyGraph, Vec<AnalysisIssue>)> {
-            unreachable!("observation must not run after a failed preflight")
         }
     }
 
@@ -375,7 +299,6 @@ mod tests {
             &self,
             prepared: PreparedBoundaryPolicy,
             _project_root: &std::path::Path,
-            _target_source: Option<&std::path::Path>,
         ) -> Result<LoadedBoundaryPolicy> {
             let PreparedBoundaryPolicy::Yaml(policy) = prepared else {
                 panic!("invalid policy loader only prepares YAML policies")
@@ -383,8 +306,7 @@ mod tests {
             Ok(LoadedBoundaryPolicy {
                 policy,
                 analysis_issues: Vec::new(),
-                component_attribution: None,
-                normalized_sdd: None,
+                assessment: BoundaryPolicyAssessment::None,
             })
         }
     }
@@ -419,41 +341,6 @@ mod tests {
 
         // Assert
         assert_eq!(result.decision, ValidationDecision::Conformant);
-    }
-
-    #[test]
-    fn should_prepare_sdd_policy_before_resolving_target_source() {
-        // Arrange
-        let context = AnalysisContext {
-            analysis_profile: crate::boundary_validation::AnalysisProfile::Compilation,
-            package: "fixture".to_owned(),
-            compilation_target: "bin:fixture".to_owned(),
-            features: Vec::new(),
-            cfg: Vec::new(),
-            target_triple: "x86_64-unknown-linux-gnu".to_owned(),
-            include: Vec::new(),
-            exclude: Vec::new(),
-        };
-        let policy = super::BoundaryPolicyInput::SddDesign {
-            logical_structure: "logical-structure.sdd.yml".into(),
-            projection: "projection.sdd.yml".into(),
-            directory_structure: "directory-structure.sdd.yml".into(),
-        };
-
-        // Act
-        let result = validate(
-            &TargetSourceMustNotBeCalled,
-            &PrepareFailureLoader,
-            std::path::Path::new("unused-project"),
-            context,
-            &policy,
-        );
-
-        // Assert
-        assert!(matches!(
-            result,
-            Err(CruiserError::InvalidInput(message)) if message == "structural preflight failed"
-        ));
     }
 
     #[test]

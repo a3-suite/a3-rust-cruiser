@@ -1,25 +1,24 @@
 ---
 name: a3-rust-cruiser
-description: GitHub Releaseの固定版a3-rust-cruiser CLIをセットアップし、Rustプロジェクトの論理モジュール依存、境界違反、循環依存、解析不能を検証するときに使う。
+description: GitHub Releaseの固定版a3-rust-cruiser CLIをセットアップし、YAML boundary policyまたはowner生成済みの解決済み実装帰属を使ってRustプロジェクトの論理モジュール依存、境界違反、循環依存、解析不能を検証するときに使う。
 ---
 
 # a3-rust-cruiser / SKILL
 
 ## 目的
 
-- Rust プロジェクトの論理モジュール境界を、プロジェクトが所有する YAML boundary policy または SDD 設計入力に対して検証する。
+- Rust プロジェクトの論理モジュール境界を、プロジェクトが所有する YAML boundary policyまたはowner生成済みの解決済み実装帰属に対して検証する。
 - GitHub Release の固定版CLIをchecksum検証後に導入し、導入versionとcommand pathを確認する。
 - 検証結果を `conformant`、`non-conformant`、`indeterminate` に区別し、根拠とともに報告する。
 
 ## 原則
 
 - 解析対象は、1回の実行につき1つの Cargo package と compilation target に限定する。
-- policy入力、package、target、target triple は推測せず、対象プロジェクトとツールチェーンから確認する。
-- YAML boundary policyはSDDに依存しない標準入力として扱い、対象プロジェクトがSDD設計を所有しない場合にSDD入力を要求しない。
+- 境界入力、package、target、target triple は推測せず、対象プロジェクトとツールチェーンから確認する。
+- YAML boundary policyはSDDに依存しない標準入力として扱う。
+- 解決済み実装帰属はowner生成済みの一時出力を変換せずに使用し、raw owner DSLの解釈や帰属の再計算を行わない。package、target、target triple、feature、cfg、analysis profile、include、excludeはCLIの解析コンテキストとして別に確定する。
 - セットアップでは固定versionだけを使用し、`latest`やbranchから取得しない。
 - `indeterminate` と実行エラーを適合として扱わない。
-- SDDで1つのcomponentが複数nodeへ投影される場合は全Rust module scopeを同じcomponentとして検証する。many-to-one projectionまたは異なるcomponentの親子関係で重なるRust module scopeは入力不正とせず、component帰属が曖昧な解析範囲を`analysis_issues`で確認する。
-- SDDのproject全体projectionにある正規source nodeのうち、Rust module解析対象外と確定できるnodeはboundary policy導出対象から除外する。
 - 除外指定を、違反を隠して適合させる目的で追加しない。
 
 ## 注意
@@ -39,7 +38,7 @@ description: GitHub Releaseの固定版a3-rust-cruiser CLIをセットアップ�
 
 ### Rust の論理モジュール境界を検証したい
 
-- 対象プロジェクトが所有する YAML boundary policy、または logical-structure、projection、directory-structure の組と解析コンテキストを確定する。
+- 対象プロジェクトが所有する YAML boundary policyまたはowner生成済みの resolved-implementation-attributionから、相互排他な入力を1つ選び、解析コンテキストを確定する。
 - a3-rust-cruiser を実行し、終了コードとレポートを合わせて判定する。
 - 参照: references/run-logical-module-boundary-check.guide.md
 

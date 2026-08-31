@@ -35,11 +35,6 @@ use crate::boundary_validation::{
 pub struct RustDependencyObserver;
 
 impl DependencyObserver for RustDependencyObserver {
-    fn target_source(&self, project_root: &Path, context: &AnalysisContext) -> Result<PathBuf> {
-        let manifest = cargo_project::load_manifest(project_root)?;
-        cargo_project::target_entry(project_root, &manifest, context).map(|(path, _)| path)
-    }
-
     fn observe(
         &self,
         project_root: &Path,

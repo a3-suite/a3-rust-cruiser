@@ -136,7 +136,7 @@ fn should_missing_boundary_policy_source_is_rejected() {
     // Assert
     assert_execution_failure(
         &output,
-        "--policy, --resolved-implementation-attribution, or complete legacy SDD boundary policy input is required",
+        "--policy or --resolved-implementation-attribution is required",
     );
 }
 

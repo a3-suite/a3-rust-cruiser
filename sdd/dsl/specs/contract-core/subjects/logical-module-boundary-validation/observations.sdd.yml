@@ -14,7 +14,7 @@ observations:
       fields:
         - selector: result.schema_version
           kind: observation_field
-          meaning: JSON契約のmajor版を表す文字列。legacy policy入力は2、resolved-implementation-attribution入力とconsumer派生coverageを持つ公開CLI版は3
+          meaning: JSON契約のmajor版を表す文字列。BoundaryPolicy YAML入力は2、resolved-implementation-attribution入力とconsumer派生coverageを持つ公開CLI版は3
         - selector: result.serialization
           kind: observation_field
           meaning: 共通の検証結果を直列化したtextまたはjson
@@ -138,9 +138,6 @@ observations:
         - selector: result.analysis_issues.code
           kind: observation_field
           meaning: 解析問題を分類するstable code
-        - selector: result.analysis_issues.ambiguous_component_attribution
-          kind: observation_field
-          meaning: codeがanalysis.ambiguous-component-attributionである解析問題の部分集合
         - selector: result.analysis_issues.reason
           kind: observation_field
           meaning: 解析を完了できない理由
@@ -159,21 +156,6 @@ observations:
         - selector: result.analysis_issues.observation.candidate_targets
           kind: observation_field
           meaning: 解決途中で得られた依存先候補をcanonical順に並べた集合
-        - selector: result.analysis_issues.observation.candidate_components
-          kind: observation_field
-          meaning: 帰属候補のlogical component IDをcanonical順に並べた集合
-        - selector: result.analysis_issues.observation.component_dependency_candidates
-          kind: observation_field
-          meaning: 全AnalysisIssueに存在し、source/target component候補の組とallowedまたはforbiddenの評価をcanonical順に並べた集合。component帰属edge以外では空集合
-        - selector: result.analysis_issues.observation.component_dependency_candidates.source_component
-          kind: observation_field
-          meaning: component帰属候補組の依存元logical component ID
-        - selector: result.analysis_issues.observation.component_dependency_candidates.target_component
-          kind: observation_field
-          meaning: component帰属候補組の依存先logical component ID
-        - selector: result.analysis_issues.observation.component_dependency_candidates.outcome
-          kind: observation_field
-          meaning: component帰属候補組に対するallowedまたはforbiddenの評価
         - selector: result.analysis_issues.observation.dependency_kinds
           kind: observation_field
           meaning: 解析問題が追加または変更し得るdependency kindをcanonical順に並べた集合
@@ -182,7 +164,7 @@ observations:
           meaning: 現在policyへの影響をnoneまたはpossibleで表す評価結果
         - selector: result.analysis_issues.policy_impact.rule_ids
           kind: observation_field
-          meaning: 影響し得る現在policyのrule IDをcanonical順に並べた集合。logical component帰属評価はBoundaryPolicy ruleではないため、この集合ではなくcomponent_dependency_candidatesへ根拠を保持する
+          meaning: 影響し得る現在policyのrule IDをcanonical順に並べた集合
         - selector: result.decision
           kind: observation_field
           meaning: conformant、non-conformant、indeterminateのいずれかで表すValidationDecision
@@ -208,3 +190,6 @@ observations:
         - selector: process.stderr_status
           kind: observation_field
           meaning: diagnosticまたはemptyで表す標準エラーの状態
+        - selector: process.stderr_diagnostic_source
+          kind: observation_field
+          meaning: 標準エラーへ出力された診断の原因となった入力または実行段階の安定した分類

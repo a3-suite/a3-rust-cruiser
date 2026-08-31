@@ -6,9 +6,11 @@ use std::{
 use serde::Deserialize;
 
 use crate::boundary_validation::{
-    BoundaryPolicy, LoadedBoundaryPolicy, NormalizedSddPolicy, NormalizedSddProvenance,
-    NormalizedSddSourceArtifact, Result, ScopedComponentAttribution, invalid_sdd,
+    BoundaryPolicy, BoundaryPolicyAssessment, LoadedBoundaryPolicy, NormalizedSddPolicy,
+    NormalizedSddProvenance, NormalizedSddSourceArtifact, Result, ScopedComponentAttribution,
 };
+
+use super::invalid_boundary_policy_input;
 
 const ATTRIBUTION_NAME: &str = "resolved-implementation-attribution";
 const ATTRIBUTION_VERSION: u64 = 1;
@@ -21,8 +23,10 @@ pub(super) fn prepare(path: &Path) -> Result<String> {
 }
 
 fn parse(content: &str) -> Result<ResolvedImplementationAttributionDto> {
-    let attribution: ResolvedImplementationAttributionDto = serde_yaml::from_str(content)
-        .map_err(|error| invalid_sdd(format!("invalid resolved attribution YAML: {error}")))?;
+    let attribution: ResolvedImplementationAttributionDto =
+        serde_yaml::from_str(content).map_err(|error| {
+            invalid_boundary_policy_input(format!("invalid resolved attribution YAML: {error}"))
+        })?;
     validate_discriminator(&attribution)?;
     validate_provenance(&attribution.source_provenance)?;
     Ok(attribution)
@@ -46,7 +50,7 @@ pub(super) fn finalize(content: String, project_root: &Path) -> Result<LoadedBou
             .insert(file_attribution.observed_file_path.clone(), model)
             .is_some()
         {
-            return Err(invalid_sdd(format!(
+            return Err(invalid_boundary_policy_input(format!(
                 "duplicate normalized attribution file: {}",
                 file_attribution.observed_file_path
             )));
@@ -63,7 +67,7 @@ pub(super) fn finalize(content: String, project_root: &Path) -> Result<LoadedBou
             dependency.from_component_id,
             dependency.to_component_id,
         )) {
-            return Err(invalid_sdd(
+            return Err(invalid_boundary_policy_input(
                 "resolved component dependency entries must be unique",
             ));
         }
@@ -74,7 +78,7 @@ pub(super) fn finalize(content: String, project_root: &Path) -> Result<LoadedBou
         validate_non_empty("scope dependency source", &dependency.from_scope)?;
         validate_non_empty("scope dependency target", &dependency.to_scope)?;
         if dependency.contract_refs.is_empty() {
-            return Err(invalid_sdd(
+            return Err(invalid_boundary_policy_input(
                 "normalized scope dependency requires at least one contract reference",
             ));
         }
@@ -86,7 +90,7 @@ pub(super) fn finalize(content: String, project_root: &Path) -> Result<LoadedBou
             )?;
             validate_non_empty("scope dependency contract ID", &contract_ref.contract_id)?;
             if !contract_refs.insert((contract_ref.subject_ref, contract_ref.contract_id)) {
-                return Err(invalid_sdd(
+                return Err(invalid_boundary_policy_input(
                     "normalized scope dependency contract references must be unique",
                 ));
             }
@@ -94,7 +98,7 @@ pub(super) fn finalize(content: String, project_root: &Path) -> Result<LoadedBou
         let relation = (dependency.from_scope, dependency.to_scope);
         if !seen_scope_dependencies.insert((relation.0.clone(), relation.1.clone(), contract_refs))
         {
-            return Err(invalid_sdd(
+            return Err(invalid_boundary_policy_input(
                 "resolved scope dependency entries must be unique",
             ));
         }
@@ -120,25 +124,26 @@ pub(super) fn finalize(content: String, project_root: &Path) -> Result<LoadedBou
     Ok(LoadedBoundaryPolicy {
         policy: BoundaryPolicy { rules: Vec::new() },
         analysis_issues: Vec::new(),
-        component_attribution: None,
-        normalized_sdd: Some(NormalizedSddPolicy {
-            provenance,
-            file_attributions,
-            declared_component_dependencies,
-            declared_scope_dependencies,
-        }),
+        assessment: BoundaryPolicyAssessment::ResolvedImplementationAttribution(
+            NormalizedSddPolicy {
+                provenance,
+                file_attributions,
+                declared_component_dependencies,
+                declared_scope_dependencies,
+            },
+        ),
     })
 }
 
 fn validate_discriminator(attribution: &ResolvedImplementationAttributionDto) -> Result<()> {
     if attribution.name != ATTRIBUTION_NAME {
-        return Err(invalid_sdd(format!(
+        return Err(invalid_boundary_policy_input(format!(
             "unexpected resolved attribution name: {}",
             attribution.name
         )));
     }
     if attribution.version != ATTRIBUTION_VERSION {
-        return Err(invalid_sdd(format!(
+        return Err(invalid_boundary_policy_input(format!(
             "unsupported resolved attribution version: {}",
             attribution.version
         )));
@@ -148,7 +153,7 @@ fn validate_discriminator(attribution: &ResolvedImplementationAttributionDto) ->
 
 fn validate_provenance(provenance: &SourceProvenanceDto) -> Result<()> {
     if provenance.producer != PRODUCER {
-        return Err(invalid_sdd(format!(
+        return Err(invalid_boundary_policy_input(format!(
             "unsupported normalized family producer: {}",
             provenance.producer
         )));
@@ -162,20 +167,20 @@ fn validate_provenance(provenance: &SourceProvenanceDto) -> Result<()> {
     let mut counts = BTreeMap::new();
     for artifact in &provenance.artifacts {
         let Some(expected_version) = expected_versions.get(artifact.dsl_name.as_str()) else {
-            return Err(invalid_sdd(format!(
+            return Err(invalid_boundary_policy_input(format!(
                 "unsupported provenance DSL name: {}",
                 artifact.dsl_name
             )));
         };
         if artifact.version != *expected_version {
-            return Err(invalid_sdd(format!(
+            return Err(invalid_boundary_policy_input(format!(
                 "unsupported provenance version for {}: {}",
                 artifact.dsl_name, artifact.version
             )));
         }
         for (key, value) in &artifact.artifact_identity.axes {
             if !is_valid_axis_key(key) || value.is_empty() {
-                return Err(invalid_sdd(format!(
+                return Err(invalid_boundary_policy_input(format!(
                     "invalid provenance artifact identity axis for {}: {key}",
                     artifact.dsl_name
                 )));
@@ -189,21 +194,21 @@ fn validate_provenance(provenance: &SourceProvenanceDto) -> Result<()> {
                     .get("scope_path")
                     .is_none_or(String::is_empty)
                 {
-                    return Err(invalid_sdd(format!(
+                    return Err(invalid_boundary_policy_input(format!(
                         "scoped provenance artifact requires scope_path: {}",
                         artifact.dsl_name
                     )));
                 }
             }
             "physical-structure" if !artifact.artifact_identity.axes.is_empty() => {
-                return Err(invalid_sdd(
+                return Err(invalid_boundary_policy_input(
                     "global physical provenance artifact requires empty axes",
                 ));
             }
             _ => {}
         }
         if !identities.insert((artifact.dsl_name.as_str(), &artifact.artifact_identity.axes)) {
-            return Err(invalid_sdd(format!(
+            return Err(invalid_boundary_policy_input(format!(
                 "duplicate provenance artifact identity: {}",
                 artifact.dsl_name
             )));
@@ -214,7 +219,7 @@ fn validate_provenance(provenance: &SourceProvenanceDto) -> Result<()> {
                 .bytes()
                 .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
         {
-            return Err(invalid_sdd(format!(
+            return Err(invalid_boundary_policy_input(format!(
                 "invalid lowercase SHA-256 for provenance contract: {}",
                 artifact.dsl_name
             )));
@@ -225,7 +230,7 @@ fn validate_provenance(provenance: &SourceProvenanceDto) -> Result<()> {
         || counts.get("projection").copied().unwrap_or_default() < 1
         || counts.get("physical-structure").copied() != Some(1)
     {
-        return Err(invalid_sdd(
+        return Err(invalid_boundary_policy_input(
             "normalized family provenance requires scoped logical and projection artifacts and exactly one global physical artifact",
         ));
     }
@@ -272,7 +277,7 @@ fn validate_observed_file(project_root: &Path, path: &str) -> Result<()> {
             .components()
             .any(|component| !matches!(component, Component::Normal(_)))
     {
-        return Err(invalid_sdd(format!(
+        return Err(invalid_boundary_policy_input(format!(
             "observed file path must be normalized below the project root: {path}"
         )));
     }
@@ -283,18 +288,18 @@ fn validate_observed_file(project_root: &Path, path: &str) -> Result<()> {
         };
         current.push(segment);
         let metadata = std::fs::symlink_metadata(&current).map_err(|error| {
-            invalid_sdd(format!(
+            invalid_boundary_policy_input(format!(
                 "observed file path is unavailable: {path}: {error}"
             ))
         })?;
         if metadata.file_type().is_symlink() {
-            return Err(invalid_sdd(format!(
+            return Err(invalid_boundary_policy_input(format!(
                 "observed file path contains a symlink: {path}"
             )));
         }
     }
     if !current.is_file() {
-        return Err(invalid_sdd(format!(
+        return Err(invalid_boundary_policy_input(format!(
             "observed file path is not a file: {path}"
         )));
     }
@@ -303,7 +308,9 @@ fn validate_observed_file(project_root: &Path, path: &str) -> Result<()> {
 
 fn validate_non_empty(kind: &str, value: &str) -> Result<()> {
     if value.is_empty() {
-        return Err(invalid_sdd(format!("{kind} must not be empty")));
+        return Err(invalid_boundary_policy_input(format!(
+            "{kind} must not be empty"
+        )));
     }
     Ok(())
 }
@@ -385,9 +392,10 @@ mod tests {
     use crate::{
         boundary_policy_input::ProjectBoundaryPolicyLoader,
         boundary_validation::{
-            AnalysisContext, AnalysisIssue, AnalysisProfile, BoundaryPolicyInput, Dependency,
-            DependencyKind, DependencyObserver, LogicalModule, ObservedDependencyGraph, Result,
-            SourceEvidence, TargetScope, ValidationDecision, validate,
+            AnalysisContext, AnalysisIssue, AnalysisProfile, BoundaryPolicyAssessment,
+            BoundaryPolicyInput, Dependency, DependencyKind, DependencyObserver,
+            LoadedBoundaryPolicy, LogicalModule, NormalizedSddPolicy, ObservedDependencyGraph,
+            Result, SourceEvidence, TargetScope, ValidationDecision, validate,
         },
     };
 
@@ -403,7 +411,7 @@ mod tests {
         // Act
         let prepared = prepare(&fixture.path("normalized.sdd.yml")).expect("valid envelope");
         let loaded = finalize(prepared, fixture.root()).expect("valid resolved attribution");
-        let normalized = loaded.normalized_sdd.expect("normalized policy model");
+        let normalized = resolved_policy(loaded);
 
         // Assert
         assert_eq!(normalized.file_attributions.len(), 2);
@@ -438,10 +446,7 @@ mod tests {
 
         // Assert
         assert_eq!(
-            result
-                .expect("file-keyed normalized policy")
-                .normalized_sdd
-                .expect("normalized policy")
+            resolved_policy(result.expect("file-keyed normalized policy"))
                 .file_attributions
                 .len(),
             3
@@ -591,8 +596,8 @@ mod tests {
         );
 
         // Act
-        let unknown_result = prepare(&unknown.path("normalized.sdd.yml"));
-        let legacy_envelope_result = prepare(&legacy_envelope.path("normalized.sdd.yml"));
+        let unknown_result = load_fixture(&unknown);
+        let legacy_envelope_result = load_fixture(&legacy_envelope);
 
         // Assert
         assert!(unknown_result.is_err());
@@ -647,12 +652,12 @@ mod tests {
 
         // Act
         let results = [
-            prepare(&unsupported.path("normalized.sdd.yml")),
-            prepare(&invalid_producer.path("normalized.sdd.yml")),
-            prepare(&missing_artifacts.path("normalized.sdd.yml")),
-            prepare(&duplicate_identity.path("normalized.sdd.yml")),
-            prepare(&legacy_family_id.path("normalized.sdd.yml")),
-            prepare(&missing_file_table.path("normalized.sdd.yml")),
+            load_fixture(&unsupported),
+            load_fixture(&invalid_producer),
+            load_fixture(&missing_artifacts),
+            load_fixture(&duplicate_identity),
+            load_fixture(&legacy_family_id),
+            load_fixture(&missing_file_table),
         ];
 
         // Assert
@@ -691,7 +696,7 @@ mod tests {
 
         // Act
         let results = fixtures
-            .map(|fixture| prepare(&fixture.path("normalized.sdd.yml")))
+            .map(|fixture| load_fixture(&fixture))
             .collect::<Vec<_>>();
 
         // Assert
@@ -879,7 +884,7 @@ mod tests {
         .expect("owner-selected nested attribution");
 
         // Assert
-        let normalized = loaded.normalized_sdd.expect("normalized policy model");
+        let normalized = resolved_policy(loaded);
         assert!(
             normalized
                 .file_attributions
@@ -903,20 +908,20 @@ mod tests {
         );
 
         // Act
-        let first = finalize(
-            prepare(&first.path("normalized.sdd.yml")).expect("first envelope"),
-            first.root(),
-        )
-        .expect("first policy")
-        .normalized_sdd
-        .expect("first normalized policy");
-        let second = finalize(
-            prepare(&second.path("normalized.sdd.yml")).expect("second envelope"),
-            second.root(),
-        )
-        .expect("second policy")
-        .normalized_sdd
-        .expect("second normalized policy");
+        let first = resolved_policy(
+            finalize(
+                prepare(&first.path("normalized.sdd.yml")).expect("first envelope"),
+                first.root(),
+            )
+            .expect("first policy"),
+        );
+        let second = resolved_policy(
+            finalize(
+                prepare(&second.path("normalized.sdd.yml")).expect("second envelope"),
+                second.root(),
+            )
+            .expect("second policy"),
+        );
 
         // Assert
         assert_eq!(
@@ -938,10 +943,24 @@ mod tests {
         );
 
         // Act
-        let result = prepare(&fixture.path("normalized.sdd.yml"));
+        let result = load_fixture(&fixture);
 
         // Assert
         assert!(result.is_err());
+    }
+
+    fn load_fixture(fixture: &Fixture) -> Result<LoadedBoundaryPolicy> {
+        finalize(
+            prepare(&fixture.path("normalized.sdd.yml"))?,
+            fixture.root(),
+        )
+    }
+
+    fn resolved_policy(loaded: LoadedBoundaryPolicy) -> NormalizedSddPolicy {
+        match loaded.assessment {
+            BoundaryPolicyAssessment::ResolvedImplementationAttribution(policy) => policy,
+            _ => panic!("resolved implementation attribution policy"),
+        }
     }
 
     #[cfg(unix)]
@@ -1030,14 +1049,6 @@ mod tests {
     struct StaticObserver;
 
     impl DependencyObserver for StaticObserver {
-        fn target_source(
-            &self,
-            project_root: &Path,
-            _context: &AnalysisContext,
-        ) -> Result<PathBuf> {
-            Ok(project_root.join("src/main.rs"))
-        }
-
         fn observe(
             &self,
             _project_root: &Path,

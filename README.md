@@ -9,7 +9,7 @@ JavaScript/TypeScript向けの[dependency-cruiser](https://github.com/sverweij/d
 - `*`と`**`を使った論理モジュールパターンでルールの対象を指定する
 - feature、cfg、target triple、解析対象モジュールを実行単位ごとに指定する
 - 検証結果をtextまたはJSONで出力し、`conformant`、`non-conformant`、`indeterminate`を区別する
-- YAMLポリシーを直接使用するほか、SDD設計を管理しているプロジェクトでは3つの設計入力から直接検証する
+- YAMLポリシーを直接使用するほか、ownerが生成した解決済み実装帰属を検証条件として直接使用する
 
 ## できないこと
 
@@ -70,11 +70,7 @@ rules:
 
 同じポリシーは[examples/minimal-project/boundary-policy.yaml](examples/minimal-project/boundary-policy.yaml)にもあります。
 
-`--logical-structure`、`--projection`、`--directory-structure`は、SDD設計を正本として管理しているプロジェクト向けの任意入力です。
-project全体のprojectionに含まれる正規source nodeのうち、Rust module解析対象外と確定できるnodeは入力不正とせず、boundary policyの導出対象から除外します。
-複数のlogical componentが同じdirectory nodeへ投影されるmany-to-one、またはcomponentのRust module scopeが親子関係で重なるprojectionは有効入力です。`analysis.ambiguous-component-attribution`で帰属候補を報告しつつ、検証済み宣言DAGの部分graphとして実行可能な全component帰属候補を評価し、許可・禁止の評価が同じなら確定判断します。候補間で評価が異なる場合、または候補を完全列挙できない場合は、終了コード`2` / `decision: indeterminate`を返します。
-
-ownerが解決した現行SDD familyの一時出力を使う場合は、`--resolved-implementation-attribution`で`resolved-implementation-attribution` version 1を指定できます。これは`--policy`およびlegacy SDD三入力と相互排他です。legacy version 1入力をversion 2へ暗黙変換しません。
+境界入力は、YAML boundary policyを`--policy`で指定するか、ownerが生成した`resolved-implementation-attribution` version 1を`--resolved-implementation-attribution`で指定します。2つの入力は相互排他です。解決済み実装帰属は中間変換せず、ownerが確定したfile attributionと依存関係を使用します。
 
 ## 最短実行
 

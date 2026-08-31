@@ -130,9 +130,6 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
         .ok_or_else(|| CruiserError::InvalidInput(usage().to_owned()))?;
     let mut policy = None;
     let mut resolved_implementation_attribution = None;
-    let mut logical_structure = None;
-    let mut projection = None;
-    let mut directory_structure = None;
     let mut package = None;
     let mut target = None;
     let mut target_triple = None;
@@ -156,15 +153,6 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
             "--resolved-implementation-attribution" => {
                 resolved_implementation_attribution =
                     Some(PathBuf::from(takes_value(option, &mut index)?));
-            }
-            "--logical-structure" => {
-                logical_structure = Some(PathBuf::from(takes_value(option, &mut index)?));
-            }
-            "--projection" => {
-                projection = Some(PathBuf::from(takes_value(option, &mut index)?));
-            }
-            "--directory-structure" => {
-                directory_structure = Some(PathBuf::from(takes_value(option, &mut index)?));
             }
             "--package" => package = Some(takes_value(option, &mut index)?),
             "--target" => target = Some(takes_value(option, &mut index)?),
@@ -205,13 +193,7 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
     }
     Ok(CheckArgs {
         project_root: PathBuf::from(project_root),
-        policy_input: parse_policy_input(
-            policy,
-            resolved_implementation_attribution,
-            logical_structure,
-            projection,
-            directory_structure,
-        )?,
+        policy_input: parse_policy_input(policy, resolved_implementation_attribution)?,
         package: package
             .ok_or_else(|| CruiserError::InvalidInput("--package is required".to_owned()))?,
         target: target
@@ -230,18 +212,12 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
 fn parse_policy_input(
     policy: Option<PathBuf>,
     resolved_implementation_attribution: Option<PathBuf>,
-    logical_structure: Option<PathBuf>,
-    projection: Option<PathBuf>,
-    directory_structure: Option<PathBuf>,
 ) -> Result<BoundaryPolicyInput> {
-    let has_sdd_input =
-        logical_structure.is_some() || projection.is_some() || directory_structure.is_some();
-    let source_count = usize::from(policy.is_some())
-        + usize::from(resolved_implementation_attribution.is_some())
-        + usize::from(has_sdd_input);
+    let source_count =
+        usize::from(policy.is_some()) + usize::from(resolved_implementation_attribution.is_some());
     if source_count > 1 {
         return Err(CruiserError::InvalidInput(
-            "boundary policy inputs are mutually exclusive: use exactly one of --policy, --resolved-implementation-attribution, or the complete legacy SDD input"
+            "boundary policy inputs are mutually exclusive: use exactly one of --policy or --resolved-implementation-attribution"
                 .to_owned(),
         ));
     }
@@ -251,23 +227,9 @@ fn parse_policy_input(
     if let Some(path) = resolved_implementation_attribution {
         return Ok(BoundaryPolicyInput::ResolvedImplementationAttribution { path });
     }
-    match (logical_structure, projection, directory_structure) {
-        (Some(logical_structure), Some(projection), Some(directory_structure)) => {
-            Ok(BoundaryPolicyInput::SddDesign {
-                logical_structure,
-                projection,
-                directory_structure,
-            })
-        }
-        (None, None, None) => Err(CruiserError::InvalidInput(
-            "--policy, --resolved-implementation-attribution, or complete legacy SDD boundary policy input is required"
-                .to_owned(),
-        )),
-        _ => Err(CruiserError::InvalidInput(
-            "SDD boundary policy input requires --logical-structure, --projection, and --directory-structure"
-                .to_owned(),
-        )),
-    }
+    Err(CruiserError::InvalidInput(
+        "--policy or --resolved-implementation-attribution is required".to_owned(),
+    ))
 }
 
 fn sorted_unique(mut values: Vec<String>) -> Vec<String> {
@@ -277,7 +239,7 @@ fn sorted_unique(mut values: Vec<String>) -> Vec<String> {
 }
 
 fn usage() -> &'static str {
-    "Usage: a3-rust-cruiser check <PROJECT_ROOT> (--policy <BOUNDARY_POLICY_PATH> | --resolved-implementation-attribution <RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH> | --logical-structure <LOGICAL_STRUCTURE_PATH> --projection <PROJECTION_PATH> --directory-structure <DIRECTORY_STRUCTURE_PATH>) --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]"
+    "Usage: a3-rust-cruiser check <PROJECT_ROOT> (--policy <BOUNDARY_POLICY_PATH> | --resolved-implementation-attribution <RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH>) --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]"
 }
 
 fn root_help() -> &'static str {
@@ -285,7 +247,7 @@ fn root_help() -> &'static str {
 }
 
 fn check_help() -> &'static str {
-    "Usage: a3-rust-cruiser check <PROJECT_ROOT> (--policy <BOUNDARY_POLICY_PATH> | --resolved-implementation-attribution <RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH> | --logical-structure <LOGICAL_STRUCTURE_PATH> --projection <PROJECTION_PATH> --directory-structure <DIRECTORY_STRUCTURE_PATH>) --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]\n\nAnalysis input:\n  -p, --policy <BOUNDARY_POLICY_PATH>\n      --resolved-implementation-attribution <RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH>\n      --logical-structure <LOGICAL_STRUCTURE_PATH>\n      --projection <PROJECTION_PATH>\n      --directory-structure <DIRECTORY_STRUCTURE_PATH>\n      --package <PACKAGE>\n      --target <TARGET>\n      --target-triple <TARGET_TRIPLE>\n      --analysis-profile <compilation|source-union>\n      --feature <FEATURE>\n      --cfg <CFG>\n      --include <MODULE_PATTERN>\n      --exclude <MODULE_PATTERN>\n\nOutput:\n  -f, --format <text|json>\n\nOptions:\n  -h, --help  Print help"
+    "Usage: a3-rust-cruiser check <PROJECT_ROOT> (--policy <BOUNDARY_POLICY_PATH> | --resolved-implementation-attribution <RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH>) --package <PACKAGE> --target <TARGET> --target-triple <TARGET_TRIPLE> [--analysis-profile <compilation|source-union>] [--feature <FEATURE>]... [--cfg <CFG>]... [--include <MODULE_PATTERN>]... [--exclude <MODULE_PATTERN>]... [--format <text|json>]\n\nAnalysis input:\n  -p, --policy <BOUNDARY_POLICY_PATH>\n      --resolved-implementation-attribution <RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH>\n      --package <PACKAGE>\n      --target <TARGET>\n      --target-triple <TARGET_TRIPLE>\n      --analysis-profile <compilation|source-union>\n      --feature <FEATURE>\n      --cfg <CFG>\n      --include <MODULE_PATTERN>\n      --exclude <MODULE_PATTERN>\n\nOutput:\n  -f, --format <text|json>\n\nOptions:\n  -h, --help  Print help"
 }
 
 #[cfg(test)]
@@ -389,12 +351,8 @@ mod tests {
             ".",
             "--policy",
             "policy.yaml",
-            "--logical-structure",
-            "logical-structure.sdd.yml",
-            "--projection",
-            "projection.sdd.yml",
-            "--directory-structure",
-            "directory-structure.sdd.yml",
+            "--resolved-implementation-attribution",
+            "resolved.sdd.yml",
             "--package",
             "fixture",
             "--target",
@@ -447,30 +405,12 @@ mod tests {
     #[test]
     fn should_reject_resolved_attribution_combined_with_another_policy_source() {
         // Arrange
-        let cases = [
-            vec![
-                "--resolved-implementation-attribution",
-                "resolved.sdd.yml",
-                "--policy",
-                "policy.yaml",
-            ],
-            vec![
-                "--resolved-implementation-attribution",
-                "resolved.sdd.yml",
-                "--logical-structure",
-                "logical.sdd.yml",
-            ],
-            vec![
-                "--resolved-implementation-attribution",
-                "resolved.sdd.yml",
-                "--logical-structure",
-                "logical.sdd.yml",
-                "--projection",
-                "projection.sdd.yml",
-                "--directory-structure",
-                "directory.sdd.yml",
-            ],
-        ];
+        let cases = [vec![
+            "--resolved-implementation-attribution",
+            "resolved.sdd.yml",
+            "--policy",
+            "policy.yaml",
+        ]];
 
         // Act
         let results = cases.map(|policy_args| {
@@ -489,6 +429,36 @@ mod tests {
 
         // Assert
         assert!(results.into_iter().all(|result| result.is_err()));
+    }
+
+    #[test]
+    fn should_reject_retired_sdd_options_as_unknown() {
+        // Arrange
+        let retired_options = [
+            "--logical-structure",
+            "--projection",
+            "--directory-structure",
+        ];
+
+        // Act
+        let results = retired_options.map(|option| {
+            let arguments = vec![
+                "check".to_owned(),
+                ".".to_owned(),
+                option.to_owned(),
+                "retired.sdd.yml".to_owned(),
+            ];
+            parse_check_args(&arguments)
+        });
+
+        // Assert
+        assert!(results.into_iter().all(|result| matches!(
+            result,
+            Err(crate::boundary_validation::CruiserError::InvalidInput(message))
+                if message == "unknown option: --logical-structure"
+                    || message == "unknown option: --projection"
+                    || message == "unknown option: --directory-structure"
+        )));
     }
 
     #[test]

@@ -165,22 +165,11 @@ contracts:
       circularは空でないmodulesだけを使用する。patternは空でない`::`区切りのsegment列とし、
       各segmentにはliteral、`*`、`**`だけを受理する。未定義field、未対応enum、重複または
       kebab-caseでないid、kind別field制約またはpattern文法に反するruleは解析開始前の入力失敗として扱う。
-      また、CLIはlogical-structure、projection、directory-structureをproject全体の一組として受け取り、
-      boundary-policy-inputは各設計表現を中立なポリシー入力契約へ変換する。boundary-validationの意味compilerは
-      component/node参照とlogical dependency graphの整合性を検証した後、Rust module解析対象へ対応するcomponentだけを
-      projectionとdirectory nodeを介してRust logical moduleへ対応付ける。Rust module解析対象外と確定できる正規source nodeは
-      入力不正または解析不能とせず、BoundaryPolicy導出対象から除外する。同一componentが複数directory nodeへ対応する場合は、
-      対応する全Rust module scopeを同じcomponentとしてBoundaryPolicyへ適用し、同一component内の親子scope重複を曖昧なcomponent帰属として報告しない。
-      複数componentが同じdirectory nodeへ対応する場合、またはcomponentのRust module scopeが親子関係で重なる場合も、
-      有効な入力として受理する。
-      logical-structureの宣言依存graphは意味compilerで非循環性を検証し、宣言外依存を禁止することで実装上のcomponent間循環を防ぐ。
-      YAMLとSDDの同時指定、SDD三入力の欠落、未知のcomponent/node参照、logical-structureのcomponent IDまたはdirectory-structureのnode IDの重複、
-      componentの投影欠落、異なるdirectory nodeから同一Rust logical moduleへの投影、
-      選択したCargo target rootへのcomponent投影、非正規project path、Rust解析対象内の未対応module pathは
-      解析開始前の入力失敗として扱う。legacy SDD三入力はnameとversion 1を厳格に識別し、version 2、未知version、
-      mixed family、未知fieldをcomponent-onlyへ縮退させず入力失敗とする。
-      owner-resolved current familyが生成するresolved-implementation-attribution version 1一時出力を、公開CLIから変換なしで受理する。
+      CLIはBoundaryPolicy YAMLまたはowner-resolved current familyが生成する
+      resolved-implementation-attribution version 1一時出力のいずれか一つを受け取り、入力源を相互排他的に扱う。
+      owner-resolved current familyが生成するresolved-implementation-attribution version 1一時出力は、公開CLIから変換なしで受理する。
       top-level shapeはversion、name、source_provenance、file_attributions、component_dependencies、scope_dependenciesだけを持つ。
+      不正なresolved-implementation-attributionはRust dependency観測を開始する前に入力失敗として扱う。
       source provenanceはproducerと、
       dsl_name、version、artifact_identity.axes、lowercase SHA-256からなる全resolved artifact instanceを持ち、
       dsl_nameとaxesの組をidentityとする。logical-structureとprojectionはscope_path軸ごとの複数instanceを許可し、
@@ -197,7 +186,7 @@ contracts:
       component dependencyまたはscope dependencyへ照合する。scope dependencyのcontract_refsはsubject_refとcontract_idの組を持ち、
       traceabilityだけに用いて依存許可条件にしない。
       帰属またはcoverageがunresolvedならconformantへ縮退させずindeterminate、禁止edgeを確定できればnon-conformantとする。
-      owner一時出力は`--resolved-implementation-attribution`から既存loader、evaluator、reportへ渡し、owner DSLを再解釈せず、legacy version 1入力をversion 2へ暗黙変換しない。
+      owner一時出力は`--resolved-implementation-attribution`から既存loader、evaluator、reportへ渡し、owner DSLを再解釈せず、version 1入力をversion 2へ暗黙変換しない。
     conditions:
       - id: valid-boundary-policy-input
         input_predicate:
@@ -208,16 +197,6 @@ contracts:
         input_predicate:
           kind: input
           term: input.invalid_boundary_policy
-          op: present
-      - id: valid-sdd-boundary-policy-input
-        input_predicate:
-          kind: input
-          term: input.valid_sdd_boundary_policy
-          op: present
-      - id: invalid-sdd-boundary-policy-input
-        input_predicate:
-          kind: input
-          term: input.invalid_sdd_boundary_policy
           op: present
       - id: valid-resolved-implementation-attribution-input
         input_predicate:
@@ -238,16 +217,6 @@ contracts:
         input_predicate:
           kind: input
           term: input.forbidden_resolved_attribution_edge
-          op: present
-      - id: one-to-many-projected-scope-dependency
-        input_predicate:
-          kind: input
-          term: input.one_to_many_projected_scope_dependency
-          op: present
-      - id: same-component-overlapping-projections
-        input_predicate:
-          kind: input
-          term: input.same_component_overlapping_projections
           op: present
     guarantees:
       - id: valid-boundary-policy-input-accepted
@@ -308,36 +277,6 @@ contracts:
               kind: value_set
               values:
                 - diagnostic
-      - id: valid-sdd-boundary-policy-input-accepted
-        when: valid-sdd-boundary-policy-input
-        observation_ref: observation.cli.process-outcome
-        claim:
-          kind: value-relation
-          op: in
-          relation:
-            left:
-              kind: observation_field
-              value: process.exit_code
-            right:
-              kind: value_set
-              values:
-                - "0"
-                - "1"
-                - "2"
-      - id: invalid-sdd-boundary-policy-input-exits-with-three
-        when: invalid-sdd-boundary-policy-input
-        observation_ref: observation.cli.process-outcome
-        claim:
-          kind: value-relation
-          op: in
-          relation:
-            left:
-              kind: observation_field
-              value: process.exit_code
-            right:
-              kind: value_set
-              values:
-                - "3"
       - id: resolved-attribution-coverage-is-reported
         when: valid-resolved-implementation-attribution-input
         observation_ref: observation.validation.result
@@ -377,6 +316,20 @@ contracts:
               kind: value_set
               values:
                 - "3"
+      - id: invalid-resolved-implementation-attribution-input-reports-its-diagnostic-before-observation
+        when: invalid-resolved-implementation-attribution-input
+        observation_ref: observation.cli.process-outcome
+        claim:
+          kind: value-relation
+          op: in
+          relation:
+            left:
+              kind: observation_field
+              value: process.stderr_diagnostic_source
+            right:
+              kind: value_set
+              values:
+                - resolved-implementation-attribution
       - id: unresolved-implementation-attribution-is-indeterminate
         when: unresolved-implementation-attribution
         observation_ref: observation.validation.result
@@ -405,38 +358,6 @@ contracts:
               kind: value_set
               values:
                 - non-conformant
-      - id: one-to-many-projected-scope-is-enforced
-        when: one-to-many-projected-scope-dependency
-        observation_ref: observation.validation.result
-        claim:
-          kind: value-relation
-          op: in
-          relation:
-            left:
-              kind: observation_field
-              value: result.decision
-            right:
-              kind: value_set
-              values:
-                - non-conformant
-      - id: same-component-overlap-is-not-ambiguous
-        when: same-component-overlapping-projections
-        observation_ref: observation.validation.result
-        claim:
-          kind: observable-result
-          op: absent
-          target:
-            kind: observation_field
-            value: result.analysis_issues.ambiguous_component_attribution
-      - id: same-component-overlap-does-not-duplicate-violations
-        when: same-component-overlapping-projections
-        observation_ref: observation.validation.result
-        claim:
-          kind: observable-result
-          op: unique
-          target:
-            kind: observation_field
-            value: result.violations.dependency_identity
     verification_intents:
       - id: boundary-policy-input-acceptance
         goal: 文書化されたBoundaryPolicy YAMLと任意配列の省略が入力失敗にならないことを確認する
@@ -448,30 +369,15 @@ contracts:
           - invalid-boundary-policy-input-exits-with-three
           - invalid-boundary-policy-input-keeps-stdout-empty
           - invalid-boundary-policy-input-writes-stderr-diagnostic
-      - id: sdd-boundary-policy-input-acceptance
-        goal: SDD設計三入力が意味compilerを介して一意なBoundaryPolicyへ投影され、非循環な宣言graphに対する未宣言依存を検証できることを確認する
-        guarantee_refs:
-          - valid-sdd-boundary-policy-input-accepted
-      - id: sdd-boundary-policy-input-rejection
-        goal: 不完全、version/name不一致、mixed family、未知field、または整合しないlegacy SDD設計入力が解析開始前の入力失敗になることを確認する
-        guarantee_refs:
-          - invalid-sdd-boundary-policy-input-exits-with-three
       - id: resolved-implementation-attribution-public-cli-semantics
-        goal: 公開CLIがcontextに束縛されたowner-resolved file帰属を単一observer結果へexact joinし、全選択moduleのscope edge、unresolved、coverageを判定してschema 3で報告することを確認する
+        goal: 公開CLIが不正なowner-resolved入力をdependency観測前に拒否し、contextに束縛された有効なfile帰属を単一observer結果へexact joinして、全選択moduleのscope edge、unresolved、coverageを判定しschema 3で報告することを確認する
         guarantee_refs:
           - valid-resolved-implementation-attribution-input-accepted
           - invalid-resolved-implementation-attribution-input-exits-with-three
+          - invalid-resolved-implementation-attribution-input-reports-its-diagnostic-before-observation
           - resolved-attribution-coverage-is-reported
           - unresolved-implementation-attribution-is-indeterminate
           - forbidden-resolved-attribution-edge-is-non-conformant
-      - id: one-to-many-sdd-projection-semantics
-        goal: 同一componentへ投影された全Rust module scopeが境界評価へ適用され、同一component内の親子scope重複が曖昧帰属を生まないことを確認する
-        guarantee_refs:
-          - valid-sdd-boundary-policy-input-accepted
-          - one-to-many-projected-scope-is-enforced
-          - same-component-overlap-is-not-ambiguous
-          - same-component-overlap-does-not-duplicate-violations
-
   - id: contract.logical-module-boundary.policy-evaluation
     summary: >-
       有効なBoundaryPolicyのforbiddenとallowedはfrom、toのpattern集合、circularはmodulesのpattern集合を使う。
@@ -793,22 +699,13 @@ contracts:
       BoundaryViolationが1件でもあれば重大度によらずnon-conformantを最優先し、
       違反がなく現在policyへの影響がpossibleなAnalysisIssueが1件でもあればindeterminate、
       それ以外はAnalysisIssueが存在してもconformantとする。JSONとtextは同じ判断、違反、解析問題を表し、
-      SDD投影で生じた曖昧なcomponent帰属（many-to-oneまたは親子重複）は、対象moduleとcomponent集合を伴うAnalysisIssueとして
-      観測する。全component帰属候補を列挙し、各候補でlogical dependency graphの直接辺に基づく許可・禁止を評価する。
-      全候補で評価が同一ならpolicy impactをnoneとして確定判断し、全候補で禁止される依存だけを確定違反へ投影する。
-      構造上のcomponent帰属曖昧性だけではpolicy impactをpossibleにせず、候補間で評価が異なる実依存edgeだけをpossibleとして
-      source module、target module、source evidence、候補component集合、dependency kindとともに報告する。assignment-dependentなedgeは
-      source/target component候補の各組とallowedまたはforbiddenの評価を構造化してcanonical順かつ重複なしで報告し、BoundaryPolicy ruleではない根拠をrule_idsへ混在させない。
-      component_dependency_candidatesは全AnalysisIssueに配列として存在し、component帰属edge以外では空配列にする。
-      各候補は検証済み宣言DAGの部分graphとして評価し、候補間差分、完全列挙不能、または宣言DAGと矛盾する候補を含む場合は
-      policy impactをpossibleとして判定不能にする。一対一で対応するcomponent間では宣言済み依存以外をerrorのforbidden ruleへ投影する。
       moduleはid、declarationはparent・child・evidence、dependencyはsource・target・kind・evidence、
       violationはrule_id・source・target・dependency_kind・evidence、analysis issueはcode・affected_scope・reasonに加え、
       観測結果と現在policyへの影響を独立した型付きfieldで保持する。確定依存と確定違反はAnalysisIssueへ複製しない。
       未解決依存候補では、sourceとdependency kindに適用可能なforbidden・circular ruleのうち、候補集合が空またはpatternに一致する候補を持つruleを
       影響し得るrule IDへ含める。allowed ruleは、候補集合が空、または許可先和集合に含まれない候補が1つでもある場合に、適用可能なrule IDを
       影響へ含め、候補集合が空でなく全候補が許可先和集合に含まれる場合は含めない。影響し得るruleがなければnone、1つ以上ならpossibleとする。
-      候補集合、rule ID、excluded scopeは文字列を比較keyとして昇順かつ重複なしで出力する。
+      候補target、dependency kind、rule ID、excluded scopeは文字列を比較keyとして昇順かつ重複なしで出力する。
     conditions:
       - id: complete-without-violation
         input_predicate:
@@ -859,16 +756,6 @@ contracts:
         input_predicate:
           kind: input
           term: input.unresolved_candidate_targets_empty
-          op: present
-      - id: ambiguous-component-attribution
-        input_predicate:
-          kind: input
-          term: input.ambiguous_component_attribution
-          op: present
-      - id: assignment-dependent-component-attribution-edge
-        input_predicate:
-          kind: input
-          term: input.assignment_dependent_component_attribution_edge
           op: present
       - id: report-request-present
         input_predicate:
@@ -1024,108 +911,6 @@ contracts:
                 - analysis.unsupported-name-resolution
                 - analysis.unsupported-syntax
                 - analysis.unsupported-analysis-context
-                - analysis.ambiguous-component-attribution
-      - id: ambiguous-component-attribution-code
-        when: ambiguous-component-attribution
-        observation_ref: observation.validation.result
-        claim:
-          kind: value-relation
-          op: in
-          relation:
-            left:
-              kind: observation_field
-              value: result.analysis_issues.code
-            right:
-              kind: value_set
-              values:
-                - analysis.ambiguous-component-attribution
-      - id: component-attribution-edge-source-present
-        when: assignment-dependent-component-attribution-edge
-        observation_ref: observation.validation.result
-        claim:
-          kind: observable-result
-          op: present
-          target:
-            kind: observation_field
-            value: result.analysis_issues.observation.source_module
-      - id: component-attribution-edge-evidence-present
-        when: assignment-dependent-component-attribution-edge
-        observation_ref: observation.validation.result
-        claim:
-          kind: observable-result
-          op: present
-          target:
-            kind: observation_field
-            value: result.analysis_issues.observation.evidence
-      - id: component-attribution-edge-target-present
-        when: assignment-dependent-component-attribution-edge
-        observation_ref: observation.validation.result
-        claim:
-          kind: observable-result
-          op: present
-          target:
-            kind: observation_field
-            value: result.analysis_issues.observation.candidate_targets
-      - id: component-attribution-edge-components-present
-        when: assignment-dependent-component-attribution-edge
-        observation_ref: observation.validation.result
-        claim:
-          kind: observable-result
-          op: present
-          target:
-            kind: observation_field
-            value: result.analysis_issues.observation.candidate_components
-      - id: analysis-issue-component-dependency-candidates-present
-        when: report-request-present
-        observation_ref: observation.validation.result
-        claim:
-          kind: observable-result
-          op: present
-          target:
-            kind: observation_field
-            value: result.analysis_issues.observation.component_dependency_candidates
-      - id: component-attribution-edge-candidate-source-present
-        when: assignment-dependent-component-attribution-edge
-        observation_ref: observation.validation.result
-        claim:
-          kind: observable-result
-          op: present
-          target:
-            kind: observation_field
-            value: result.analysis_issues.observation.component_dependency_candidates.source_component
-      - id: component-attribution-edge-candidate-target-present
-        when: assignment-dependent-component-attribution-edge
-        observation_ref: observation.validation.result
-        claim:
-          kind: observable-result
-          op: present
-          target:
-            kind: observation_field
-            value: result.analysis_issues.observation.component_dependency_candidates.target_component
-      - id: component-attribution-edge-candidate-outcome-supported
-        when: assignment-dependent-component-attribution-edge
-        observation_ref: observation.validation.result
-        claim:
-          kind: value-relation
-          op: in
-          relation:
-            left:
-              kind: observation_field
-              value: result.analysis_issues.observation.component_dependency_candidates.outcome
-            right:
-              kind: value_set
-              values:
-                - allowed
-                - forbidden
-      - id: component-attribution-edge-kind-present
-        when: assignment-dependent-component-attribution-edge
-        observation_ref: observation.validation.result
-        claim:
-          kind: observable-result
-          op: present
-          target:
-            kind: observation_field
-            value: result.analysis_issues.observation.dependency_kinds
       - id: analysis-issue-reason-present
         when: report-request-present
         observation_ref: observation.validation.result
@@ -1342,33 +1127,6 @@ contracts:
           - unresolved-candidate-with-empty-targets-has-possible-policy-impact
           - path-module-source-module-present
           - path-module-policy-rule-ids-present
-      - id: ambiguous-component-attribution-report
-        goal: >-
-          many-to-one moduleのissue code・module scope・決定的に整列したcomponent集合を確認し、
-          全候補で禁止される依存と一対一module間で安全に確定する違反を保持し、候補間で評価が異なるedgeだけを判定不能にすることを確認する
-        guarantee_refs:
-          - conformant-decision
-          - non-conformant-decision
-          - indeterminate-decision
-          - analysis-issues-present
-          - ambiguous-component-attribution-code
-          - analysis-issue-reason-present
-          - analysis-issue-affected-scope-present
-          - analysis-observation-outcome-supported
-          - analysis-policy-impact-outcome-supported
-          - analysis-issue-has-no-policy-impact
-          - analysis-issue-has-possible-policy-impact
-          - component-attribution-edge-source-present
-          - component-attribution-edge-evidence-present
-          - component-attribution-edge-target-present
-          - component-attribution-edge-components-present
-          - analysis-issue-component-dependency-candidates-present
-          - component-attribution-edge-candidate-source-present
-          - component-attribution-edge-candidate-target-present
-          - component-attribution-edge-candidate-outcome-supported
-          - component-attribution-edge-kind-present
-          - report-ordering-canonical
-          - report-violations-present
       - id: json-report-projection
         goal: 共通の検証結果をcanonical順序のJSONへ直列化することを確認する
         guarantee_refs:
@@ -1379,7 +1137,6 @@ contracts:
           - analysis-issue-affected-scope-present
           - analysis-observation-outcome-supported
           - analysis-policy-impact-outcome-supported
-          - analysis-issue-component-dependency-candidates-present
           - report-serialization-supported
           - report-ordering-canonical
           - report-decision-supported
@@ -1393,7 +1150,6 @@ contracts:
           - analysis-issue-affected-scope-present
           - analysis-observation-outcome-supported
           - analysis-policy-impact-outcome-supported
-          - analysis-issue-component-dependency-candidates-present
           - report-serialization-supported
           - report-ordering-canonical
           - report-decision-supported
