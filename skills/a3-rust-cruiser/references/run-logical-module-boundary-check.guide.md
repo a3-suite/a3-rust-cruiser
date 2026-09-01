@@ -1,35 +1,14 @@
-# 論理モジュール境界検証ガイド
+# 論理モジュール境界検証の共通判定ガイド
 
 ## 目的
 
-- インストール済みの a3-rust-cruiser を使い、1つの Cargo package と compilation target の論理モジュール境界を検証する。
+- 入力経路別のガイドで実行した論理モジュール境界検証の結果を判定する。
 - 適合、違反、解析不能、実行エラーを混同せずに判定する。
 
 ## 前提条件
 
-- `a3-rust-cruiser` コマンドが利用できること。利用できない場合はインストールを自動実行せず、その不足を報告する。
-- 対象プロジェクトが所有する YAML boundary policyまたはowner生成済みの resolved-implementation-attributionを確認できること。入力を確認できない場合は推測または新規作成せず、入力不足として停止する。
-
-## 検証フロー
-
-1. 対象プロジェクトから project root、境界入力、package、compilation target を確認する。境界入力はYAML boundary policy 1ファイルまたはresolved-implementation-attribution 1ファイルのいずれか1つに固定する。
-2. 対象ツールチェーンから target triple を確認する。
-3. 標準的な検証では、既定の `compilation` profileでYAML boundary policyを直接指定する。機械判定が必要な場合はJSONを選ぶ。
-
-   ```shell
-   a3-rust-cruiser check <project-root> --policy <boundary-policy-path> --package <package> --target <target-kind>:<target-name> --target-triple <target-triple> --format json
-   ```
-
-   ownerが解決した実装帰属の一時出力がある場合は、中間変換せず次の形式で直接検証する。
-
-   ```shell
-   a3-rust-cruiser check <project-root> --resolved-implementation-attribution <resolved-implementation-attribution-path> --package <package> --target <target-kind>:<target-name> --target-triple <target-triple> --format json
-   ```
-
-   この入力のJSONレポートは`"schema_version": "3"`となり、CLIの解析コンテキストと全選択moduleの観測結果から`normalized_sdd_coverage`が導出される。`covered_modules`、`unresolved_modules`、`source_provenance`を確認し、観測されたsource fileに対応する帰属がない場合、または同一moduleのsource file群が異なるowner tupleへ解決される場合は`indeterminate`として扱う。入力側へ解析コンテキストやcoverageを追加しない。
-
-4. 対象プロジェクトが feature、cfg、解析範囲を明示している場合だけ、対応する `--feature`、`--cfg`、`--include`、`--exclude` を追加する。
-5. 複数の package または target が対象なら、解析コンテキストごとに独立して実行する。
+- YAML BoundaryPolicyまたはresolved-implementation-attributionの入力経路別ガイドに従い、入力と解析コンテキストを確定済みであること。
+- `a3-rust-cruiser` コマンドが利用できること。利用できない場合はセットアップを自動実行せず、不足を報告する。
 
 ## 判定基準
 

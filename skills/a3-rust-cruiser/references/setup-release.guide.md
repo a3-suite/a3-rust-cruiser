@@ -23,7 +23,9 @@
 
 4. 異なる既存CLIがある場合はinstallerを停止する。置換が必要なら、既存fileの移動または削除を別操作として利用者へ提示し、承認後に実施してからinstallerを再実行する。
 5. 出力された実行file、version、command pathを確認する。
-6. 続けて対象プロジェクトのboundary policyを使い、論理モジュール境界検証ガイドに従って検証する。
+6. 対象プロジェクトの入力経路を選び、対応する入力経路別ガイドに従って検証する。
+   - YAML BoundaryPolicy: references/run-boundary-policy-check.guide.md
+   - resolved-implementation-attribution: references/run-resolved-implementation-attribution-check.guide.md
 
 ## 検証と配置
 

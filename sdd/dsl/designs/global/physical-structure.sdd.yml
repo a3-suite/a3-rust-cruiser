@@ -1,0 +1,52 @@
+version: 1
+name: physical-structure
+structure_id: a3-rust-cruiser-source-layout
+elements:
+  - element_id: src-entrypoints
+    element_kind: directory
+    path: src
+    primary_area_kind: source
+    area_kinds:
+      - source
+    source_control: managed
+    placement_purpose: crate の entrypoint と component の composition 配線だけを配置する
+  - element_id: src-command-interface
+    element_kind: directory
+    path: src/command_interface
+    primary_area_kind: source
+    area_kinds:
+      - source
+    source_control: managed
+    placement_purpose: CLI 入出力と validation use case への変換を配置する
+  - element_id: src-boundary-validation
+    element_kind: directory
+    path: src/boundary_validation
+    primary_area_kind: source
+    area_kinds:
+      - source
+    source_control: managed
+    placement_purpose: 論理モジュール境界検証 use case と外部入力 port を配置する
+  - element_id: src-boundary-evaluation
+    element_kind: directory
+    path: src/boundary_evaluation
+    primary_area_kind: source
+    area_kinds:
+      - source
+    source_control: managed
+    placement_purpose: 評価用ポリシーから評価規則を導出し、違反と循環を評価する domain 実装を配置する
+  - element_id: src-rust-dependency-observation
+    element_kind: directory
+    path: src/rust_dependency_observation
+    primary_area_kind: source
+    area_kinds:
+      - source
+    source_control: managed
+    placement_purpose: Rust の意味情報から依存 graph を観測する adapter を配置する
+  - element_id: src-boundary-policy-input
+    element_kind: directory
+    path: src/boundary_policy_input
+    primary_area_kind: source
+    area_kinds:
+      - source
+    source_control: managed
+    placement_purpose: 外部表現から中立なポリシー入力を読み込む adapter を配置する
