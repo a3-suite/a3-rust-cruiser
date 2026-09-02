@@ -141,6 +141,10 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
         syn::visit::visit_field(self, field);
     }
 
+    fn visit_visibility(&mut self, _visibility: &'ast syn::Visibility) {
+        // Restricted visibility paths define access scope; they do not reference a dependency.
+    }
+
     fn visit_path(&mut self, path: &'ast syn::Path) {
         if self.inactive_expr_cfg {
             return;

@@ -4,6 +4,40 @@
 use super::*;
 
 #[test]
+fn should_not_report_restricted_visibility_paths_as_dependencies() {
+    // Arrange
+    let fixture = TempFixture::new("restricted-visibility-is-not-a-dependency");
+    fixture.write("src/main.rs", "mod outer;\nfn main() {}\n");
+    fixture.write("src/outer.rs", "pub mod inner;\n");
+    fixture.write(
+        "src/outer/inner.rs",
+        "pub(crate) struct CrateVisible;\npub(super) struct ParentVisible;\npub(in crate::outer) struct OuterVisible;\n",
+    );
+    fixture.write("policy.yaml", "rules: []\n");
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert_eq!(report["decision"], "conformant");
+    assert!(!dependency_exists(
+        &report,
+        "crate::outer::inner",
+        "crate",
+        "path-reference",
+        "internal-module"
+    ));
+    assert!(!dependency_exists(
+        &report,
+        "crate::outer::inner",
+        "crate::outer",
+        "path-reference",
+        "internal-module"
+    ));
+}
+
+#[test]
 fn should_typed_dependencies_and_declarations_are_reported() {
     // Arrange
     let fixture = TempFixture::new("typed-dependencies");

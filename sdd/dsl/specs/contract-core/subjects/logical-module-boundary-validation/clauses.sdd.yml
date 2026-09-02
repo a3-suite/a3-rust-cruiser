@@ -165,19 +165,13 @@ contracts:
       circularは空でないmodulesだけを使用する。patternは空でない`::`区切りのsegment列とし、
       各segmentにはliteral、`*`、`**`だけを受理する。未定義field、未対応enum、重複または
       kebab-caseでないid、kind別field制約またはpattern文法に反するruleは解析開始前の入力失敗として扱う。
-      CLIはBoundaryPolicy YAMLまたはowner-resolved current familyが生成する
+      CLIはBoundaryPolicy YAMLまたはsdd-designs owner contractが定義する
       resolved-implementation-attribution version 1一時出力のいずれか一つを受け取り、入力源を相互排他的に扱う。
-      owner-resolved current familyが生成するresolved-implementation-attribution version 1一時出力は、公開CLIから変換なしで受理する。
-      top-level shapeはversion、name、source_provenance、file_attributions、component_dependencies、scope_dependenciesだけを持つ。
-      不正なresolved-implementation-attributionはRust dependency観測を開始する前に入力失敗として扱う。
-      source provenanceはproducerと、
-      dsl_name、version、artifact_identity.axes、lowercase SHA-256からなる全resolved artifact instanceを持ち、
-      dsl_nameとaxesの組をidentityとする。logical-structureとprojectionはscope_path軸ごとの複数instanceを許可し、
-      global physical-structureは空axesの一instanceだけを要求する。owner authorityのないfamily_idは要求しない。
-      実在fileごとの一意なscope/component/element帰属と、ownerが投影したcomponent dependencyおよびscope dependencyを持つ。
-      file帰属はownerがexactまたはdeepest directory規則で選択済みの一時結果として消費し、consumer側でowner field bindingや
-      親directoryからの暗黙継承を再計算しない。未観測fileの余剰entryは許可し、producerはRust module ID、covered module、
-      unresolved moduleを入力へ持ち込まない。
+      owner出力は公開CLIから変換なしで受理し、そのshape、provenance、cardinality、帰属選択規則はowner contractに従う。
+      不正なowner出力はRust dependency観測を開始する前に入力失敗として扱う。
+      consumerはownerが解決済みのfile帰属、component dependency、scope dependencyを使用し、owner DSL、field binding、
+      exactまたはdeepest directory規則、親directoryからの暗黙継承を再解釈または再計算しない。
+      未観測fileの余剰entryは許可し、Rust module ID、covered module、unresolved moduleはconsumerが導出する。
       package、compilation target、target triple、features、cfg、analysis profile、include、excludeは公開CLIのconsumer-owned
       AnalysisContextとして独立に受理する。consumerは同じcheck内の一回のRust dependency観測から、
       全選択moduleの全source fileをexact pathでfile帰属へ結合し、全fileが同じowner tupleへ解決したmoduleだけをcoveredとする。

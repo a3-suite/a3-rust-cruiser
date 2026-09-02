@@ -6,15 +6,18 @@ use std::{
 use serde::Deserialize;
 
 use crate::boundary_validation::{
-    BoundaryPolicy, BoundaryPolicyAssessment, LoadedBoundaryPolicy, NormalizedSddPolicy,
-    NormalizedSddProvenance, NormalizedSddSourceArtifact, Result, ScopedComponentAttribution,
+    BoundaryPolicy, BoundaryPolicyAssessment, CruiserError, LoadedBoundaryPolicy,
+    NormalizedSddPolicy, NormalizedSddProvenance, NormalizedSddSourceArtifact, Result,
+    ScopedComponentAttribution,
 };
-
-use super::invalid_boundary_policy_input;
 
 const ATTRIBUTION_NAME: &str = "resolved-implementation-attribution";
 const ATTRIBUTION_VERSION: u64 = 1;
 const PRODUCER: &str = "owner-resolved-current-family";
+
+fn invalid_boundary_policy_input(message: impl Into<String>) -> CruiserError {
+    CruiserError::InvalidInput(format!("invalid boundary policy input: {}", message.into()))
+}
 
 pub(super) fn prepare(path: &Path) -> Result<String> {
     let content = std::fs::read_to_string(path)?;
