@@ -20,7 +20,12 @@ fn invalid_boundary_policy_input(message: impl Into<String>) -> CruiserError {
 }
 
 pub(super) fn prepare(path: &Path) -> Result<String> {
-    let content = std::fs::read_to_string(path)?;
+    let content = std::fs::read_to_string(path).map_err(|error| {
+        CruiserError::io(
+            format!("resolved implementation attribution {}", path.display()),
+            error,
+        )
+    })?;
     parse(&content)?;
     Ok(content)
 }

@@ -1,6 +1,7 @@
 /target/
 /tests/tmp/
 .a3-lint/
+.a3-sdd/
 /.env
 # Runtime and audit logs are kept outside version control.
 /logs/

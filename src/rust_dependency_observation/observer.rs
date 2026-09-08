@@ -242,12 +242,8 @@ impl Observer {
         if self.records.contains_key(id) {
             return Ok(());
         }
-        let source = fs::read_to_string(path).map_err(|error| {
-            CruiserError::Io(std::io::Error::new(
-                error.kind(),
-                format!("{}: {error}", path.display()),
-            ))
-        })?;
+        let source = fs::read_to_string(path)
+            .map_err(|error| CruiserError::io(path.display().to_string(), error))?;
         let ast = match syn::parse_file(&source) {
             Ok(ast) => ast,
             Err(error) => {
@@ -400,13 +396,26 @@ impl Observer {
                     child_items,
                 )?;
             } else {
+                let (flat_path, nested_path) =
+                    module_file_candidates(parent_module_directory, &module.ident.to_string());
                 let child_path =
                     resolve_module_file(parent_module_directory, &module.ident.to_string())
                         .ok_or_else(|| {
-                            CruiserError::Io(std::io::Error::new(
-                                std::io::ErrorKind::NotFound,
-                                format!("module file not found for {child_id}"),
-                            ))
+                            let evidence = self.evidence(parent_path, module.ident.span().start());
+                            CruiserError::io(
+                                "",
+                                std::io::Error::new(
+                                    std::io::ErrorKind::NotFound,
+                                    format!(
+                                        "module file not found for {child_id}; tried {} or {}; declared at {}:{}:{}",
+                                        flat_path.display(),
+                                        nested_path.display(),
+                                        evidence.path,
+                                        evidence.line,
+                                        evidence.column,
+                                    ),
+                                ),
+                            )
                         })?;
                 self.discover_module(&child_id, &child_path)?;
             }
@@ -979,12 +988,18 @@ fn candidate_id(
 }
 
 fn resolve_module_file(directory: &Path, name: &str) -> Option<PathBuf> {
-    let flat = directory.join(format!("{name}.rs"));
+    let (flat, nested) = module_file_candidates(directory, name);
     if flat.is_file() {
         return Some(flat);
     }
-    let nested = directory.join(name).join("mod.rs");
     nested.is_file().then_some(nested)
+}
+
+fn module_file_candidates(directory: &Path, name: &str) -> (PathBuf, PathBuf) {
+    (
+        directory.join(format!("{name}.rs")),
+        directory.join(name).join("mod.rs"),
+    )
 }
 
 fn module_directory(file: &Path) -> PathBuf {

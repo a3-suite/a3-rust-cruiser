@@ -172,6 +172,84 @@ fn should_missing_boundary_policy_source_is_rejected() {
 }
 
 #[test]
+fn should_missing_boundary_policy_report_its_path() {
+    // Arrange
+    let fixture = TempFixture::new("missing-boundary-policy-path");
+    let missing_policy = fixture.join("missing-policy.yaml");
+
+    // Act
+    let output = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"))
+        .args([
+            "check",
+            fixture.path().to_str().expect("fixture path is UTF-8"),
+            "--policy",
+            missing_policy.to_str().expect("policy path is UTF-8"),
+            "--package",
+            fixture.package(),
+            "--target",
+            fixture.target().as_str(),
+            "--target-triple",
+            "x86_64-unknown-linux-gnu",
+        ])
+        .output()
+        .expect("binary should run");
+
+    // Assert
+    assert_execution_failure(
+        &output,
+        missing_policy.to_str().expect("policy path is UTF-8"),
+    );
+}
+
+#[test]
+fn should_missing_resolved_attribution_report_its_path() {
+    // Arrange
+    let fixture = TempFixture::new("missing-resolved-attribution-path");
+    let missing_attribution = fixture.join("missing-resolved.sdd.yml");
+
+    // Act
+    let output = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"))
+        .args([
+            "check",
+            fixture.path().to_str().expect("fixture path is UTF-8"),
+            "--resolved-implementation-attribution",
+            missing_attribution
+                .to_str()
+                .expect("attribution path is UTF-8"),
+            "--package",
+            fixture.package(),
+            "--target",
+            fixture.target().as_str(),
+            "--target-triple",
+            "x86_64-unknown-linux-gnu",
+        ])
+        .output()
+        .expect("binary should run");
+
+    // Assert
+    assert_execution_failure(
+        &output,
+        missing_attribution
+            .to_str()
+            .expect("attribution path is UTF-8"),
+    );
+}
+
+#[test]
+fn should_missing_manifest_report_its_path() {
+    // Arrange
+    let fixture = TempFixture::new("missing-manifest-path");
+    let manifest = fixture.join("Cargo.toml");
+    std::fs::remove_file(&manifest).expect("manifest should be removed");
+
+    // Act
+    let output = run_check(&fixture, "json");
+
+    // Assert
+    assert_execution_failure(&output, manifest.to_str().expect("manifest path is UTF-8"));
+}
+
+#[test]
 fn should_project_root_is_required_for_check() {
     // Arrange
     let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
@@ -238,6 +316,23 @@ fn should_missing_target_source_is_rejected() {
 
     // Assert
     assert_execution_failure(&output, "target source file not found");
+}
+
+#[test]
+fn should_missing_module_file_report_candidates_and_declaration_location() {
+    // Arrange
+    let fixture = TempFixture::new("missing-module-file");
+    fixture.write("src/main.rs", "mod missing;\nfn main() {}\n");
+
+    // Act
+    let output = run_check(&fixture, "json");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // Assert
+    assert_execution_failure(&output, "module file not found for crate::missing");
+    assert!(stderr.contains("src/missing.rs"));
+    assert!(stderr.contains("src/missing/mod.rs"));
+    assert!(stderr.contains("src/main.rs:1:"));
 }
 
 #[test]
