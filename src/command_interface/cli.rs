@@ -94,9 +94,8 @@ where
     let report = report::build(result, check.format.as_str());
     let payload = match check.format {
         OutputFormat::Text => report::to_text(&report),
-        OutputFormat::Json => report::to_json(&report).map_err(|error| {
-            CruiserError::Parse(format!("failed to encode JSON report: {error}"))
-        })?,
+        OutputFormat::Json => report::to_json(&report)
+            .map_err(|error| CruiserError::parse("failed to encode JSON report", error))?,
     };
     Ok((payload, decision_exit_code(report.decision)))
 }
@@ -164,7 +163,7 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
                     "source-union" => AnalysisProfile::SourceUnion,
                     value => {
                         return Err(CruiserError::InvalidInput(format!(
-                            "unsupported analysis profile: {value}"
+                            "unsupported analysis profile: {value}; expected one of: compilation, source-union"
                         )));
                     }
                 };
@@ -179,7 +178,7 @@ fn parse_check_args(args: &[String]) -> Result<CheckArgs> {
                     "json" => OutputFormat::Json,
                     value => {
                         return Err(CruiserError::InvalidInput(format!(
-                            "unsupported output format: {value}"
+                            "unsupported output format: {value}; expected one of: text, json"
                         )));
                     }
                 };

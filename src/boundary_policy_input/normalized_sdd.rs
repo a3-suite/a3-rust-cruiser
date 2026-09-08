@@ -26,21 +26,42 @@ pub(super) fn prepare(path: &Path) -> Result<String> {
             error,
         )
     })?;
-    parse(&content)?;
+    parse(&content).map_err(|error| {
+        error.with_context(format!(
+            "resolved implementation attribution {}",
+            path.display()
+        ))
+    })?;
     Ok(content)
 }
 
 fn parse(content: &str) -> Result<ResolvedImplementationAttributionDto> {
-    let attribution: ResolvedImplementationAttributionDto =
-        serde_yaml::from_str(content).map_err(|error| {
-            invalid_boundary_policy_input(format!("invalid resolved attribution YAML: {error}"))
-        })?;
+    let attribution: ResolvedImplementationAttributionDto = serde_yaml::from_str(content)
+        .map_err(|error| CruiserError::parse("invalid resolved attribution YAML", error))?;
     validate_discriminator(&attribution)?;
     validate_provenance(&attribution.source_provenance)?;
     Ok(attribution)
 }
 
+#[cfg(test)]
 pub(super) fn finalize(content: String, project_root: &Path) -> Result<LoadedBoundaryPolicy> {
+    finalize_inner(&content, project_root)
+}
+
+pub(super) fn finalize_with_source_path(
+    content: String,
+    source_path: &Path,
+    project_root: &Path,
+) -> Result<LoadedBoundaryPolicy> {
+    finalize_inner(&content, project_root).map_err(|error| {
+        error.with_context(format!(
+            "resolved implementation attribution {}",
+            source_path.display()
+        ))
+    })
+}
+
+fn finalize_inner(content: &str, project_root: &Path) -> Result<LoadedBoundaryPolicy> {
     let attribution = parse(&content)?;
 
     let mut file_attributions = BTreeMap::new();

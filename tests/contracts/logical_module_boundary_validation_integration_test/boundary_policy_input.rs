@@ -345,6 +345,14 @@ fn should_unknown_boundary_policy_field_is_rejected() {
 
     // Assert
     assert_execution_failure(&output, "invalid boundary policy YAML");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains(
+            fixture
+                .join("policy.yaml")
+                .to_str()
+                .expect("policy path is UTF-8")
+        )
+    );
 }
 
 #[test]
@@ -361,6 +369,27 @@ fn should_unsupported_boundary_policy_enum_is_rejected() {
 
     // Assert
     assert_execution_failure(&output, "invalid boundary policy YAML");
+}
+
+#[test]
+fn should_malformed_resolved_attribution_report_its_path() {
+    // Arrange
+    let fixture = TempFixture::new("malformed-resolved-attribution-path");
+    let path = fixture.join("resolved-implementation-attribution.sdd.yml");
+    fixture.write(
+        "resolved-implementation-attribution.sdd.yml",
+        "not: [valid\n",
+    );
+
+    // Act
+    let output = run_resolved_attribution_check(&fixture, &[]);
+
+    // Assert
+    assert_execution_failure(&output, "invalid resolved attribution YAML");
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains(path.to_str().expect("attribution path is UTF-8"))
+    );
 }
 
 #[test]
@@ -415,12 +444,17 @@ fn should_invalid_boundary_policy_rules_are_rejected() {
         .map(|(label, policy, expected)| {
             let fixture = TempFixture::new(label);
             fixture.write("policy.yaml", policy);
-            (run_check(&fixture, "json"), expected)
+            let path = fixture.join("policy.yaml");
+            (run_check(&fixture, "json"), expected, path)
         })
         .collect::<Vec<_>>();
 
     // Assert
-    for (output, expected) in outputs {
+    for (output, expected, path) in outputs {
         assert_execution_failure(&output, expected);
+        assert!(
+            String::from_utf8_lossy(&output.stderr)
+                .contains(path.to_str().expect("policy path is UTF-8"))
+        );
     }
 }

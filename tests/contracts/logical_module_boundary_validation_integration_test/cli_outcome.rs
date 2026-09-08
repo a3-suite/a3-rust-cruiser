@@ -273,7 +273,11 @@ fn should_invalid_cli_options_are_rejected() {
     let outputs = [
         (
             run_check_with(&fixture, "bin", "xml", &[]),
-            "unsupported output format",
+            "unsupported output format: xml; expected one of: text, json",
+        ),
+        (
+            run_check_with(&fixture, "bin", "json", &["--analysis-profile", "invalid"]),
+            "unsupported analysis profile: invalid; expected one of: compilation, source-union",
         ),
         (
             run_check_with(&fixture, "bin", "json", &["--unknown"]),
@@ -316,6 +320,7 @@ fn should_missing_target_source_is_rejected() {
 
     // Assert
     assert_execution_failure(&output, "target source file not found");
+    assert!(!String::from_utf8_lossy(&output.stderr).contains("I/O error"));
 }
 
 #[test]
@@ -330,6 +335,7 @@ fn should_missing_module_file_report_candidates_and_declaration_location() {
 
     // Assert
     assert_execution_failure(&output, "module file not found for crate::missing");
+    assert!(!stderr.contains("I/O error"));
     assert!(stderr.contains("src/missing.rs"));
     assert!(stderr.contains("src/missing/mod.rs"));
     assert!(stderr.contains("src/main.rs:1:"));
@@ -371,6 +377,7 @@ fn should_invalid_manifest_and_target_requests_fail_with_diagnostics() {
     );
     fixture.write("Cargo.toml", "not valid TOML = [\n");
     let invalid_manifest = run_check_with(&fixture, "lib", "json", &[]);
+    let manifest_path = fixture.join("Cargo.toml");
 
     // Assert
     assert_execution_failure(&mismatch, "does not match");
@@ -378,6 +385,10 @@ fn should_invalid_manifest_and_target_requests_fail_with_diagnostics() {
     assert_execution_failure(&empty_example, "requires a name");
     assert_execution_failure(&unsupported, "unsupported compilation target");
     assert_execution_failure(&invalid_manifest, "invalid Cargo.toml");
+    assert!(
+        String::from_utf8_lossy(&invalid_manifest.stderr)
+            .contains(manifest_path.to_str().expect("manifest path is UTF-8"))
+    );
 }
 
 #[test]

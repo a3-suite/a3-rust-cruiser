@@ -11,11 +11,18 @@ impl BoundaryPolicyLoader for ProjectBoundaryPolicyLoader {
     fn prepare(&self, input: &BoundaryPolicyInput) -> Result<PreparedBoundaryPolicy> {
         match input {
             BoundaryPolicyInput::Yaml { path } => {
-                yaml::load(path).map(PreparedBoundaryPolicy::Yaml)
+                yaml::load(path).map(|policy| PreparedBoundaryPolicy::Yaml {
+                    policy,
+                    path: path.clone(),
+                })
             }
             BoundaryPolicyInput::ResolvedImplementationAttribution { path } => {
-                normalized_sdd::prepare(path)
-                    .map(PreparedBoundaryPolicy::ResolvedImplementationAttribution)
+                normalized_sdd::prepare(path).map(|content| {
+                    PreparedBoundaryPolicy::ResolvedImplementationAttribution {
+                        content,
+                        path: path.clone(),
+                    }
+                })
             }
         }
     }
@@ -26,13 +33,13 @@ impl BoundaryPolicyLoader for ProjectBoundaryPolicyLoader {
         project_root: &std::path::Path,
     ) -> Result<LoadedBoundaryPolicy> {
         match prepared {
-            PreparedBoundaryPolicy::Yaml(policy) => Ok(LoadedBoundaryPolicy {
+            PreparedBoundaryPolicy::Yaml { policy, .. } => Ok(LoadedBoundaryPolicy {
                 policy,
                 analysis_issues: Vec::new(),
                 assessment: BoundaryPolicyAssessment::None,
             }),
-            PreparedBoundaryPolicy::ResolvedImplementationAttribution(prepared) => {
-                normalized_sdd::finalize(prepared, project_root)
+            PreparedBoundaryPolicy::ResolvedImplementationAttribution { content, path } => {
+                normalized_sdd::finalize_with_source_path(content, &path, project_root)
             }
         }
     }

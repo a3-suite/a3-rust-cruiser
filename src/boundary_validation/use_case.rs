@@ -23,8 +23,25 @@ pub trait BoundaryPolicyLoader {
 }
 
 pub(crate) enum PreparedBoundaryPolicy {
-    Yaml(BoundaryPolicy),
-    ResolvedImplementationAttribution(String),
+    Yaml {
+        policy: BoundaryPolicy,
+        path: PathBuf,
+    },
+    ResolvedImplementationAttribution {
+        content: String,
+        path: PathBuf,
+    },
+}
+
+impl PreparedBoundaryPolicy {
+    fn source_context(&self) -> String {
+        match self {
+            Self::Yaml { path, .. } => format!("boundary policy {}", path.display()),
+            Self::ResolvedImplementationAttribution { path, .. } => {
+                format!("resolved implementation attribution {}", path.display())
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,13 +78,14 @@ where
         ));
     }
     let prepared = policy_loader.prepare(policy_input)?;
+    let source_context = prepared.source_context();
     let loaded = policy_loader.finalize(prepared, project_root)?;
     let LoadedBoundaryPolicy {
         mut policy,
         mut analysis_issues,
         assessment,
     } = loaded;
-    validate_policy(&policy)?;
+    validate_policy(&policy).map_err(|error| error.with_context(source_context.clone()))?;
     validate_module_patterns(&context.include)?;
     validate_module_patterns(&context.exclude)?;
     let (graph, observation_issues) = observer.observe(project_root, context)?;
@@ -212,9 +230,10 @@ mod tests {
 
     impl BoundaryPolicyLoader for StubPolicyLoader {
         fn prepare(&self, _input: &super::BoundaryPolicyInput) -> Result<PreparedBoundaryPolicy> {
-            Ok(PreparedBoundaryPolicy::Yaml(BoundaryPolicy {
-                rules: Vec::new(),
-            }))
+            Ok(PreparedBoundaryPolicy::Yaml {
+                policy: BoundaryPolicy { rules: Vec::new() },
+                path: "unused-policy.yaml".into(),
+            })
         }
 
         fn finalize(
@@ -222,7 +241,7 @@ mod tests {
             prepared: PreparedBoundaryPolicy,
             _project_root: &std::path::Path,
         ) -> Result<LoadedBoundaryPolicy> {
-            let PreparedBoundaryPolicy::Yaml(policy) = prepared else {
+            let PreparedBoundaryPolicy::Yaml { policy, .. } = prepared else {
                 panic!("stub policy loader only prepares YAML policies")
             };
             Ok(LoadedBoundaryPolicy {
@@ -290,9 +309,12 @@ mod tests {
                 modules: Vec::new(),
                 dependency_kinds: Vec::new(),
             };
-            Ok(PreparedBoundaryPolicy::Yaml(BoundaryPolicy {
-                rules: vec![rule.clone(), rule],
-            }))
+            Ok(PreparedBoundaryPolicy::Yaml {
+                policy: BoundaryPolicy {
+                    rules: vec![rule.clone(), rule],
+                },
+                path: "unused-policy.yaml".into(),
+            })
         }
 
         fn finalize(
@@ -300,7 +322,7 @@ mod tests {
             prepared: PreparedBoundaryPolicy,
             _project_root: &std::path::Path,
         ) -> Result<LoadedBoundaryPolicy> {
-            let PreparedBoundaryPolicy::Yaml(policy) = prepared else {
+            let PreparedBoundaryPolicy::Yaml { policy, .. } = prepared else {
                 panic!("invalid policy loader only prepares YAML policies")
             };
             Ok(LoadedBoundaryPolicy {

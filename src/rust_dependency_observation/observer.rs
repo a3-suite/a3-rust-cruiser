@@ -402,20 +402,14 @@ impl Observer {
                     resolve_module_file(parent_module_directory, &module.ident.to_string())
                         .ok_or_else(|| {
                             let evidence = self.evidence(parent_path, module.ident.span().start());
-                            CruiserError::io(
-                                "",
-                                std::io::Error::new(
-                                    std::io::ErrorKind::NotFound,
-                                    format!(
-                                        "module file not found for {child_id}; tried {} or {}; declared at {}:{}:{}",
-                                        flat_path.display(),
-                                        nested_path.display(),
-                                        evidence.path,
-                                        evidence.line,
-                                        evidence.column,
-                                    ),
-                                ),
-                            )
+                            CruiserError::InvalidInput(format!(
+                                "module file not found for {child_id}; tried {} or {}; declared at {}:{}:{}",
+                                flat_path.display(),
+                                nested_path.display(),
+                                evidence.path,
+                                evidence.line,
+                                evidence.column,
+                            ))
                         })?;
                 self.discover_module(&child_id, &child_path)?;
             }
