@@ -70,6 +70,18 @@ test_maps:
           - check-dependency-edges
           - check-dependency-kind
           - check-dependency-target-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
+        symbol: should_handle_public_reexport_cycle_deterministically
+        check_refs:
+          - check-dependency-edges
+          - check-dependency-kind
+          - check-dependency-target-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
+        symbol: should_default_features_expand_optional_dependencies_for_test_targets
+        check_refs:
+          - check-dependency-edges
+          - check-dependency-kind
+          - check-dependency-target-scope
   - verification_id: verification.logical-module-boundary.dependency-graph
     case_id: source-union-source-authored-dependencies
     tests:
@@ -218,6 +230,11 @@ test_maps:
         check_refs:
           - check-resolved-attribution-public-cli-acceptance
           - check-resolved-attribution-coverage
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: should_public_resolved_attribution_accept_multiple_scopes_and_artifacts
+        check_refs:
+          - check-resolved-attribution-public-cli-acceptance
+          - check-resolved-attribution-coverage
   - verification_id: verification.logical-module-boundary.boundary-policy-input
     case_id: invalid-resolved-implementation-attribution-is-rejected
     tests:
@@ -340,6 +357,10 @@ test_maps:
           - check-non-conformant-decision
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_internal_module_named_like_a_prelude_type_is_observed
+        check_refs:
+          - check-non-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_nested_json_and_matches_guards_observe_internal_paths
         check_refs:
           - check-non-conformant-decision
   - verification_id: verification.logical-module-boundary.validation-report
@@ -553,6 +574,11 @@ test_maps:
           - check-path-module-source-module
           - check-path-module-policy-impact
           - check-path-module-policy-rule-ids
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_source_union_treats_cfg_attr_path_module_as_policy_relevant
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issue-code
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: json-report
     tests:
@@ -1007,6 +1033,12 @@ test_maps:
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_execution_failure_exits_with_three
+        check_refs:
+          - check-execution-failure-exit-code
+          - check-execution-failure-stdout
+          - check-execution-failure-stderr
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
+        symbol: should_stdout_write_failure_exits_with_three
         check_refs:
           - check-execution-failure-exit-code
           - check-execution-failure-stdout

@@ -28,20 +28,22 @@ fn should_check_help_exits_with_zero() {
     let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
 
     // Act
-    let output = Command::new(binary)
-        .args(["check", "--help"])
-        .output()
-        .expect("binary should run");
+    for option in ["--help", "-h"] {
+        let output = Command::new(binary)
+            .args(["check", option])
+            .output()
+            .expect("binary should run");
 
-    // Assert
-    assert_eq!(output.status.code(), Some(0));
-    assert!(output.stderr.is_empty());
-    let stdout = String::from_utf8(output.stdout).expect("help is UTF-8");
-    assert!(stdout.contains("Usage: a3-rust-cruiser check <PROJECT_ROOT>"));
-    assert!(stdout.contains(
-        "--resolved-implementation-attribution <RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH>"
-    ));
-    assert!(stdout.contains("--analysis-profile <compilation|source-union>"));
+        // Assert
+        assert_eq!(output.status.code(), Some(0));
+        assert!(output.stderr.is_empty());
+        let stdout = String::from_utf8(output.stdout).expect("help is UTF-8");
+        assert!(stdout.contains("Usage: a3-rust-cruiser check <PROJECT_ROOT>"));
+        assert!(stdout.contains(
+            "--resolved-implementation-attribution <RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH>"
+        ));
+        assert!(stdout.contains("--analysis-profile <compilation|source-union>"));
+    }
 }
 
 #[test]
@@ -116,6 +118,35 @@ fn should_execution_failure_exits_with_three() {
     assert_eq!(output.status.code(), Some(3));
     assert!(output.stdout.is_empty());
     assert!(!output.stderr.is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn should_stdout_write_failure_exits_with_three() {
+    // Arrange
+    use std::{
+        fs::File,
+        os::unix::io::{FromRawFd, IntoRawFd},
+        os::unix::net::UnixStream,
+        process::Stdio,
+    };
+
+    let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
+    let (child_stdout, peer) = UnixStream::pair().expect("socket pair should be created");
+    drop(peer);
+    let child_stdout = unsafe { File::from_raw_fd(child_stdout.into_raw_fd()) };
+
+    // Act
+    let output = Command::new(binary)
+        .arg("--help")
+        .stdout(Stdio::from(child_stdout))
+        .output()
+        .expect("binary should run");
+
+    // Assert
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("failed to write validation result"));
 }
 
 #[test]

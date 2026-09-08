@@ -405,28 +405,6 @@ mod tests {
     static FIXTURE_ID: AtomicUsize = AtomicUsize::new(0);
 
     #[test]
-    fn should_load_resolved_implementation_attribution() {
-        // Arrange
-        let fixture = Fixture::new("valid");
-        fixture.write("src/application.rs", "pub fn run() {}\n");
-        fixture.write("src/provider.rs", "pub struct Provider;\n");
-        fixture.write("normalized.sdd.yml", &valid_envelope());
-        // Act
-        let prepared = prepare(&fixture.path("normalized.sdd.yml")).expect("valid envelope");
-        let loaded = finalize(prepared, fixture.root()).expect("valid resolved attribution");
-        let normalized = resolved_policy(loaded);
-
-        // Assert
-        assert_eq!(normalized.file_attributions.len(), 2);
-        assert_eq!(normalized.provenance.artifacts.len(), 5);
-        assert!(
-            normalized
-                .declared_scope_dependencies
-                .contains(&("scope-a".to_owned(), "scope-b".to_owned()))
-        );
-    }
-
-    #[test]
     fn should_accept_file_keyed_attributions_without_producer_module_coverage() {
         // Arrange
         let fixture = Fixture::new("file-keyed");

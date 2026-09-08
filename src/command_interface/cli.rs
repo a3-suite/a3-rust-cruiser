@@ -44,19 +44,20 @@ where
     L: BoundaryPolicyLoader,
 {
     match execute(args, observer, policy_loader) {
-        Ok((payload, exit_code)) => {
-            let mut stdout = std::io::stdout().lock();
-            if let Err(error) = writeln!(stdout, "{payload}") {
-                eprintln!("failed to write validation result: {error}");
-                return ExitCode::from(3);
-            }
-            ExitCode::from(exit_code)
-        }
+        Ok((payload, exit_code)) => write_result(std::io::stdout().lock(), &payload, exit_code),
         Err(error) => {
             eprintln!("a3-rust-cruiser: {error}");
             ExitCode::from(3)
         }
     }
+}
+
+fn write_result<W: Write>(mut stdout: W, payload: &str, exit_code: u8) -> ExitCode {
+    if let Err(error) = writeln!(stdout, "{payload}").and_then(|_| stdout.flush()) {
+        eprintln!("failed to write validation result: {error}");
+        return ExitCode::from(3);
+    }
+    ExitCode::from(exit_code)
 }
 
 fn execute<I, O, L>(args: I, observer: &O, policy_loader: &L) -> Result<(String, u8)>

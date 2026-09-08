@@ -45,6 +45,73 @@ fn should_public_resolved_implementation_attribution_is_accepted() {
 }
 
 #[test]
+fn should_public_resolved_attribution_accept_multiple_scopes_and_artifacts() {
+    // Arrange
+    let fixture = TempFixture::new("resolved-attribution-multiple-scopes");
+    fixture.write(
+        "src/main.rs",
+        "mod provider;\nuse crate::provider::Provider;\nfn main() { let _ = Provider; }\n",
+    );
+    fixture.write("src/provider.rs", "pub struct Provider;\n");
+    let attribution = resolved_implementation_attribution(&fixture)
+        .replace("scope_path: fixture", "scope_path: scope-a")
+        .replace("canonical_scope: fixture", "canonical_scope: scope-a")
+        .replace(
+            "    - dsl_name: physical-structure\n",
+            "    - dsl_name: logical-structure\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: scope-b\n      sha256: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\n    - dsl_name: projection\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: scope-b\n      sha256: eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\n    - dsl_name: physical-structure\n",
+        )
+        .replace(
+            "file_attributions:\n  - observed_file_path: src/main.rs\n    canonical_scope: scope-a\n    component_id: application\n    element_id: main",
+            "file_attributions:\n  - observed_file_path: src/main.rs\n    canonical_scope: scope-a\n    component_id: application\n    element_id: main\n  - observed_file_path: src/provider.rs\n    canonical_scope: scope-b\n    component_id: provider\n    element_id: provider-file",
+        )
+        .replace(
+            "scope_dependencies: []",
+            "scope_dependencies:\n  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example",
+        );
+    fixture.write("resolved-implementation-attribution.sdd.yml", &attribution);
+
+    // Act
+    let report = completed_json(&run_resolved_attribution_check(&fixture, &[]), 0);
+    let artifacts = report["normalized_sdd_coverage"]["source_provenance"]["artifacts"]
+        .as_array()
+        .expect("provenance artifacts array");
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(artifacts.len(), 5);
+    assert_eq!(
+        report["normalized_sdd_coverage"]["covered_modules"],
+        serde_json::json!(["crate", "crate::provider"])
+    );
+    assert_eq!(
+        report["normalized_sdd_coverage"]["unresolved_modules"],
+        serde_json::json!([])
+    );
+
+    // Arrange
+    let no_edge_fixture = TempFixture::new("resolved-attribution-missing-scope-edge");
+    no_edge_fixture.write(
+        "src/main.rs",
+        "mod provider;\nuse crate::provider::Provider;\nfn main() { let _ = Provider; }\n",
+    );
+    no_edge_fixture.write("src/provider.rs", "pub struct Provider;\n");
+    no_edge_fixture.write(
+        "resolved-implementation-attribution.sdd.yml",
+        &attribution.replace(
+            "scope_dependencies:\n  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example",
+            "scope_dependencies: []",
+        ),
+    );
+
+    // Act
+    let report_without_edge =
+        completed_json(&run_resolved_attribution_check(&no_edge_fixture, &[]), 1);
+
+    // Assert
+    assert_eq!(report_without_edge["decision"], "non-conformant");
+}
+
+#[test]
 fn should_public_resolved_attribution_is_indeterminate_when_unresolved() {
     // Arrange
     let fixture = TempFixture::new("resolved-attribution-public-unresolved");

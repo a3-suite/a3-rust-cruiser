@@ -440,6 +440,55 @@ fn should_known_dependency_observing_macros_and_safe_serde_attributes_are_confor
 }
 
 #[test]
+fn should_nested_json_and_matches_guards_observe_internal_paths() {
+    // Arrange
+    let fixture = TempFixture::new("nested-json-and-matches-paths");
+    fixture.write_manifest("[dependencies]\nserde-json = \"1\"\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-json-array-path\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::json_array]\n  - id: forbid-json-map-path\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::json_map]\n  - id: forbid-matches-guard-path\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::guard_forbidden]\n",
+    );
+    fixture.write(
+        "src/main.rs",
+        "mod json_array;\nmod json_map;\nmod guard_forbidden;\nfn main() {\n    let value = serde_json::json!({\"values\": [crate::json_array::build_value(), {\"other\": crate::json_map::other_value()}], \"flag\": true});\n    let _ = matches!(value, serde_json::Value::Object(_) if crate::guard_forbidden::is_valid());\n}\n",
+    );
+    fixture.write("src/json_array.rs", "pub fn build_value() -> usize { 1 }\n");
+    fixture.write("src/json_map.rs", "pub fn other_value() -> usize { 2 }\n");
+    fixture.write(
+        "src/guard_forbidden.rs",
+        "pub fn is_valid() -> bool { true }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+
+    // Assert
+    assert_eq!(report["decision"], "non-conformant");
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "crate::json_array",
+        "path-reference",
+        "internal-module"
+    ));
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "crate::json_map",
+        "path-reference",
+        "internal-module"
+    ));
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "crate::guard_forbidden",
+        "path-reference",
+        "internal-module"
+    ));
+    assert_eq!(report["violations"].as_array().map(Vec::len), Some(3));
+}
+
+#[test]
 fn should_serde_function_paths_to_same_module_helpers_are_conformant() {
     // Arrange
     let fixture = policy_sensitive_fixture("serde-same-module-function-paths");
@@ -1765,6 +1814,37 @@ fn should_inactive_cfg_attr_path_module_is_ignored() {
     // Assert
     assert_eq!(report["decision"], "conformant");
     assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn should_source_union_treats_cfg_attr_path_module_as_policy_relevant() {
+    // Arrange
+    let fixture = TempFixture::new("source-union-cfg-attr-path-module");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-restricted-to-forbidden\n    kind: forbidden\n    severity: error\n    from: [crate::restricted]\n    to: [crate::forbidden]\n",
+    );
+    fixture.write(
+        "src/main.rs",
+        "#[cfg_attr(unix, path = \"alternate.rs\")]\nmod restricted;\nfn main() {}\n",
+    );
+    fixture.write("src/restricted.rs", "pub struct DefaultSource;\n");
+    fixture.write("src/alternate.rs", "use crate::forbidden::Thing;\n");
+    fixture.write("src/forbidden.rs", "pub struct Thing;\n");
+
+    // Act
+    let report = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        2,
+    );
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-syntax");
 }
 
 #[test]
