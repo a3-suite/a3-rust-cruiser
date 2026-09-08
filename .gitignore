@@ -2,3 +2,5 @@
 /tests/tmp/
 .a3-lint/
 /.env
+# Runtime and audit logs are kept outside version control.
+/logs/

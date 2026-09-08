@@ -8,14 +8,14 @@
 ## 前提条件
 
 - `a3-rust-cruiser` コマンドが利用できること。利用できない場合はセットアップを自動実行せず、不足を報告する。
-- 対象プロジェクトが所有するBoundaryPolicyのパスを確認できること。入力を推測または新規作成せず、確認できない場合は停止する。
+- 対象プロジェクトが所有するBoundaryPolicyのパスを確認できること。ない場合、作成の依頼も受けていればreferences/create-boundary-policy.guide.mdへ進む。検証だけの依頼では入力不足として停止する。
 - project root、Cargo package、compilation target、target tripleを対象プロジェクトとRust toolchainから確認できること。
 
 ## 入力選択
 
 - `--policy <boundary-policy-path>`を境界入力として選択する。
 - `--resolved-implementation-attribution`とは相互排他であり、同じ実行で併用しない。
-- BoundaryPolicyはSDDに依存しない標準入力として扱う。ownerのDSLを解釈したり、別の入力へ変換したりしない。
+- この経路の適用対象は、スキルの原則に従う非SDDプロジェクトとする。ownerのDSLを解釈したり、別の入力へ変換したりしない。
 
 ## 検証フロー
 
@@ -33,7 +33,7 @@
 ## YAML入力の確認
 
 - BoundaryPolicyのrule ID、重大度、rule種別、論理モジュールpatternを確認する。
-- `allowed`と`forbidden`は`from`と`to`、`circular`は`modules`を使う。入力の妥当性を検証できない場合は解析を開始せず入力不足または入力エラーとして扱う。
+- YAMLの記述方法はreferences/create-boundary-policy.guide.mdを参照する。入力の妥当性を確認できない場合は入力不足として停止し、CLIが返した入力エラーは境界判定と区別する。
 - YAML入力へ解析コンテキストや解析結果を追加しない。
 
 ## 判定と完了
@@ -46,5 +46,5 @@
 
 ## 注意
 
-- BoundaryPolicyの新規設計や修正はこのガイドの対象外とする。
+- BoundaryPolicyの作成・修正はreferences/create-boundary-policy.guide.mdへ委譲する。
 - `source-union` profileを使う場合も、対象プロジェクトが非コンパイル経路の解析を明示しているときだけ指定する。

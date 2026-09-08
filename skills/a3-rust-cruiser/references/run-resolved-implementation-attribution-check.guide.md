@@ -8,28 +8,28 @@
 ## 責務境界
 
 - `sdd-designs`がcurrent artifact locator／familyの定義・選択規則とresolved-implementation-attributionの導出意味を所有する。
-- `a3-lint`がcurrent artifact instanceの解決、owner family validation、ownerの`projection materialize` operationのdispatch／実行を行い、一時出力と`resolved_output_path`を返す。
-- `a3-lint`の導入や更新はa3-lint側へ委譲し、このガイドでインストールやversion選択を行わない。
+- `a3-sdd`がSDD runtimeの公開導線と出力方法を所有する。このガイドではruntimeの操作や生成手順を再定義しない。
 - `a3-rust-cruiser`は返された一時出力を変換せずに読み込み、Rust sourceの観測、解析コンテキストの適用、境界判定とレポートを所有する。
 
 ## 前提条件
 
 - `a3-rust-cruiser` コマンドが利用できること。利用できない場合はセットアップを自動実行せず、不足を報告する。
-- 対象プロジェクトにcurrent SDD design familyがあり、この入力経路を使うことを選択していること。ない場合はreferences/run-boundary-policy-check.guide.mdへ切り替える。
-- `a3-lint`とownerのruntime operationを利用できること。利用できない場合は、生成を試みず不足または未対応として停止する。
+- 対象のSDDプロジェクトにcurrent SDD design familyがあること。不足している場合は入力不足として停止する。
+- `a3-sdd`の正規導線で生成されたresolved-implementation-attributionを利用できること。利用できない場合は、生成手順をこのガイドで補完せず停止する。
 - project root、Cargo package、compilation target、target tripleを対象プロジェクトとRust toolchainから確認できること。
 
-## 入力生成の委譲
+## 入力契約
 
-1. 対象プロジェクトのrootを指定して、ownerのmaterialize operationを実行する。
+- 入力物は、`a3-sdd`の正規導線が出力する`name: resolved-implementation-attribution`、`version: 1`の成果物に限定する。
+- 入力物の必須トップレベルフィールドは`version`、`name`、`source_provenance`、`file_attributions`、`component_dependencies`、`scope_dependencies`とする。
+- 入力物のネストしたshape、provenance、帰属、依存関係の意味と検証規則は、契約ID `contract.logical-module-boundary.boundary-policy-input` と `a3-sdd`／`sdd-designs` の正本に従う。このガイドでは再定義しない。
+- a3-rust-cruiserは受け取った入力物を一つのパスとしてそのまま読み込み、`--policy`と結合しない。
 
-   ```shell
-   a3-lint sdd projection materialize --root <project-root> --format json
-   ```
+## 入力物の受け渡し
 
-2. 出力の`status`が`materialized`であることと、`resolved_output_path`が返され、そのパスにファイルが存在することを確認する。`--format text`では受け渡すパスが表示されないため、機械的に引き継ぐ場合はJSONを使う。
-3. `resolved_output_path`の値をそのまま`--resolved-implementation-attribution`へ渡す。パスを組み立てたり、globで探索したり、ownerのraw DSLから手作業で生成したりしない。
-4. 出力はruntime管理の一時成果物として扱い、編集・コミットしない。
+1. `a3-sdd`の正規導線で生成されたresolved-implementation-attributionのパスを受け取る。
+2. 受け取ったパスをそのまま`--resolved-implementation-attribution`へ渡す。パスを組み立てたり、globで探索したり、ownerのraw DSLから手作業で生成したりしない。
+3. 出力はruntime管理の一時成果物として扱い、編集・コミットしない。
 
 ## 入力選択
 
@@ -40,7 +40,7 @@
 ## 検証フロー
 
 1. 対象プロジェクトからproject root、package、compilation targetを確認する。
-2. 「入力生成の委譲」に従って`resolved_output_path`を取得する。
+2. 「入力物の受け渡し」に従ってresolved-implementation-attributionのパスを確定する。
 3. 対象toolchainからtarget tripleを確認する。
 4. 機械判定が必要な場合はJSONを選び、次のコマンドを実行する。
 
@@ -51,11 +51,11 @@
 5. 対象プロジェクトがfeature、cfg、解析範囲を明示している場合だけ、対応する`--feature`、`--cfg`、`--include`、`--exclude`を追加する。
 6. 複数のpackageまたはtargetが対象なら、解析コンテキストごとに独立して実行する。
 
-## 生成失敗時
+## 入力物が利用できない場合
 
-- `a3-lint`の終了コードが0でない、JSONの`command_outcome.kind`が`success`でない、`status`が`materialized`でない、`resolved_output_path`がない、またはそのパスにファイルがない場合は、a3-rust-cruiserの判定を開始せず停止する。
-- JSONに`phase_error`がある場合は`code`、`reason_code`、`message`を記録し、runtime、surface、familyの不足または実行エラーを`a3-lint`側へ委譲する。
-- YAML BoundaryPolicyは、SDD経路が適用対象外または利用者が明示的に選択した場合に入力選択から切り替える。SDD生成失敗の代替として切り替えない。
+- 受け取ったパスがない、ファイルを読み取れない、または入力契約に適合しない場合は、a3-rust-cruiserの判定を開始せず入力不備として停止する。
+- `a3-sdd`のruntime不足や生成失敗の詳細はこのガイドで再分類せず、`a3-sdd`側の出力と診断へ委譲する。
+- SDDプロジェクトではYAML BoundaryPolicyへ切り替えない。入力不足や生成失敗はowner側で解消する。
 
 ## resolved入力の確認
 
@@ -75,5 +75,5 @@
 ## 注意
 
 - resolved-implementation-attributionの導出規則、current artifact locator／familyの定義・選択規則、owner DSLの意味解釈は`sdd-designs`へ委譲し、このガイドで再定義しない。
-- current artifact instanceの解決、owner family validation、runtime operationのdispatchと一時出力のmaterializeは`a3-lint`へ委譲し、このガイドで別の生成経路を作らない。
+- current artifact instanceの解決、owner family validation、runtime operationのdispatchと一時出力の生成は`a3-sdd`へ委譲し、このガイドで別の生成経路を作らない。
 - `source-union` profileを使う場合も、対象プロジェクトが非コンパイル経路の解析を明示しているときだけ指定する。
