@@ -20,19 +20,12 @@ fn invalid_boundary_policy_input(message: impl Into<String>) -> CruiserError {
 }
 
 pub(super) fn prepare(path: &Path) -> Result<String> {
-    let content = std::fs::read_to_string(path).map_err(|error| {
+    std::fs::read_to_string(path).map_err(|error| {
         CruiserError::io(
             format!("resolved implementation attribution {}", path.display()),
             error,
         )
-    })?;
-    parse(&content).map_err(|error| {
-        error.with_context(format!(
-            "resolved implementation attribution {}",
-            path.display()
-        ))
-    })?;
-    Ok(content)
+    })
 }
 
 fn parse(content: &str) -> Result<ResolvedImplementationAttributionDto> {
@@ -62,7 +55,7 @@ pub(super) fn finalize_with_source_path(
 }
 
 fn finalize_inner(content: &str, project_root: &Path) -> Result<LoadedBoundaryPolicy> {
-    let attribution = parse(&content)?;
+    let attribution = parse(content)?;
 
     let mut file_attributions = BTreeMap::new();
     for file_attribution in attribution.file_attributions {
