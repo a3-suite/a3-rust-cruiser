@@ -3,7 +3,11 @@ name: requirement-manifest
 items:
   - path: items/requirements/validate-rust-logical-module-boundaries/requirement.sdd.yml
     kind: requirement
+  - path: items/requirements/publish-and-install-cli-release/requirement.sdd.yml
+    kind: requirement
   - path: items/use-cases/check-logical-module-boundaries/use-case.sdd.yml
+    kind: use-case
+  - path: items/use-cases/publish-and-install-cli-release/use-case.sdd.yml
     kind: use-case
   - path: items/quality-scenarios/deterministic-boundary-analysis/quality-scenario.sdd.yml
     kind: quality-scenario

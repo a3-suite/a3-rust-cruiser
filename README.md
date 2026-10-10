@@ -1,6 +1,6 @@
 # a3-rust-cruiser
 
-JavaScript/TypeScript向けの[dependency-cruiser](https://github.com/sverweij/dependency-cruiser)に着想を得て、Rust版dependency-cruiserを目指している論理モジュール境界検証CLIです。Cargo packageとcompilation targetを1つずつ解析し、依存方向と循環依存をプロジェクト固有のポリシーに対して検証します。
+JavaScript/TypeScript向けの[dependency-cruiser](https://github.com/sverweij/dependency-cruiser)に着想を得た、Rust向けの論理モジュール境界検証CLIです。Cargo packageとcompilation targetを1つずつ解析し、依存方向と循環依存をプロジェクト固有のポリシーに対して検証します。
 
 ## できること
 
@@ -9,7 +9,7 @@ JavaScript/TypeScript向けの[dependency-cruiser](https://github.com/sverweij/d
 - `*`と`**`を使った論理モジュールパターンでルールの対象を指定する
 - feature、cfg、target triple、解析対象モジュールを実行単位ごとに指定する
 - 検証結果をtextまたはJSONで出力し、`conformant`、`non-conformant`、`indeterminate`を区別する
-- YAMLポリシーを直接使用するほか、SDD設計を管理しているプロジェクトでは3つの設計入力から直接検証する
+- YAMLポリシーを直接使用するほか、ownerが生成した解決済み実装帰属を検証条件として直接使用する
 
 ## できないこと
 
@@ -19,76 +19,105 @@ JavaScript/TypeScript向けの[dependency-cruiser](https://github.com/sverweij/d
 - macro expansionや名前解決をRustコンパイラと同等に完全解決する。既定の`compilation` profileではCargo feature、target dependency、rustcのtarget cfg、既知macroと字句scopeを解析し、残る解析範囲外の構造が境界判定へ影響し得る場合だけ`indeterminate`になる。`source-union` profileは同じ判定保証を提供しない
 - dependency-cruiserの設定ファイルやルールとの互換性を提供する
 
-## 前提
+## 導入
 
-- 開発・CIで検証するRust toolchainは1.98.0（`rustc` / `cargo` 1.98.0、`rust-toolchain.toml`で固定）。これはMSRVの宣言ではありません
+Linux x86_64、macOS arm64、Windows x86_64 に対応しています。installer はユーザー単位で配置し、PATH は自動変更しません。
 
-## CLI情報
+### Linux・macOS
 
 ```sh
+curl -fsSL --proto '=https' --proto-redir '=https' "https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install.sh" | sh
+```
+
+managed root はLinuxが `~/.local/share/a3-suite/a3-rust-cruiser/standalone`、macOSが `~/Library/Application Support/a3-suite/a3-rust-cruiser/standalone` です。launcher はどちらも `~/.local/bin/a3-rust-cruiser` に配置されます。コマンド名で実行するには、現在のシェルで PATH に追加します。
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+### Windows
+
+Windows PowerShell 5.1 以降で実行してください。
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm 'https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install.ps1' | iex"
+```
+
+managed root は `%LOCALAPPDATA%\a3-suite\a3-rust-cruiser\standalone`、launcher は `%LOCALAPPDATA%\Programs\a3-suite\a3-rust-cruiser\bin\a3-rust-cruiser.exe` に配置されます。コマンド名で実行するには、現在の PowerShell セッションで PATH に追加して導入を確認します。
+
+```powershell
+$env:Path = "$env:LOCALAPPDATA\Programs\a3-suite\a3-rust-cruiser\bin;$env:Path"
+```
+
+PATH を設定したシェルで次を実行し、`0.1.0` と表示されることを確認してください。
+
+```text
 a3-rust-cruiser --version
-a3-rust-cruiser --help
-a3-rust-cruiser check --help
 ```
 
-GitHub Releaseの固定版セットアップとchecksum検証は、`skills/a3-rust-cruiser`の公開スキルを使用します。
+オフライン導入は[セットアップ手順](docs/operations/setup-release.md)を参照してください。
 
-## ポリシーの作成
+### アンインストール
 
-通常のRustプロジェクトでは、YAML形式のboundary policyをプロジェクト内に作成します。SDDの導入やSDDファイルの配置は必要ありません。
+実行中のCLIとインストーラを終了してから削除してください。インストール先の全バージョンと管理情報を削除します。残したいファイルがある場合は事前に退避してください。
 
-1. `crate::application`や`crate::domain`のように、検証する論理モジュール境界を決めます。
-2. 許可する依存方向、禁止する依存方向、循環を禁止する範囲を決めます。
-3. 決定した境界を`boundary-policy.yaml`へ記述します。
-
-```yaml
-rules:
-  - id: allow-application-to-domain
-    kind: allowed
-    severity: error
-    from: [crate::application]
-    to: [crate, crate::domain]
-  - id: forbid-domain-to-application
-    kind: forbidden
-    severity: error
-    from: [crate::domain]
-    to: [crate::application]
-  - id: prevent-component-cycles
-    kind: circular
-    severity: error
-    modules: [crate::application, crate::domain]
-```
-
-- `allowed`: `from`に一致するモジュールから、`to`に一致するモジュールへの依存だけを許可します。
-- `forbidden`: `from`から`to`への依存を禁止します。`allowed`にも一致する場合は`forbidden`を優先します。
-- `circular`: `modules`に一致するモジュール間の循環依存を禁止します。
-- `id`: ポリシー内で重複しない小文字kebab-caseを指定します。
-- `allowed`と`forbidden`には`from`と`to`を指定し、`modules`は指定しません。`circular`には`modules`を指定し、`from`と`to`は指定しません。
-- `severity`: `error`または`warning`を指定します。どちらも違反があれば`non-conformant`になり、severityはレポート上の分類として使用されます。
-- `dependency_kinds`: 必要な場合だけ`import`、`re-export`、`path-reference`から対象とする依存種別を指定します。
-- モジュールパターンの`*`は1階層、`**`は0階層以上に一致します。
-
-同じポリシーは[examples/minimal-project/boundary-policy.yaml](examples/minimal-project/boundary-policy.yaml)にもあります。
-
-`--logical-structure`、`--projection`、`--directory-structure`は、SDD設計を正本として管理しているプロジェクト向けの任意入力です。
-project全体のprojectionに含まれる正規source nodeのうち、Rust module解析対象外と確定できるnodeは入力不正とせず、boundary policyの導出対象から除外します。
-複数のlogical componentが同じdirectory nodeへ投影されるmany-to-one、またはcomponentのRust module scopeが親子関係で重なるprojectionは有効入力です。`analysis.ambiguous-component-attribution`で帰属候補を報告しつつ、検証済み宣言DAGの部分graphとして実行可能な全component帰属候補を評価し、許可・禁止の評価が同じなら確定判断します。候補間で評価が異なる場合、または候補を完全列挙できない場合は、終了コード`2` / `decision: indeterminate`を返します。
-
-## 最短実行
-
-同梱の最小プロジェクトを検証します。
+Linux:
 
 ```sh
-cargo run -- check examples/minimal-project \
-  --policy examples/minimal-project/boundary-policy.yaml \
-  --package minimal-project \
-  --target bin:minimal-project \
+rm -f "$HOME/.local/bin/a3-rust-cruiser"
+rm -r "$HOME/.local/share/a3-suite/a3-rust-cruiser/standalone"
+```
+
+macOS:
+
+```sh
+rm -f "$HOME/.local/bin/a3-rust-cruiser"
+rm -r "$HOME/Library/Application Support/a3-suite/a3-rust-cruiser/standalone"
+```
+
+Windows PowerShell:
+
+```powershell
+$launcher = "$env:LOCALAPPDATA\Programs\a3-suite\a3-rust-cruiser\bin\a3-rust-cruiser.exe"
+$managedRoot = "$env:LOCALAPPDATA\a3-suite\a3-rust-cruiser\standalone"
+if (Test-Path -LiteralPath $launcher) { Remove-Item -LiteralPath $launcher -Force }
+if (Test-Path -LiteralPath $managedRoot) { Remove-Item -LiteralPath $managedRoot -Recurse -Force }
+```
+
+永続設定に追加した製品専用のPATH項目だけ外してください。共有の `~/.local/bin` は残してください。
+
+## 使い方
+
+導入したCLIで、Cargo projectの論理モジュール境界を検証します。検証対象のprojectを扱えるRust toolchain（`rustc` / `cargo`）が利用できる前提です。
+
+```sh
+a3-rust-cruiser check ./my-rust-project \
+  --policy boundary-policy.yaml \
+  --package my-package \
+  --target bin:my-binary \
   --target-triple "$(rustc -vV | sed -n 's/^host: //p')" \
   --format text
 ```
 
-`decision: conformant` と終了コード `0` が返れば成功です。
+`decision: conformant` と終了コード `0` が返れば適合です。`non-conformant` は `1`、`indeterminate` は `2`、入力不正や実行失敗は `3` を返します。
 
-## ライセンス
+```sh
+a3-rust-cruiser --help
+a3-rust-cruiser check --help
+```
 
-[MIT License](LICENSE) で公開します。
+## ポリシーの作成
+
+通常のRustプロジェクト向けの作成手順・YAML記述例は、公開スキルの[BoundaryPolicy作成ガイド](skills/a3-rust-cruiser/references/create-boundary-policy.guide.md)を参照してください。実行用の最小例は[examples/minimal-project/boundary-policy.yaml](examples/minimal-project/boundary-policy.yaml)にあります。
+
+SDDを正本として運用するプロジェクトでは、`boundary-policy.yaml`を作成・使用せず、SDD ownerが生成した`resolved-implementation-attribution` version 1を唯一の境界入力として使用します。`--policy`は、SDDを使用しない通常のRustプロジェクト向けです。
+
+境界入力は、通常のプロジェクトではYAML boundary policyを`--policy`で指定し、SDD対応プロジェクトではownerが生成した`resolved-implementation-attribution` version 1を`--resolved-implementation-attribution`で指定します。2つの入力は相互排他です。解決済み実装帰属は中間変換せず、ownerが確定したfile attributionと依存関係を使用します。
+
+## 関連情報
+
+- [成果物の運用（導入・利用の詳細）](docs/operations/README.md)
+- [ドキュメント一覧](docs/README.md)
+- [BoundaryPolicy作成ガイド](skills/a3-rust-cruiser/references/create-boundary-policy.guide.md)
+- [実行ガイド（BoundaryPolicy入力）](skills/a3-rust-cruiser/references/run-boundary-policy-check.guide.md)
+- [実行ガイド（resolved-implementation-attribution入力）](skills/a3-rust-cruiser/references/run-resolved-implementation-attribution-check.guide.md)

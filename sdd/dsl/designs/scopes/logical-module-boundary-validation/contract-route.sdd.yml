@@ -1,25 +1,24 @@
-version: 1
+version: 2
 name: contract-route
 routes:
   - route_id: load-boundary-policy
     contract_ref:
+      subject_ref: subject.logical-module-boundary.validation
       contract_id: contract.logical-module-boundary.boundary-policy-input
     hops:
       - component_id: boundary-policy-input
       - component_id: boundary-validation
       - component_id: command-interface
-    edge_semantics:
-      - kind: route-only-handoff
-        from_component_id: boundary-validation
-        to_component_id: command-interface
   - route_id: observe-dependency-graph
     contract_ref:
+      subject_ref: subject.logical-module-boundary.validation
       contract_id: contract.logical-module-boundary.dependency-graph
     hops:
       - component_id: rust-dependency-observation
       - component_id: boundary-validation
   - route_id: evaluate-boundary-policy
     contract_ref:
+      subject_ref: subject.logical-module-boundary.validation
       contract_id: contract.logical-module-boundary.policy-evaluation
     hops:
       - component_id: boundary-policy-input
@@ -27,21 +26,15 @@ routes:
       - component_id: boundary-evaluation
   - route_id: present-validation-report
     contract_ref:
+      subject_ref: subject.logical-module-boundary.validation
       contract_id: contract.logical-module-boundary.validation-report
     hops:
       - component_id: boundary-validation
       - component_id: command-interface
-    edge_semantics:
-      - kind: route-only-handoff
-        from_component_id: boundary-validation
-        to_component_id: command-interface
   - route_id: present-cli-outcome
     contract_ref:
+      subject_ref: subject.logical-module-boundary.validation
       contract_id: contract.logical-module-boundary.cli-outcome
     hops:
       - component_id: boundary-validation
       - component_id: command-interface
-    edge_semantics:
-      - kind: route-only-handoff
-        from_component_id: boundary-validation
-        to_component_id: command-interface

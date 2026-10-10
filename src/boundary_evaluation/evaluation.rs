@@ -2,9 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::model::{
     AnalysisIssue, AnalysisObservationOutcome, BoundaryPolicy, BoundaryRule, BoundaryViolation,
-    ComponentAttributionModel, Dependency, DependencyKind, ObservedDependencyGraph,
-    PolicyEvaluation, PolicyImpact, RuleKind, Severity, TargetScope, ValidationDecision,
-    ViolationKind,
+    Dependency, DependencyKind, ObservedDependencyGraph, PolicyEvaluation, PolicyImpact, RuleKind,
+    ValidationDecision, ViolationKind,
 };
 use super::pattern::matches_pattern;
 
@@ -104,160 +103,6 @@ pub fn decide(possible_issue_count: usize, violation_count: usize) -> Validation
     } else {
         ValidationDecision::Conformant
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct AttributedDependency {
-    source: String,
-    target: String,
-    kind: DependencyKind,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AttributionOutcome {
-    InvariantForbidden,
-    AssignmentDependent,
-}
-
-#[derive(Debug)]
-struct ComponentAttributionAssessment {
-    dependency: Dependency,
-    source_components: Vec<String>,
-    target_components: Vec<String>,
-    outcome: AttributionOutcome,
-}
-
-pub fn assess_component_attribution(
-    issues: &mut Vec<AnalysisIssue>,
-    graph: &ObservedDependencyGraph,
-    model: &ComponentAttributionModel,
-) -> Vec<BoundaryRule> {
-    let candidates = graph
-        .modules
-        .iter()
-        .filter_map(|module| {
-            let module_candidates = component_candidates(&module.id, model);
-            (!module_candidates.is_empty()).then_some((module.id.clone(), module_candidates))
-        })
-        .collect::<BTreeMap<_, _>>();
-    for issue in issues.iter_mut().filter(|issue| {
-        issue.observation.outcome == AnalysisObservationOutcome::ComponentAttributionUnresolved
-    }) {
-        issue.policy_impact = PolicyImpact::none();
-    }
-    let assessments = analyze_component_attribution(graph, model, &candidates);
-    let definite_violations = assessments
-        .iter()
-        .filter(|assessment| assessment.outcome == AttributionOutcome::InvariantForbidden)
-        .map(|assessment| AttributedDependency {
-            source: assessment.dependency.source.clone(),
-            target: assessment.dependency.target.clone(),
-            kind: assessment.dependency.kind,
-        })
-        .collect::<BTreeSet<_>>();
-    issues.extend(
-        assessments
-            .into_iter()
-            .filter(|assessment| assessment.outcome == AttributionOutcome::AssignmentDependent)
-            .map(component_attribution_issue),
-    );
-
-    definite_violations
-        .into_iter()
-        .enumerate()
-        .map(|(index, dependency)| BoundaryRule {
-            id: format!("sdd-attribution-forbidden-{:04}", index + 1),
-            kind: RuleKind::Forbidden,
-            severity: Severity::Error,
-            from: vec![dependency.source],
-            to: vec![dependency.target],
-            modules: Vec::new(),
-            dependency_kinds: vec![dependency.kind],
-        })
-        .collect()
-}
-
-fn analyze_component_attribution(
-    graph: &ObservedDependencyGraph,
-    model: &ComponentAttributionModel,
-    candidates: &BTreeMap<String, Vec<String>>,
-) -> Vec<ComponentAttributionAssessment> {
-    let mut assessments = Vec::new();
-    for dependency in graph
-        .dependencies
-        .iter()
-        .filter(|dependency| dependency.target_scope == TargetScope::InternalModule)
-    {
-        let Some(source_components) = candidates.get(&dependency.source) else {
-            continue;
-        };
-        let Some(target_components) = candidates.get(&dependency.target) else {
-            continue;
-        };
-        if source_components.len() == 1 && target_components.len() == 1 {
-            continue;
-        }
-        let mut any = false;
-        let mut all = true;
-        for source_component in source_components {
-            for target_component in target_components {
-                let violation = source_component != target_component
-                    && !model
-                        .declared_dependencies
-                        .contains(&(source_component.clone(), target_component.clone()));
-                any |= violation;
-                all &= violation;
-            }
-        }
-        if !any {
-            continue;
-        }
-        assessments.push(ComponentAttributionAssessment {
-            dependency: dependency.clone(),
-            source_components: source_components.clone(),
-            target_components: target_components.clone(),
-            outcome: if all {
-                AttributionOutcome::InvariantForbidden
-            } else {
-                AttributionOutcome::AssignmentDependent
-            },
-        });
-    }
-    assessments
-}
-
-fn component_attribution_issue(assessment: ComponentAttributionAssessment) -> AnalysisIssue {
-    let candidate_components = assessment
-        .source_components
-        .iter()
-        .chain(&assessment.target_components)
-        .cloned()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect();
-    AnalysisIssue::component_attribution_unresolved_for_dependency(
-        assessment.dependency.source.clone(),
-        assessment.dependency.target.clone(),
-        assessment.dependency.evidence,
-        candidate_components,
-        assessment.dependency.kind,
-        format!(
-            "Dependency {} -> {} has assignment-dependent logical component attribution: source [{}], target [{}]",
-            assessment.dependency.source,
-            assessment.dependency.target,
-            assessment.source_components.join(", "),
-            assessment.target_components.join(", ")
-        ),
-    )
-}
-
-fn component_candidates(module: &str, model: &ComponentAttributionModel) -> Vec<String> {
-    model
-        .component_modules
-        .iter()
-        .filter(|(_, root)| module == root.as_str() || module.starts_with(&format!("{root}::")))
-        .map(|(component, _)| component.clone())
-        .collect()
 }
 
 pub fn assess_policy_impact(issues: &mut [AnalysisIssue], policy: &BoundaryPolicy) {
@@ -625,6 +470,7 @@ mod tests {
         let mut graph = graph_with_dependency("crate::application", "crate::infrastructure");
         graph.modules.push(LogicalModule {
             id: "crate::domain".to_owned(),
+            source_paths: vec!["src/domain.rs".to_owned()],
         });
         graph.dependencies.push(Dependency {
             candidate_id: "allowed".to_owned(),
@@ -708,9 +554,11 @@ mod tests {
             modules: vec![
                 LogicalModule {
                     id: source.to_owned(),
+                    source_paths: vec!["src/application.rs".to_owned()],
                 },
                 LogicalModule {
                     id: target.to_owned(),
+                    source_paths: vec!["src/provider.rs".to_owned()],
                 },
             ],
             module_declarations: Vec::new(),

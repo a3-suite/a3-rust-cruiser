@@ -1,0 +1,5 @@
+version: 1
+name: contract-subject
+subject:
+  id: subject.installer.product-setup
+  summary: CLI Release installerの製品設定と利用者向け導入案内を整合させるcapability

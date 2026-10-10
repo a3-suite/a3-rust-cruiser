@@ -1,0 +1,93 @@
+version: 1
+name: contract-clauses
+subject_ref: subject.installer.product-setup
+contracts:
+  - id: contract.installer.product-setup.consistency
+    summary: installer assembly、platform manifests、利用者向け導入案内は同じ製品versionと導入経路を表す。
+    conditions:
+      - id: product-source-available
+        input_predicate:
+          kind: input
+          term: input.product_source
+          op: present
+    guarantees:
+      - id: package-version-matches-release-version
+        when: product-source-available
+        observation_ref: observation.installer.product-setup
+        claim:
+          kind: value-relation
+          op: equals
+          relation:
+            left:
+              kind: observation_field
+              value: installer.product_setup.package.release_version
+            right:
+              kind: input_field
+              value: input.product_source.release_version
+      - id: assembly-version-matches-release-version
+        when: product-source-available
+        observation_ref: observation.installer.product-setup
+        claim:
+          kind: value-relation
+          op: equals
+          relation:
+            left:
+              kind: observation_field
+              value: installer.product_setup.assembly.release_version
+            right:
+              kind: input_field
+              value: input.product_source.release_version
+      - id: manifest-version-matches-release-version
+        when: product-source-available
+        observation_ref: observation.installer.product-setup
+        claim:
+          kind: value-relation
+          op: equals
+          relation:
+            left:
+              kind: observation_field
+              value: installer.product_setup.manifests.release_version
+            right:
+              kind: input_field
+              value: input.product_source.release_version
+      - id: readme-version-matches-release-version
+        when: product-source-available
+        observation_ref: observation.installer.product-setup
+        claim:
+          kind: value-relation
+          op: equals
+          relation:
+            left:
+              kind: observation_field
+              value: installer.product_setup.readme.release_version
+            right:
+              kind: input_field
+              value: input.product_source.release_version
+      - id: installer-setup-configuration-consistent
+        when: product-source-available
+        observation_ref: observation.installer.product-setup
+        claim:
+          kind: observable-result
+          op: present
+          target:
+            kind: observation_field
+            value: installer.product_setup.installation_guidance
+      - id: retired-project-installer-assets-absent
+        when: product-source-available
+        observation_ref: observation.installer.product-setup
+        claim:
+          kind: observable-result
+          op: absent
+          target:
+            kind: observation_field
+            value: installer.product_setup.retired_project_installer_assets
+    verification_intents:
+      - id: installer-setup-configuration
+        goal: installer assembly、platform manifests、利用者向け導入案内が製品sourceのrelease versionと導入経路に整合する。
+        guarantee_refs:
+          - package-version-matches-release-version
+          - assembly-version-matches-release-version
+          - manifest-version-matches-release-version
+          - readme-version-matches-release-version
+          - installer-setup-configuration-consistent
+          - retired-project-installer-assets-absent

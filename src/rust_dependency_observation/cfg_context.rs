@@ -298,14 +298,19 @@ mod tests {
         let context = available_context();
         let active_path = parse_quote!(#[cfg_attr(unix, path = "alternate.rs")]);
         let inactive_path = parse_quote!(#[cfg_attr(windows, path = "alternate.rs")]);
+        let nested_path = parse_quote!(
+            #[cfg_attr(unix, cfg_attr(windows, path = "alternate.rs"))]
+        );
 
         // Act
         let active_path_detected = context.has_active_path_attribute(&active_path);
         let inactive_path_detected = context.has_active_path_attribute(&inactive_path);
+        let nested_path_detected = context.has_active_path_attribute(&nested_path);
 
         // Assert
         assert!(active_path_detected);
         assert!(!inactive_path_detected);
+        assert!(nested_path_detected);
     }
 
     #[test]
@@ -322,5 +327,33 @@ mod tests {
 
         // Assert
         assert_eq!(decision, CfgDecision::Active);
+    }
+
+    #[test]
+    fn should_fail_closed_for_malformed_cfg_metadata() {
+        // Arrange
+        let context = available_context();
+        let attributes = [
+            parse_quote!(#[cfg_attr]),
+            parse_quote!(#[cfg_attr(unix, $)]),
+            parse_quote!(#[cfg(foo = 1)]),
+            parse_quote!(#[cfg(foo = concat!("linux"))]),
+            parse_quote!(#[cfg(foo::bar = "linux")]),
+            parse_quote!(#[cfg(all(unix, $))]),
+            parse_quote!(#[cfg(not(unix, windows))]),
+        ];
+
+        // Act
+        let decisions = attributes
+            .iter()
+            .map(|attribute| context.evaluate_attributes(std::slice::from_ref(attribute)))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(
+            decisions
+                .iter()
+                .all(|decision| *decision == CfgDecision::Unknown)
+        );
     }
 }

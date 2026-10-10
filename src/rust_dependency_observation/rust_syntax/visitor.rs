@@ -98,7 +98,6 @@ pub(crate) struct PathVisitor<'a> {
     pub(crate) macro_spans: Vec<LineColumn>,
     pub(crate) cfg_spans: Vec<LineColumn>,
     pub(crate) strict_path_spans: Vec<LineColumn>,
-    pub(crate) use_spans: Vec<LineColumn>,
 }
 
 impl<'ast> Visit<'ast> for PathVisitor<'_> {
@@ -139,6 +138,10 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
             CfgDecision::Active => {}
         }
         syn::visit::visit_field(self, field);
+    }
+
+    fn visit_visibility(&mut self, _visibility: &'ast syn::Visibility) {
+        // Restricted visibility paths define access scope; they do not reference a dependency.
     }
 
     fn visit_path(&mut self, path: &'ast syn::Path) {
@@ -404,7 +407,6 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
     }
 
     fn visit_item_use(&mut self, item: &'ast ItemUse) {
-        self.use_spans.push(item.span().start());
         syn::visit::visit_item_use(self, item);
     }
 

@@ -40,6 +40,7 @@ pub struct SourceEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogicalModule {
     pub id: String,
+    pub source_paths: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -101,13 +102,56 @@ pub struct BoundaryPolicy {
 pub struct LoadedBoundaryPolicy {
     pub policy: BoundaryPolicy,
     pub analysis_issues: Vec<AnalysisIssue>,
-    pub component_attribution: Option<ComponentAttributionModel>,
+    pub assessment: BoundaryPolicyAssessment,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComponentAttributionModel {
-    pub component_modules: BTreeMap<String, String>,
-    pub declared_dependencies: BTreeSet<(String, String)>,
+pub enum BoundaryPolicyAssessment {
+    None,
+    ResolvedImplementationAttribution(NormalizedSddPolicy),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedSddPolicy {
+    pub provenance: NormalizedSddProvenance,
+    pub file_attributions: BTreeMap<String, ScopedComponentAttribution>,
+    pub declared_component_dependencies: BTreeSet<(String, String, String)>,
+    pub declared_scope_dependencies: BTreeSet<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopedComponentAttribution {
+    pub canonical_scope: String,
+    pub component_id: String,
+    pub element_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedSddProvenance {
+    pub producer: String,
+    pub artifacts: Vec<NormalizedSddSourceArtifact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NormalizedSddSourceArtifact {
+    pub dsl_name: String,
+    pub version: u64,
+    pub artifact_identity_axes: BTreeMap<String, String>,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedSddCoverage {
+    pub source_provenance: NormalizedSddProvenance,
+    pub covered_modules: Vec<String>,
+    pub unresolved_modules: Vec<UnresolvedModuleAttribution>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct UnresolvedModuleAttribution {
+    pub module_id: String,
+    pub observed_file_paths: Vec<String>,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -210,7 +254,6 @@ impl AnalysisIssue {
                 source_module: Some(source_module),
                 evidence: Some(evidence),
                 candidate_targets,
-                candidate_components: Vec::new(),
                 dependency_kinds,
             },
             policy_impact: PolicyImpact::possible(Vec::new()),
@@ -234,7 +277,6 @@ impl AnalysisIssue {
                 source_module,
                 evidence,
                 candidate_targets: Vec::new(),
-                candidate_components: Vec::new(),
                 dependency_kinds,
             },
             policy_impact: PolicyImpact::possible(Vec::new()),
@@ -245,7 +287,6 @@ impl AnalysisIssue {
         code: impl Into<String>,
         reason: impl Into<String>,
         affected_scope: impl Into<String>,
-        candidate_components: Vec<String>,
     ) -> Self {
         Self {
             code: code.into(),
@@ -256,32 +297,7 @@ impl AnalysisIssue {
                 source_module: None,
                 evidence: None,
                 candidate_targets: Vec::new(),
-                candidate_components,
                 dependency_kinds: Vec::new(),
-            },
-            policy_impact: PolicyImpact::possible(Vec::new()),
-        }
-    }
-
-    pub fn component_attribution_unresolved_for_dependency(
-        source_module: String,
-        target_module: String,
-        evidence: SourceEvidence,
-        candidate_components: Vec<String>,
-        dependency_kind: DependencyKind,
-        reason: String,
-    ) -> Self {
-        Self {
-            code: "analysis.ambiguous-component-attribution".to_owned(),
-            reason,
-            affected_scope: target_module.clone(),
-            observation: AnalysisObservation {
-                outcome: AnalysisObservationOutcome::ComponentAttributionUnresolved,
-                source_module: Some(source_module),
-                evidence: Some(evidence),
-                candidate_targets: vec![target_module],
-                candidate_components,
-                dependency_kinds: vec![dependency_kind],
             },
             policy_impact: PolicyImpact::possible(Vec::new()),
         }
@@ -305,7 +321,6 @@ impl AnalysisIssue {
                 source_module,
                 evidence,
                 candidate_targets: Vec::new(),
-                candidate_components: Vec::new(),
                 dependency_kinds: Vec::new(),
             },
             policy_impact: PolicyImpact::none(),
@@ -321,7 +336,6 @@ impl AnalysisIssue {
             self.observation.source_module.as_deref(),
             self.observation.evidence.as_ref(),
             self.observation.candidate_targets.as_slice(),
-            self.observation.candidate_components.as_slice(),
             self.observation.dependency_kinds.as_slice(),
             self.policy_impact.outcome,
             self.policy_impact.rule_ids.as_slice(),
@@ -334,7 +348,6 @@ impl AnalysisIssue {
                 other.observation.source_module.as_deref(),
                 other.observation.evidence.as_ref(),
                 other.observation.candidate_targets.as_slice(),
-                other.observation.candidate_components.as_slice(),
                 other.observation.dependency_kinds.as_slice(),
                 other.policy_impact.outcome,
                 other.policy_impact.rule_ids.as_slice(),
@@ -348,7 +361,6 @@ pub struct AnalysisObservation {
     pub source_module: Option<String>,
     pub evidence: Option<SourceEvidence>,
     pub candidate_targets: Vec<String>,
-    pub candidate_components: Vec<String>,
     pub dependency_kinds: Vec<DependencyKind>,
 }
 
@@ -431,6 +443,7 @@ pub struct ValidationResult {
     pub policy_evaluation: PolicyEvaluation,
     pub analysis_issues: Vec<AnalysisIssue>,
     pub decision: ValidationDecision,
+    pub normalized_sdd_coverage: Option<NormalizedSddCoverage>,
 }
 
 #[cfg(test)]

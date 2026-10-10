@@ -70,6 +70,18 @@ test_maps:
           - check-dependency-edges
           - check-dependency-kind
           - check-dependency-target-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
+        symbol: should_handle_public_reexport_cycle_deterministically
+        check_refs:
+          - check-dependency-edges
+          - check-dependency-kind
+          - check-dependency-target-scope
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
+        symbol: should_default_features_expand_optional_dependencies_for_test_targets
+        check_refs:
+          - check-dependency-edges
+          - check-dependency-kind
+          - check-dependency-target-scope
   - verification_id: verification.logical-module-boundary.dependency-graph
     case_id: source-union-source-authored-dependencies
     tests:
@@ -211,67 +223,52 @@ test_maps:
           - check-invalid-policy-stdout
           - check-invalid-policy-stderr
   - verification_id: verification.logical-module-boundary.boundary-policy-input
-    case_id: yaml-and-sdd-boundary-inputs-are-rejected
+    case_id: resolved-implementation-attribution-is-consumed-directly
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_policy_and_sdd_boundary_inputs_are_rejected
+        symbol: should_public_resolved_implementation_attribution_is_accepted
         check_refs:
-          - check-invalid-policy-exit-code
-          - check-invalid-policy-stdout
-          - check-invalid-policy-stderr
+          - check-resolved-attribution-public-cli-acceptance
+          - check-resolved-attribution-coverage
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: should_public_resolved_attribution_accept_multiple_scopes_and_artifacts
+        check_refs:
+          - check-resolved-attribution-public-cli-acceptance
+          - check-resolved-attribution-coverage
   - verification_id: verification.logical-module-boundary.boundary-policy-input
-    case_id: sdd-design-is-projected-to-boundary-policy
+    case_id: invalid-resolved-implementation-attribution-is-rejected
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_sdd_design_is_projected_to_a_boundary_policy
+        symbol: should_invalid_resolved_attribution_is_rejected_before_analysis
         check_refs:
-          - check-valid-sdd-policy-accepted
+          - check-invalid-resolved-attribution-exit-code
+          - check-invalid-resolved-attribution-diagnostic-precedes-analysis-failure
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: should_malformed_resolved_attribution_report_its_path
+        check_refs:
+          - check-invalid-resolved-attribution-exit-code
+          - check-invalid-resolved-attribution-diagnostic-precedes-analysis-failure
   - verification_id: verification.logical-module-boundary.boundary-policy-input
-    case_id: many-to-one-sdd-projection-is-accepted
+    case_id: resolved-attribution-and-other-policy-sources-are-rejected
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_many_to_one_sdd_projection_with_non_rust_nodes_is_accepted
+        symbol: should_resolved_attribution_is_exclusive_with_other_policy_sources
         check_refs:
-          - check-valid-many-to-one-sdd-policy-accepted
+          - check-exclusive-resolved-attribution-exit-code
   - verification_id: verification.logical-module-boundary.boundary-policy-input
-    case_id: non-rust-sdd-projection-is-excluded
+    case_id: unresolved-implementation-attribution-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_many_to_one_sdd_projection_with_non_rust_nodes_is_accepted
+        symbol: should_public_resolved_attribution_is_indeterminate_when_unresolved
         check_refs:
-          - check-valid-sdd-policy-with-non-rust-node-accepted
+          - check-resolved-attribution-indeterminate
   - verification_id: verification.logical-module-boundary.boundary-policy-input
-    case_id: overlapping-rust-module-projections-are-accepted
+    case_id: resolved-attribution-forbidden-edge-is-non-conformant
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_overlapping_rust_module_projections_are_accepted
+        symbol: should_public_resolved_attribution_forbidden_scope_edge_is_non_conformant
         check_refs:
-          - check-overlapping-rust-module-projection-accepted
-  - verification_id: verification.logical-module-boundary.boundary-policy-input
-    case_id: incomplete-sdd-design-input-is-rejected
-    tests:
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_incomplete_sdd_design_input_is_rejected
-        check_refs:
-          - check-invalid-sdd-policy-exit-code
-  - verification_id: verification.logical-module-boundary.boundary-policy-input
-    case_id: circular-sdd-component-dependencies-are-rejected
-    tests:
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_circular_sdd_component_dependencies_are_rejected
-        check_refs:
-          - check-circular-sdd-policy-exit-code
-  - verification_id: verification.logical-module-boundary.boundary-policy-input
-    case_id: inconsistent-sdd-design-inputs-are-rejected
-    tests:
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_inconsistent_sdd_design_inputs_are_rejected
-        check_refs:
-          - check-inconsistent-sdd-policy-exit-code
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_cargo_target_root_component_projections_are_rejected
-        check_refs:
-          - check-inconsistent-sdd-policy-exit-code
+          - check-resolved-attribution-non-conformant
   - verification_id: verification.logical-module-boundary.policy-evaluation
     case_id: forbidden-overrides-matching-allowed-rule
     tests:
@@ -367,6 +364,10 @@ test_maps:
         symbol: should_internal_module_named_like_a_prelude_type_is_observed
         check_refs:
           - check-non-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_nested_json_and_matches_guards_observe_internal_paths
+        check_refs:
+          - check-non-conformant-decision
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: incomplete-with-observed-violation
     tests:
@@ -429,83 +430,6 @@ test_maps:
         symbol: should_unresolved_reference_is_indeterminate
         check_refs:
           - check-indeterminate-decision
-  - verification_id: verification.logical-module-boundary.validation-report
-    case_id: ambiguous-component-attribution-is-non-conformant
-    tests:
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_ambiguous_component_attribution_retains_safe_violations_as_non_conformant
-        check_refs:
-          - check-non-conformant
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
-          - check-analysis-observation-outcome
-          - check-analysis-policy-impact-outcome
-          - check-canonical-ordering
-          - check-safe-violations-remain-observable
-  - verification_id: verification.logical-module-boundary.validation-report
-    case_id: invariant-allowed-component-assignments-are-conformant
-    tests:
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_invariant_allowed_component_assignments_are_conformant
-        check_refs:
-          - check-conformant-decision
-          - check-analysis-issue-code
-          - check-analysis-observation-outcome
-          - check-analysis-policy-impact-outcome
-          - check-no-policy-impact
-  - verification_id: verification.logical-module-boundary.validation-report
-    case_id: invariant-forbidden-component-assignments-are-non-conformant
-    tests:
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_invariant_forbidden_component_assignments_are_non_conformant
-        check_refs:
-          - check-non-conformant-decision
-          - check-analysis-issue-code
-          - check-safe-violations-remain-observable
-  - verification_id: verification.logical-module-boundary.validation-report
-    case_id: assignment-dependent-component-outcomes-are-indeterminate
-    tests:
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_assignment_dependent_component_outcomes_remain_indeterminate_without_safe_violations
-        check_refs:
-          - check-indeterminate-decision
-          - check-analysis-issue-code
-          - check-analysis-observation-outcome
-          - check-analysis-policy-impact-outcome
-          - check-possible-policy-impact
-          - check-structural-attribution-has-no-policy-impact
-          - check-component-attribution-edge-source
-          - check-component-attribution-edge-evidence
-          - check-component-attribution-edge-target
-          - check-component-attribution-edge-components
-          - check-component-attribution-edge-kind
-  - verification_id: verification.logical-module-boundary.validation-report
-    case_id: many-component-assignments-remain-invariant
-    tests:
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_many_component_assignments_remain_invariant
-        check_refs:
-          - check-conformant-decision
-          - check-analysis-issue-code
-          - check-analysis-observation-outcome
-          - check-analysis-policy-impact-outcome
-          - check-no-policy-impact
-  - verification_id: verification.logical-module-boundary.validation-report
-    case_id: unobserved-overlapping-rust-module-projections-are-conformant
-    tests:
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unobserved_overlapping_rust_module_projections_are_conformant
-        check_refs:
-          - check-conformant-decision
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
-          - check-analysis-observation-outcome
-          - check-analysis-policy-impact-outcome
-          - check-no-policy-impact
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: known-compilation-context-is-resolved
     tests:
@@ -655,6 +579,11 @@ test_maps:
           - check-path-module-source-module
           - check-path-module-policy-impact
           - check-path-module-policy-rule-ids
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_source_union_treats_cfg_attr_path_module_as_policy_relevant
+        check_refs:
+          - check-indeterminate
+          - check-analysis-issue-code
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: json-report
     tests:
@@ -672,6 +601,16 @@ test_maps:
           - check-report-ordering
           - check-report-decision
           - check-report-violations
+  - verification_id: verification.logical-module-boundary.validation-report
+    case_id: resolved-attribution-json-report
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_public_resolved_attribution_report_schema_three_and_coverage
+        check_refs:
+          - check-resolved-attribution-json-schema-version
+          - check-resolved-attribution-report-serialization
+          - check-resolved-attribution-report-ordering
+          - check-resolved-attribution-report-decision
   - verification_id: verification.logical-module-boundary.validation-report
     case_id: text-report
     tests:
@@ -1104,6 +1043,12 @@ test_maps:
           - check-execution-failure-stdout
           - check-execution-failure-stderr
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
+        symbol: should_stdout_write_failure_exits_with_three
+        check_refs:
+          - check-execution-failure-exit-code
+          - check-execution-failure-stdout
+          - check-execution-failure-stderr
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_invalid_cli_options_are_rejected
         check_refs:
           - check-execution-failure-exit-code
@@ -1147,6 +1092,12 @@ test_maps:
           - check-execution-failure-stderr
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_missing_boundary_policy_source_is_rejected
+        check_refs:
+          - check-execution-failure-exit-code
+          - check-execution-failure-stdout
+          - check-execution-failure-stderr
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
+        symbol: should_missing_module_file_report_candidates_and_declaration_location
         check_refs:
           - check-execution-failure-exit-code
           - check-execution-failure-stdout

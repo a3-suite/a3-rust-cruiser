@@ -12,10 +12,15 @@ use super::cfg_context::{CfgContext, CfgDecision};
 
 pub(super) fn load_manifest(project_root: &Path) -> Result<toml::Value> {
     let manifest_path = project_root.join("Cargo.toml");
-    let content = fs::read_to_string(manifest_path)?;
-    content
-        .parse()
-        .map_err(|error| CruiserError::Parse(format!("invalid Cargo.toml: {error}")))
+    let content = fs::read_to_string(&manifest_path).map_err(|error| {
+        CruiserError::io(format!("Cargo manifest {}", manifest_path.display()), error)
+    })?;
+    content.parse().map_err(|error| {
+        CruiserError::parse(
+            format!("invalid Cargo.toml {}", manifest_path.display()),
+            error,
+        )
+    })
 }
 
 pub(super) fn declared_external_crates(
@@ -360,9 +365,9 @@ pub(super) fn target_entry(
     if path.is_file() {
         Ok((path, issues))
     } else {
-        Err(CruiserError::Io(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            format!("target source file not found: {}", path.display()),
+        Err(CruiserError::InvalidInput(format!(
+            "target source file not found: {}",
+            path.display()
         )))
     }
 }

@@ -4,6 +4,40 @@
 use super::*;
 
 #[test]
+fn should_not_report_restricted_visibility_paths_as_dependencies() {
+    // Arrange
+    let fixture = TempFixture::new("restricted-visibility-is-not-a-dependency");
+    fixture.write("src/main.rs", "mod outer;\nfn main() {}\n");
+    fixture.write("src/outer.rs", "pub mod inner;\n");
+    fixture.write(
+        "src/outer/inner.rs",
+        "pub(crate) struct CrateVisible;\npub(super) struct ParentVisible;\npub(in crate::outer) struct OuterVisible;\n",
+    );
+    fixture.write("policy.yaml", "rules: []\n");
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert_eq!(report["decision"], "conformant");
+    assert!(!dependency_exists(
+        &report,
+        "crate::outer::inner",
+        "crate",
+        "path-reference",
+        "internal-module"
+    ));
+    assert!(!dependency_exists(
+        &report,
+        "crate::outer::inner",
+        "crate::outer",
+        "path-reference",
+        "internal-module"
+    ));
+}
+
+#[test]
 fn should_typed_dependencies_and_declarations_are_reported() {
     // Arrange
     let fixture = TempFixture::new("typed-dependencies");
@@ -414,6 +448,39 @@ fn should_glob_reexport_does_not_resolve_private_items() {
 }
 
 #[test]
+fn should_handle_public_reexport_cycle_deterministically() {
+    // Arrange
+    let fixture = TempFixture::new("cyclic-public-reexports");
+    fixture.write(
+        "src/main.rs",
+        "mod left;\nmod right;\nuse crate::left::Thing;\nfn main() { let _ = std::any::type_name::<Thing>(); }\n",
+    );
+    fixture.write("src/left.rs", "pub use crate::right::Thing;\n");
+    fixture.write("src/right.rs", "pub use crate::left::Thing;\n");
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert!(dependency_exists(
+        &report,
+        "crate::left",
+        "crate::right",
+        "re-export",
+        "internal-module"
+    ));
+    assert!(dependency_exists(
+        &report,
+        "crate::right",
+        "crate::left",
+        "re-export",
+        "internal-module"
+    ));
+}
+
+#[test]
 fn should_source_union_unions_cfg_gated_alias_candidates() {
     // Arrange
     let fixture = TempFixture::new("source-union-cfg-aliases");
@@ -781,6 +848,30 @@ fn should_dev_dependency_is_available_to_test_target() {
         "test_only",
         "import",
         "external-crate"
+    ));
+}
+
+#[test]
+fn should_default_features_expand_optional_dependencies_for_test_targets() {
+    // Arrange
+    let fixture = TempFixture::new("default-feature-test-dependencies");
+    fixture.write_manifest(
+        "[dependencies]\noptional-dep = { version = \"1\", optional = true }\n[features]\ndefault = [\"dep:optional-dep\", \"named\"]\nnamed = [\"optional-dep\"]\n[target.x86_64-unknown-linux-gnu.dev-dependencies]\ntarget-test-only = \"1\"\n",
+    );
+    fixture.write(
+        "tests/contract.rs",
+        "use optional_dep;\nuse target_test_only;\nfn contract() {}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check_with(&fixture, "test:contract", "json", &[]), 0);
+
+    // Assert
+    assert!(dependency_target_exists(&report, "crate", "optional_dep"));
+    assert!(dependency_target_exists(
+        &report,
+        "crate",
+        "target_test_only"
     ));
 }
 

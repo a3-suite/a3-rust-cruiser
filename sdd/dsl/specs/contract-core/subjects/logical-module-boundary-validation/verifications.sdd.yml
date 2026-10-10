@@ -175,84 +175,60 @@ verifications:
             guarantee_ref: invalid-boundary-policy-input-keeps-stdout-empty
           - id: check-invalid-policy-stderr
             guarantee_ref: invalid-boundary-policy-input-writes-stderr-diagnostic
-      - id: yaml-and-sdd-boundary-inputs-are-rejected
-        intent_id: boundary-policy-input-rejection
+      - id: resolved-implementation-attribution-is-consumed-directly
+        intent_id: resolved-implementation-attribution-public-cli-semantics
         input:
-          invalid_boundary_policy:
-            simultaneous_yaml_and_sdd: true
+          valid_resolved_implementation_attribution:
+            public_cli_input: true
+            provenance_present: true
+            owner_selected_file_attribution: true
+            consumer_derived_selected_module_coverage: true
+            consumer_owned_analysis_context: true
         checks:
-          - id: check-invalid-policy-exit-code
-            guarantee_ref: invalid-boundary-policy-input-exits-with-three
-          - id: check-invalid-policy-stdout
-            guarantee_ref: invalid-boundary-policy-input-keeps-stdout-empty
-          - id: check-invalid-policy-stderr
-            guarantee_ref: invalid-boundary-policy-input-writes-stderr-diagnostic
-      - id: sdd-design-is-projected-to-boundary-policy
-        intent_id: sdd-boundary-policy-input-acceptance
+          - id: check-resolved-attribution-public-cli-acceptance
+            guarantee_ref: valid-resolved-implementation-attribution-input-accepted
+          - id: check-resolved-attribution-coverage
+            guarantee_ref: resolved-attribution-coverage-is-reported
+      - id: invalid-resolved-implementation-attribution-is-rejected
+        intent_id: resolved-implementation-attribution-public-cli-semantics
         input:
-          valid_sdd_boundary_policy:
-            sources:
-              - logical-structure
-              - projection
-              - directory-structure
+          invalid_resolved_implementation_attribution:
+            malformed: true
+            unknown_version: true
+            unknown_name: true
+            invalid_provenance: true
+            legacy_consumer_envelope_field: true
+            missing_required_dependency_collection: true
+          dependency_observation_would_fail:
+            invalid_cargo_manifest: true
         checks:
-          - id: check-valid-sdd-policy-accepted
-            guarantee_ref: valid-sdd-boundary-policy-input-accepted
-      - id: many-to-one-sdd-projection-is-accepted
-        intent_id: sdd-boundary-policy-input-acceptance
+          - id: check-invalid-resolved-attribution-exit-code
+            guarantee_ref: invalid-resolved-implementation-attribution-input-exits-with-three
+          - id: check-invalid-resolved-attribution-diagnostic-precedes-analysis-failure
+            guarantee_ref: invalid-resolved-implementation-attribution-input-reports-its-diagnostic-before-observation
+      - id: resolved-attribution-and-other-policy-sources-are-rejected
+        intent_id: resolved-implementation-attribution-public-cli-semantics
         input:
-          valid_sdd_boundary_policy:
-            projection_shape: many-to-one
+          invalid_resolved_implementation_attribution:
+            simultaneous_policy_sources: true
         checks:
-          - id: check-valid-many-to-one-sdd-policy-accepted
-            guarantee_ref: valid-sdd-boundary-policy-input-accepted
-      - id: non-rust-sdd-projection-is-excluded
-        intent_id: sdd-boundary-policy-input-acceptance
+          - id: check-exclusive-resolved-attribution-exit-code
+            guarantee_ref: invalid-resolved-implementation-attribution-input-exits-with-three
+      - id: unresolved-implementation-attribution-is-indeterminate
+        intent_id: resolved-implementation-attribution-public-cli-semantics
         input:
-          valid_sdd_boundary_policy:
-            projection_contains_source_outside_rust_module_scope: true
+          unresolved_implementation_attribution:
+            missing_observed_file: true
         checks:
-          - id: check-valid-sdd-policy-with-non-rust-node-accepted
-            guarantee_ref: valid-sdd-boundary-policy-input-accepted
-      - id: overlapping-rust-module-projections-are-accepted
-        intent_id: sdd-boundary-policy-input-acceptance
+          - id: check-resolved-attribution-indeterminate
+            guarantee_ref: unresolved-implementation-attribution-is-indeterminate
+      - id: resolved-attribution-forbidden-edge-is-non-conformant
+        intent_id: resolved-implementation-attribution-public-cli-semantics
         input:
-          valid_sdd_boundary_policy:
-            rust_module_projection_shape: overlapping-parent-child
+          forbidden_resolved_attribution_edge: true
         checks:
-          - id: check-overlapping-rust-module-projection-accepted
-            guarantee_ref: valid-sdd-boundary-policy-input-accepted
-      - id: incomplete-sdd-design-input-is-rejected
-        intent_id: sdd-boundary-policy-input-rejection
-        input:
-          invalid_sdd_boundary_policy:
-            missing_source: directory-structure
-        checks:
-          - id: check-invalid-sdd-policy-exit-code
-            guarantee_ref: invalid-sdd-boundary-policy-input-exits-with-three
-      - id: circular-sdd-component-dependencies-are-rejected
-        intent_id: sdd-boundary-policy-input-rejection
-        input:
-          invalid_sdd_boundary_policy:
-            logical_dependency_graph: circular
-        checks:
-          - id: check-circular-sdd-policy-exit-code
-            guarantee_ref: invalid-sdd-boundary-policy-input-exits-with-three
-      - id: inconsistent-sdd-design-inputs-are-rejected
-        intent_id: sdd-boundary-policy-input-rejection
-        input:
-          invalid_sdd_boundary_policy:
-            constraints:
-              - unique-component-and-node-identities
-              - complete-component-projection
-              - known-component-and-node-references
-              - distinct-directory-node-rust-modules
-              - selected-cargo-target-root-projection-forbidden
-              - normalized-project-relative-path
-              - supported-rust-module-path
-        checks:
-          - id: check-inconsistent-sdd-policy-exit-code
-            guarantee_ref: invalid-sdd-boundary-policy-input-exits-with-three
+          - id: check-resolved-attribution-non-conformant
+            guarantee_ref: forbidden-resolved-attribution-edge-is-non-conformant
 
   - id: verification.logical-module-boundary.policy-evaluation
     contract_id: contract.logical-module-boundary.policy-evaluation
@@ -590,153 +566,6 @@ verifications:
             guarantee_ref: conformant-decision
           - id: check-neutral-policy-impact
             guarantee_ref: dependency-neutral-has-no-policy-impact
-      - id: ambiguous-component-attribution-is-non-conformant
-        intent_id: ambiguous-component-attribution-report
-        input:
-          analysis_issue_policy_impact_possible:
-            code: analysis.ambiguous-component-attribution
-            affected_scope: crate::shared
-          ambiguous_component_attribution: true
-          complete_with_violation: true
-          report_request: true
-          observed_violation: true
-        checks:
-          - id: check-non-conformant
-            guarantee_ref: non-conformant-decision
-          - id: check-analysis-issues
-            guarantee_ref: analysis-issues-present
-          - id: check-analysis-issue-code
-            guarantee_ref: ambiguous-component-attribution-code
-          - id: check-analysis-issue-reason
-            guarantee_ref: analysis-issue-reason-present
-          - id: check-analysis-issue-affected-scope
-            guarantee_ref: analysis-issue-affected-scope-present
-          - id: check-analysis-observation-outcome
-            guarantee_ref: analysis-observation-outcome-supported
-          - id: check-analysis-policy-impact-outcome
-            guarantee_ref: analysis-policy-impact-outcome-supported
-          - id: check-canonical-ordering
-            guarantee_ref: report-ordering-canonical
-          - id: check-safe-violations-remain-observable
-            guarantee_ref: report-violations-present
-      - id: invariant-allowed-component-assignments-are-conformant
-        intent_id: ambiguous-component-attribution-report
-        input:
-          complete_without_violation: true
-          ambiguous_component_attribution: true
-          analysis_issue_policy_impact_none: true
-          component_assignment_outcome: invariant-allowed
-          report_request: true
-        checks:
-          - id: check-conformant-decision
-            guarantee_ref: conformant-decision
-          - id: check-analysis-issue-code
-            guarantee_ref: ambiguous-component-attribution-code
-          - id: check-analysis-observation-outcome
-            guarantee_ref: analysis-observation-outcome-supported
-          - id: check-analysis-policy-impact-outcome
-            guarantee_ref: analysis-policy-impact-outcome-supported
-          - id: check-no-policy-impact
-            guarantee_ref: analysis-issue-has-no-policy-impact
-      - id: invariant-forbidden-component-assignments-are-non-conformant
-        intent_id: ambiguous-component-attribution-report
-        input:
-          complete_with_violation: true
-          ambiguous_component_attribution: true
-          analysis_issue_policy_impact_none: true
-          component_assignment_outcome: invariant-forbidden
-          report_request: true
-        checks:
-          - id: check-non-conformant-decision
-            guarantee_ref: non-conformant-decision
-          - id: check-analysis-issue-code
-            guarantee_ref: ambiguous-component-attribution-code
-          - id: check-safe-violations-remain-observable
-            guarantee_ref: report-violations-present
-      - id: assignment-dependent-component-outcomes-are-indeterminate
-        intent_id: ambiguous-component-attribution-report
-        input:
-          ambiguous_component_attribution: true
-          analysis_issue_policy_impact_possible: true
-          analysis_issue_policy_impact_none: true
-          component_assignment_outcome: assignment-dependent
-          assignment_dependent_component_attribution_edge:
-            source_module: crate::shared
-            target_module: crate::infrastructure
-            candidate_components:
-              - application
-              - domain
-              - infrastructure
-            dependency_kind: import
-            source_evidence: src/shared.rs
-          report_request: true
-        checks:
-          - id: check-indeterminate-decision
-            guarantee_ref: indeterminate-decision
-          - id: check-analysis-issue-code
-            guarantee_ref: ambiguous-component-attribution-code
-          - id: check-analysis-observation-outcome
-            guarantee_ref: analysis-observation-outcome-supported
-          - id: check-analysis-policy-impact-outcome
-            guarantee_ref: analysis-policy-impact-outcome-supported
-          - id: check-possible-policy-impact
-            guarantee_ref: analysis-issue-has-possible-policy-impact
-          - id: check-structural-attribution-has-no-policy-impact
-            guarantee_ref: analysis-issue-has-no-policy-impact
-          - id: check-component-attribution-edge-source
-            guarantee_ref: component-attribution-edge-source-present
-          - id: check-component-attribution-edge-evidence
-            guarantee_ref: component-attribution-edge-evidence-present
-          - id: check-component-attribution-edge-target
-            guarantee_ref: component-attribution-edge-target-present
-          - id: check-component-attribution-edge-components
-            guarantee_ref: component-attribution-edge-components-present
-          - id: check-component-attribution-edge-kind
-            guarantee_ref: component-attribution-edge-kind-present
-      - id: many-component-assignments-remain-invariant
-        intent_id: ambiguous-component-attribution-report
-        input:
-          complete_without_violation: true
-          ambiguous_component_attribution: true
-          analysis_issue_policy_impact_none: true
-          component_assignment_outcome: invariant-allowed
-          report_request: true
-        checks:
-          - id: check-conformant-decision
-            guarantee_ref: conformant-decision
-          - id: check-analysis-issue-code
-            guarantee_ref: ambiguous-component-attribution-code
-          - id: check-analysis-observation-outcome
-            guarantee_ref: analysis-observation-outcome-supported
-          - id: check-analysis-policy-impact-outcome
-            guarantee_ref: analysis-policy-impact-outcome-supported
-          - id: check-no-policy-impact
-            guarantee_ref: analysis-issue-has-no-policy-impact
-      - id: unobserved-overlapping-rust-module-projections-are-conformant
-        intent_id: ambiguous-component-attribution-report
-        input:
-          ambiguous_component_attribution: true
-          complete_without_violation: true
-          analysis_issue_policy_impact_none: true
-          component_assignment_outcome: no-observed-edge
-          report_request: true
-        checks:
-          - id: check-conformant-decision
-            guarantee_ref: conformant-decision
-          - id: check-analysis-issues
-            guarantee_ref: analysis-issues-present
-          - id: check-analysis-issue-code
-            guarantee_ref: ambiguous-component-attribution-code
-          - id: check-analysis-issue-reason
-            guarantee_ref: analysis-issue-reason-present
-          - id: check-analysis-issue-affected-scope
-            guarantee_ref: analysis-issue-affected-scope-present
-          - id: check-analysis-observation-outcome
-            guarantee_ref: analysis-observation-outcome-supported
-          - id: check-analysis-policy-impact-outcome
-            guarantee_ref: analysis-policy-impact-outcome-supported
-          - id: check-no-policy-impact
-            guarantee_ref: analysis-issue-has-no-policy-impact
       - id: known-compilation-context-is-resolved
         intent_id: analysis-issue-classification
         input:
@@ -796,7 +625,7 @@ verifications:
         input:
           report_request:
             format: json
-          json_report_request: true
+          legacy_json_report_request: true
         checks:
           - id: check-json-schema-version
             guarantee_ref: json-schema-version-present
@@ -820,6 +649,21 @@ verifications:
             guarantee_ref: report-decision-supported
           - id: check-report-violations
             guarantee_ref: report-violations-present
+      - id: resolved-attribution-json-report
+        intent_id: json-report-projection
+        input:
+          report_request:
+            format: json
+          resolved_implementation_attribution_json_report_request: true
+        checks:
+          - id: check-resolved-attribution-json-schema-version
+            guarantee_ref: resolved-attribution-json-schema-version-is-three
+          - id: check-resolved-attribution-report-serialization
+            guarantee_ref: report-serialization-supported
+          - id: check-resolved-attribution-report-ordering
+            guarantee_ref: report-ordering-canonical
+          - id: check-resolved-attribution-report-decision
+            guarantee_ref: report-decision-supported
       - id: text-report
         intent_id: text-report-projection
         input:
@@ -853,7 +697,7 @@ verifications:
             format: json
             repeat_count: 2
             same_analysis_input: true
-          json_report_request: true
+          legacy_json_report_request: true
         checks:
           - id: check-json-schema-version
             guarantee_ref: json-schema-version-present

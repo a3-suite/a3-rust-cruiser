@@ -4,257 +4,302 @@
 use super::*;
 
 #[test]
-fn should_sdd_design_is_projected_to_a_boundary_policy() {
+fn should_resolved_attribution_is_exclusive_with_other_policy_sources() {
     // Arrange
-    let fixture = TempFixture::new("sdd-policy-input");
+    let fixture = TempFixture::new("resolved-attribution-exclusive-input");
+    write_resolved_implementation_attribution(&fixture);
+
+    // Act
+    let output = run_resolved_attribution_check(&fixture, &["--policy", "policy.yaml"]);
+
+    // Assert
+    assert_execution_failure(&output, "boundary policy inputs are mutually exclusive");
+}
+
+#[test]
+fn should_public_resolved_implementation_attribution_is_accepted() {
+    // Arrange
+    let fixture = TempFixture::new("resolved-attribution-public-input");
+    write_resolved_implementation_attribution(&fixture);
+
+    // Act
+    let report = completed_json(
+        &run_resolved_attribution_check(&fixture, &["--include", "crate"]),
+        0,
+    );
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(
+        report["normalized_sdd_coverage"]["source_provenance"]["producer"],
+        "owner-resolved-current-family"
+    );
+    assert_eq!(
+        report["normalized_sdd_coverage"]["covered_modules"],
+        serde_json::json!(["crate"])
+    );
+    assert_eq!(
+        report["analysis_context"]["include"],
+        serde_json::json!(["crate"])
+    );
+}
+
+#[test]
+fn should_public_resolved_attribution_accept_multiple_scopes_and_artifacts() {
+    // Arrange
+    let fixture = TempFixture::new("resolved-attribution-multiple-scopes");
     fixture.write(
         "src/main.rs",
-        "mod application;\nmod domain;\nfn main() {}\n",
+        "mod provider;\nuse crate::provider::Provider;\nfn main() { let _ = Provider; }\n",
     );
-    fixture.write("src/application.rs", "pub fn run() {}\n");
-    fixture.write("src/domain.rs", "pub struct Entity;\n");
-    write_sdd_policy_input(&fixture);
+    fixture.write("src/provider.rs", "pub struct Provider;\n");
+    let attribution = resolved_implementation_attribution(&fixture)
+        .replace("scope_path: fixture", "scope_path: scope-a")
+        .replace("canonical_scope: fixture", "canonical_scope: scope-a")
+        .replace(
+            "    - dsl_name: physical-structure\n",
+            "    - dsl_name: logical-structure\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: scope-b\n      sha256: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\n    - dsl_name: projection\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: scope-b\n      sha256: eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\n    - dsl_name: physical-structure\n",
+        )
+        .replace(
+            "file_attributions:\n  - observed_file_path: src/main.rs\n    canonical_scope: scope-a\n    component_id: application\n    element_id: main",
+            "file_attributions:\n  - observed_file_path: src/main.rs\n    canonical_scope: scope-a\n    component_id: application\n    element_id: main\n  - observed_file_path: src/provider.rs\n    canonical_scope: scope-b\n    component_id: provider\n    element_id: provider-file",
+        )
+        .replace(
+            "scope_dependencies: []",
+            "scope_dependencies:\n  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example",
+        );
+    fixture.write("resolved-implementation-attribution.sdd.yml", &attribution);
 
     // Act
-    let output = run_sdd_check(&fixture, true);
+    let report = completed_json(&run_resolved_attribution_check(&fixture, &[]), 0);
+    let artifacts = report["normalized_sdd_coverage"]["source_provenance"]["artifacts"]
+        .as_array()
+        .expect("provenance artifacts array");
 
     // Assert
-    assert_completed_output(&output, 0, "conformant");
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(artifacts.len(), 5);
+    assert_eq!(
+        report["normalized_sdd_coverage"]["covered_modules"],
+        serde_json::json!(["crate", "crate::provider"])
+    );
+    assert_eq!(
+        report["normalized_sdd_coverage"]["unresolved_modules"],
+        serde_json::json!([])
+    );
+
+    // Arrange
+    let no_edge_fixture = TempFixture::new("resolved-attribution-missing-scope-edge");
+    no_edge_fixture.write(
+        "src/main.rs",
+        "mod provider;\nuse crate::provider::Provider;\nfn main() { let _ = Provider; }\n",
+    );
+    no_edge_fixture.write("src/provider.rs", "pub struct Provider;\n");
+    no_edge_fixture.write(
+        "resolved-implementation-attribution.sdd.yml",
+        &attribution.replace(
+            "scope_dependencies:\n  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example",
+            "scope_dependencies: []",
+        ),
+    );
+
+    // Act
+    let report_without_edge =
+        completed_json(&run_resolved_attribution_check(&no_edge_fixture, &[]), 1);
+
+    // Assert
+    assert_eq!(report_without_edge["decision"], "non-conformant");
 }
 
 #[test]
-fn should_many_to_one_sdd_projection_with_non_rust_nodes_is_accepted() {
+fn should_public_resolved_attribution_is_indeterminate_when_unresolved() {
     // Arrange
-    let fixture = many_to_one_sdd_fixture();
+    let fixture = TempFixture::new("resolved-attribution-public-unresolved");
+    let content = resolved_implementation_attribution(&fixture).replacen(
+        "file_attributions:\n  - observed_file_path: src/main.rs\n    canonical_scope: fixture\n    component_id: application\n    element_id: main",
+        "file_attributions: []",
+        1,
+    );
+    fixture.write("resolved-implementation-attribution.sdd.yml", &content);
 
     // Act
-    let output = run_sdd_check(&fixture, true);
+    let report = completed_json(&run_resolved_attribution_check(&fixture, &[]), 2);
 
     // Assert
-    assert_completed_output(&output, 1, "non-conformant");
-}
-
-#[test]
-fn should_incomplete_sdd_design_input_is_rejected() {
-    // Arrange
-    let fixture = TempFixture::new("incomplete-sdd-policy-input");
-    write_sdd_policy_input(&fixture);
-
-    // Act
-    let output = run_sdd_check(&fixture, false);
-
-    // Assert
-    assert_execution_failure(&output, "SDD boundary policy input requires");
-}
-
-#[test]
-fn should_policy_and_sdd_boundary_inputs_are_rejected() {
-    // Arrange
-    let fixture = TempFixture::new("policy-and-sdd-boundary-input");
-    write_sdd_policy_input(&fixture);
-
-    // Act
-    let output = run_policy_and_sdd_check(&fixture);
-
-    // Assert
-    assert_execution_failure(
-        &output,
-        "--policy cannot be combined with SDD boundary policy input",
+    assert_eq!(report["decision"], "indeterminate");
+    assert_eq!(
+        report["normalized_sdd_coverage"]["unresolved_modules"][0]["module_id"],
+        "crate"
     );
 }
 
 #[test]
-fn should_circular_sdd_component_dependencies_are_rejected() {
+fn should_public_resolved_attribution_forbidden_scope_edge_is_non_conformant() {
     // Arrange
-    let fixture = TempFixture::new("circular-sdd-policy-input");
-    write_sdd_policy_input(&fixture);
+    let fixture = TempFixture::new("resolved-attribution-public-forbidden");
     fixture.write(
-        "logical-structure.sdd.yml",
-        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: application\n  - component_id: domain\ndependencies:\n  - from_component_id: application\n    to_component_id: domain\n  - from_component_id: domain\n    to_component_id: application\n",
+        "src/main.rs",
+        "mod provider;\nuse crate::provider::Thing;\nfn main() { let _ = Thing; }\n",
     );
-    let self_loop = TempFixture::new("self-loop-sdd-policy-input");
-    write_sdd_policy_input(&self_loop);
-    self_loop.write(
-        "logical-structure.sdd.yml",
-        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: application\n  - component_id: domain\ndependencies:\n  - from_component_id: application\n    to_component_id: application\n",
-    );
+    fixture.write("src/provider.rs", "pub struct Thing;\n");
+    let content = resolved_implementation_attribution(&fixture)
+        .replace("canonical_scope: fixture", "canonical_scope: scope-a")
+        .replacen(
+            "component_dependencies: []",
+            "  - observed_file_path: src/provider.rs\n    canonical_scope: scope-b\n    component_id: provider\n    element_id: provider\ncomponent_dependencies: []",
+            1,
+        );
+    fixture.write("resolved-implementation-attribution.sdd.yml", &content);
 
     // Act
-    let outputs = [
-        run_sdd_check(&fixture, true),
-        run_sdd_check(&self_loop, true),
-    ];
+    let report = completed_json(&run_resolved_attribution_check(&fixture, &[]), 1);
 
     // Assert
-    assert_execution_failure(
-        &outputs[0],
-        "logical component dependency graph must be acyclic",
-    );
-    assert_execution_failure(
-        &outputs[1],
-        "logical component dependency graph is circular at",
-    );
+    assert_eq!(report["decision"], "non-conformant");
 }
 
 #[test]
-fn should_cargo_target_root_component_projections_are_rejected() {
-    // Arrange
-    let conventional = TempFixture::new("conventional-target-root-sdd-policy-input");
-    write_sdd_policy_input(&conventional);
-    conventional.write(
-        "directory-structure.sdd.yml",
-        "nodes:\n  - node_id: src-application\n    path: src/main.rs\n  - node_id: src-domain\n    path: src/domain.rs\n",
-    );
-    let custom = TempFixture::new("custom-target-root-sdd-policy-input");
-    custom.write_manifest(&format!(
-        "[[bin]]\nname = \"{}\"\npath = \"src/entry.rs\"\n",
-        custom.package()
-    ));
-    custom.write("src/entry.rs", "fn main() {}\n");
-    write_sdd_policy_input(&custom);
-    custom.write(
-        "directory-structure.sdd.yml",
-        "nodes:\n  - node_id: src-application\n    path: src/entry.rs\n  - node_id: src-domain\n    path: src/domain.rs\n",
-    );
-
-    // Act
-    let outputs = [
-        run_sdd_check(&conventional, true),
-        run_sdd_check(&custom, true),
-    ];
-
-    // Assert
-    for output in outputs {
-        assert_execution_failure(&output, "selected Cargo target root");
-    }
-}
-
-#[test]
-fn should_overlapping_rust_module_projections_are_accepted() {
-    // Arrange
-    let fixture = TempFixture::new("overlapping-rust-module-sdd-policy-input");
-    write_sdd_policy_input(&fixture);
-    fixture.write(
-        "directory-structure.sdd.yml",
-        "nodes:\n  - node_id: src-application\n    path: src/application\n  - node_id: src-domain\n    path: src/application/domain.rs\n",
-    );
-
-    // Act
-    let output = run_sdd_check(&fixture, true);
-
-    // Assert
-    let _report = accepted_json(&output);
-}
-
-#[test]
-fn should_inconsistent_sdd_design_inputs_are_rejected() {
+fn should_invalid_resolved_attribution_is_rejected_before_analysis() {
     // Arrange
     let cases = [
+        ("malformed", "invalid resolved attribution YAML"),
         (
-            "empty-components",
-            "logical-structure.sdd.yml",
-            "components: []\ndependencies: []\n",
-            "logical-structure requires a component",
+            "unknown-version",
+            "unsupported resolved attribution version: 9",
         ),
         (
-            "duplicate-component",
-            "logical-structure.sdd.yml",
-            "components:\n  - component_id: application\n  - component_id: application\ndependencies: []\n",
-            "duplicate logical component ID",
+            "unknown-name",
+            "unexpected resolved attribution name: unknown-attribution",
+        ),
+        ("provenance-mismatch", "unsupported provenance version"),
+        ("legacy-contracts-field", "unknown field `contracts`"),
+        ("legacy-coverage-field", "unknown field `coverage`"),
+        (
+            "missing-component-dependencies",
+            "missing field `component_dependencies`",
         ),
         (
-            "unknown-dependency-source",
-            "logical-structure.sdd.yml",
-            "components:\n  - component_id: application\n  - component_id: domain\ndependencies:\n  - from_component_id: unknown\n    to_component_id: domain\n",
-            "unknown source component",
+            "missing-scope-dependencies",
+            "missing field `scope_dependencies`",
+        ),
+        ("empty-file-scope", "canonical scope must not be empty"),
+        ("empty-component-id", "component ID must not be empty"),
+        ("empty-element-id", "element ID must not be empty"),
+        (
+            "empty-component-dependency-scope",
+            "component dependency scope must not be empty",
         ),
         (
-            "unknown-dependency-target",
-            "logical-structure.sdd.yml",
-            "components:\n  - component_id: application\n  - component_id: domain\ndependencies:\n  - from_component_id: application\n    to_component_id: unknown\n",
-            "unknown target component",
+            "empty-component-dependency-source",
+            "component dependency source must not be empty",
         ),
         (
-            "missing-component-projection",
-            "projection.sdd.yml",
-            "mappings:\n  - component_id: application\n    node_id: src-application\n",
-            "each logical component must have exactly one projection",
+            "empty-component-dependency-target",
+            "component dependency target must not be empty",
         ),
         (
-            "duplicate-component-projection",
-            "projection.sdd.yml",
-            "mappings:\n  - component_id: application\n    node_id: src-application\n  - component_id: application\n    node_id: src-domain\n",
-            "duplicate projected component ID",
+            "empty-scope-dependency-source",
+            "scope dependency source must not be empty",
         ),
         (
-            "unknown-directory-node",
-            "projection.sdd.yml",
-            "mappings:\n  - component_id: application\n    node_id: unknown\n  - component_id: domain\n    node_id: src-domain\n",
-            "unknown directory node",
+            "empty-scope-dependency-target",
+            "scope dependency target must not be empty",
         ),
         (
-            "duplicate-directory-node",
-            "directory-structure.sdd.yml",
-            "nodes:\n  - node_id: src-application\n    path: src/application.rs\n  - node_id: src-application\n    path: src/domain.rs\n",
-            "duplicate directory node ID",
+            "empty-contract-subject",
+            "scope dependency subject reference must not be empty",
         ),
         (
-            "duplicate-rust-module",
-            "directory-structure.sdd.yml",
-            "nodes:\n  - node_id: src-application\n    path: src/application.rs\n  - node_id: src-domain\n    path: src/application.rs\n",
-            "same Rust module",
-        ),
-        (
-            "non-normalized-project-path",
-            "directory-structure.sdd.yml",
-            "nodes:\n  - node_id: src-application\n    path: ../application.rs\n  - node_id: src-domain\n    path: src/domain.rs\n",
-            "component path must be a normalized path",
-        ),
-        (
-            "crate-root-project-path",
-            "directory-structure.sdd.yml",
-            "nodes:\n  - node_id: src-application\n    path: src/\n  - node_id: src-domain\n    path: src/domain.rs\n",
-            "crate root cannot represent a component",
-        ),
-        (
-            "unsupported-module-segment",
-            "directory-structure.sdd.yml",
-            "nodes:\n  - node_id: src-application\n    path: src/application.rs\n  - node_id: src-domain\n    path: src/domain-name.rs\n",
-            "unsupported Rust module segment",
+            "empty-contract-id",
+            "scope dependency contract ID must not be empty",
         ),
     ];
 
-    let combined = TempFixture::new("structural-error-precedes-target-projection");
-    write_sdd_policy_input(&combined);
-    combined.write(
-        "logical-structure.sdd.yml",
-        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: application\n  - component_id: domain\ndependencies:\n  - from_component_id: unknown\n    to_component_id: domain\n",
-    );
-    combined.write(
-        "directory-structure.sdd.yml",
-        "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n  - node_id: src-application\n    path: src/main.rs\n  - node_id: src-domain\n    path: src/domain.rs\n",
-    );
-
     // Act
-    let outputs = cases
-        .into_iter()
-        .map(|(label, path, content, expected)| {
-            let fixture = TempFixture::new(label);
-            write_sdd_policy_input(&fixture);
-            fixture.write(path, content);
-            (run_sdd_check(&fixture, true), expected)
-        })
-        .collect::<Vec<_>>();
-    let combined_output = run_sdd_check(&combined, true);
+    let outputs = cases.map(|(label, expected)| {
+        let fixture = TempFixture::new(label);
+        let valid = resolved_implementation_attribution(&fixture);
+        let content = match label {
+            "malformed" => "not: [valid".to_owned(),
+            "unknown-version" => valid.replacen("version: 1", "version: 9", 1),
+            "unknown-name" => valid.replacen(
+                "name: resolved-implementation-attribution",
+                "name: unknown-attribution",
+                1,
+            ),
+            "provenance-mismatch" => valid.replacen(
+                "    - dsl_name: logical-structure\n      version: 2",
+                "    - dsl_name: logical-structure\n      version: 9",
+                1,
+            ),
+            "legacy-contracts-field" => {
+                valid.replacen("source_provenance:", "contracts: {}\nsource_provenance:", 1)
+            }
+            "legacy-coverage-field" => {
+                valid.replacen("file_attributions:", "coverage: {}\nfile_attributions:", 1)
+            }
+            "missing-component-dependencies" => {
+                valid.replacen("component_dependencies: []\n", "", 1)
+            }
+            "missing-scope-dependencies" => valid.replacen("scope_dependencies: []\n", "", 1),
+            "empty-file-scope" => {
+                valid.replacen("canonical_scope: fixture", "canonical_scope: ''", 1)
+            }
+            "empty-component-id" => {
+                valid.replacen("component_id: application", "component_id: ''", 1)
+            }
+            "empty-element-id" => valid.replacen("element_id: main", "element_id: ''", 1),
+            "empty-component-dependency-scope" => valid.replacen(
+                "component_dependencies: []",
+                "component_dependencies:\n  - canonical_scope: ''\n    from_component_id: application\n    to_component_id: provider",
+                1,
+            ),
+            "empty-component-dependency-source" => valid.replacen(
+                "component_dependencies: []",
+                "component_dependencies:\n  - canonical_scope: fixture\n    from_component_id: ''\n    to_component_id: provider",
+                1,
+            ),
+            "empty-component-dependency-target" => valid.replacen(
+                "component_dependencies: []",
+                "component_dependencies:\n  - canonical_scope: fixture\n    from_component_id: application\n    to_component_id: ''",
+                1,
+            ),
+            "empty-scope-dependency-source" => valid.replacen(
+                "scope_dependencies: []",
+                "scope_dependencies:\n  - from_scope: ''\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example",
+                1,
+            ),
+            "empty-scope-dependency-target" => valid.replacen(
+                "scope_dependencies: []",
+                "scope_dependencies:\n  - from_scope: fixture\n    to_scope: ''\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example",
+                1,
+            ),
+            "empty-contract-subject" => valid.replacen(
+                "scope_dependencies: []",
+                "scope_dependencies:\n  - from_scope: fixture\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: ''\n        contract_id: contract.example",
+                1,
+            ),
+            "empty-contract-id" => valid.replacen(
+                "scope_dependencies: []",
+                "scope_dependencies:\n  - from_scope: fixture\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: ''",
+                1,
+            ),
+            _ => unreachable!("known normalized input case"),
+        };
+        fixture.write("resolved-implementation-attribution.sdd.yml", &content);
+        fixture.write("Cargo.toml", "not valid TOML = [\n");
+        (run_resolved_attribution_check(&fixture, &[]), expected)
+    });
 
     // Assert
     for (output, expected) in outputs {
         assert_execution_failure(&output, expected);
+        assert!(
+            !String::from_utf8_lossy(&output.stderr).contains("invalid Cargo.toml"),
+            "resolved attribution diagnostic must precede dependency observation: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
-    assert_execution_failure(
-        &combined_output,
-        "dependency references unknown source component",
-    );
 }
 
 #[test]
@@ -300,6 +345,14 @@ fn should_unknown_boundary_policy_field_is_rejected() {
 
     // Assert
     assert_execution_failure(&output, "invalid boundary policy YAML");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains(
+            fixture
+                .join("policy.yaml")
+                .to_str()
+                .expect("policy path is UTF-8")
+        )
+    );
 }
 
 #[test]
@@ -316,6 +369,27 @@ fn should_unsupported_boundary_policy_enum_is_rejected() {
 
     // Assert
     assert_execution_failure(&output, "invalid boundary policy YAML");
+}
+
+#[test]
+fn should_malformed_resolved_attribution_report_its_path() {
+    // Arrange
+    let fixture = TempFixture::new("malformed-resolved-attribution-path");
+    let path = fixture.join("resolved-implementation-attribution.sdd.yml");
+    fixture.write(
+        "resolved-implementation-attribution.sdd.yml",
+        "not: [valid\n",
+    );
+
+    // Act
+    let output = run_resolved_attribution_check(&fixture, &[]);
+
+    // Assert
+    assert_execution_failure(&output, "invalid resolved attribution YAML");
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains(path.to_str().expect("attribution path is UTF-8"))
+    );
 }
 
 #[test]
@@ -370,12 +444,17 @@ fn should_invalid_boundary_policy_rules_are_rejected() {
         .map(|(label, policy, expected)| {
             let fixture = TempFixture::new(label);
             fixture.write("policy.yaml", policy);
-            (run_check(&fixture, "json"), expected)
+            let path = fixture.join("policy.yaml");
+            (run_check(&fixture, "json"), expected, path)
         })
         .collect::<Vec<_>>();
 
     // Assert
-    for (output, expected) in outputs {
+    for (output, expected, path) in outputs {
         assert_execution_failure(&output, expected);
+        assert!(
+            String::from_utf8_lossy(&output.stderr)
+                .contains(path.to_str().expect("policy path is UTF-8"))
+        );
     }
 }

@@ -1,0 +1,23 @@
+# actionlint configuration.
+#
+# GitHub.com provides the reusable-workflow job identity properties
+#   job.workflow_ref / job.workflow_sha / job.workflow_repository / job.workflow_file_path
+# (not available on GitHub Enterprise Server). See the official specification:
+#   https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
+#
+# GitHub.com also provides the `concurrency.queue` key for serializing publish runs. See the
+# official specification:
+#   https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+#
+# actionlint 1.7.12 (Homebrew) does not yet model these GitHub.com properties, so it reports an
+# expression error for each `job` context reference and an unexpected-key syntax error for
+# `concurrency.queue`. Exclude exactly those diagnostics by message; every other diagnostic
+# remains fatal. Verified against the official specification on 2026-10-07.
+paths:
+  .github/workflows/**/*.yml:
+    ignore:
+      - 'property "workflow_ref" is not defined in object type'
+      - 'property "workflow_sha" is not defined in object type'
+      - 'property "workflow_repository" is not defined in object type'
+      - 'property "workflow_file_path" is not defined in object type'
+      - 'unexpected key "queue" for "concurrency" section'

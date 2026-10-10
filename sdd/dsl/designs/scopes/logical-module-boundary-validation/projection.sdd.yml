@@ -1,14 +1,16 @@
-version: 1
+version: 2
 name: projection
 projection_id: logical-module-boundary-validation-source
 mappings:
+  - component_id: entrypoint-composition
+    element_id: src-entrypoints
   - component_id: command-interface
-    node_id: src-command-interface
+    element_id: src-command-interface
   - component_id: boundary-validation
-    node_id: src-boundary-validation
+    element_id: src-boundary-validation
   - component_id: boundary-evaluation
-    node_id: src-boundary-evaluation
+    element_id: src-boundary-evaluation
   - component_id: rust-dependency-observation
-    node_id: src-rust-dependency-observation
+    element_id: src-rust-dependency-observation
   - component_id: boundary-policy-input
-    node_id: src-boundary-policy-input
+    element_id: src-boundary-policy-input
