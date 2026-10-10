@@ -26,13 +26,13 @@ for retired in \
   test ! -e "$retired"
 done
 
-if rg -n '<[a-z][a-z0-9-]*>' "$workflow_root" >/dev/null; then
+if grep -R -nE '<[a-z][a-z0-9-]*>' "$workflow_root" >/dev/null; then
   echo "canonical workflow placeholder remains" >&2
   exit 1
 fi
 
 # 外部 Action と provider reusable workflow は完全長 commit SHA に固定する。
-if rg -n 'uses:\s+[^ ]+@(v[0-9]|main|master|HEAD)' "$workflow_root" >/dev/null; then
+if grep -R -nE 'uses:[[:space:]]+[^ ]+@(v[0-9]|main|master|HEAD)' "$workflow_root" >/dev/null; then
   echo "mutable Action reference remains" >&2
   exit 1
 fi
@@ -41,7 +41,7 @@ while IFS= read -r reference; do
     echo "unpinned Action reference: $reference" >&2
     exit 1
   }
-done < <(rg -o --no-filename 'uses:\s+[^ ]+@[^ ]+' "$workflow_root" | sed -E 's/^uses:[[:space:]]+//')
+done < <(grep -RhEo 'uses:[[:space:]]+[^ ]+@[^ ]+' "$workflow_root" | sed -E 's/^uses:[[:space:]]+//')
 
 # 配布同一性: lock の source revision と caller の callee 参照が一致する。
 lock_source=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sourceRevision"])' "$ci_root/ci-assets.lock.json")
@@ -87,9 +87,9 @@ grep -Fx '    target: aarch64-apple-darwin' "$ci_root/platform-manifest.yml" >/d
 grep -Fx '    target: x86_64-pc-windows-msvc' "$ci_root/platform-manifest.yml" >/dev/null
 
 quality_gate_contract() {
-  rg -F -x '  pull_request: null' "$workflow_root/quality-gate.yml" >/dev/null
-  rg -F -x '    branches:' "$workflow_root/quality-gate.yml" >/dev/null
-  rg -F -x '      - main' "$workflow_root/quality-gate.yml" >/dev/null
+  grep -F -x '  pull_request: null' "$workflow_root/quality-gate.yml" >/dev/null
+  grep -F -x '    branches:' "$workflow_root/quality-gate.yml" >/dev/null
+  grep -F -x '      - main' "$workflow_root/quality-gate.yml" >/dev/null
   grep -F "a3-suite/a3-ci-github/.github/workflows/ci-quality.yml@$lock_source" "$workflow_root/quality-gate.yml" >/dev/null
   grep -F 'language-profile: rust' "$workflow_root/quality-gate.yml" >/dev/null
   grep -F 'standard-bundle-id: rust-cargo-quality' "$workflow_root/quality-gate.yml" >/dev/null
@@ -99,19 +99,19 @@ quality_gate_contract() {
 }
 
 release_request_contract() {
-  rg -F -x '  push:' "$workflow_root/release-request-tag.yml" >/dev/null
-  rg -F -x '    tags:' "$workflow_root/release-request-tag.yml" >/dev/null
+  grep -F -x '  push:' "$workflow_root/release-request-tag.yml" >/dev/null
+  grep -F -x '    tags:' "$workflow_root/release-request-tag.yml" >/dev/null
   grep -F 'ci-annotated-tag-resolver@' "$workflow_root/release-request-tag.yml" >/dev/null
   grep -F 'ci-release-request-handoff@' "$workflow_root/release-request-tag.yml" >/dev/null
   grep -F '      - v*' "$workflow_root/release-request-tag.yml" >/dev/null
-  if rg -n 'contents:\s*write' "$workflow_root/release-request-tag.yml" >/dev/null; then
+  if grep -nE 'contents:[[:space:]]*write' "$workflow_root/release-request-tag.yml" >/dev/null; then
     echo "tag request must not hold contents write" >&2
     exit 1
   fi
 }
 
 release_publication_contract() {
-  rg -F -x '  workflow_run:' "$workflow_root/release-publication-caller.yml" >/dev/null
+  grep -F -x '  workflow_run:' "$workflow_root/release-publication-caller.yml" >/dev/null
   grep -F "a3-suite/a3-ci-github/.github/workflows/ci-release-publication.yml@$lock_source" "$workflow_root/release-publication-caller.yml" >/dev/null
   grep -F 'contents: write' "$workflow_root/release-publication-caller.yml" >/dev/null
   grep -F 'workflow_run:' "$workflow_root/release-publication-caller.yml" >/dev/null
@@ -126,7 +126,7 @@ release_publication_contract() {
   grep -F 'release_identity:' "$workflow_root/release-publication-request.yml" >/dev/null
   grep -F 'approval_id:' "$workflow_root/release-publication-request.yml" >/dev/null
   grep -F 'approval_body_sha256:' "$workflow_root/release-publication-request.yml" >/dev/null
-  if rg -n 'contents:\s*write' "$workflow_root/release-publication-request.yml" >/dev/null; then
+  if grep -nE 'contents:[[:space:]]*write' "$workflow_root/release-publication-request.yml" >/dev/null; then
     echo "publication request must not hold contents write" >&2
     exit 1
   fi
