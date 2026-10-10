@@ -121,7 +121,3 @@ SDDを正本として運用するプロジェクトでは、`boundary-policy.yam
 - [BoundaryPolicy作成ガイド](skills/a3-rust-cruiser/references/create-boundary-policy.guide.md)
 - [実行ガイド（BoundaryPolicy入力）](skills/a3-rust-cruiser/references/run-boundary-policy-check.guide.md)
 - [実行ガイド（resolved-implementation-attribution入力）](skills/a3-rust-cruiser/references/run-resolved-implementation-attribution-check.guide.md)
-
-## ライセンス
-
-[MIT License](LICENSE)のもとで提供します。
