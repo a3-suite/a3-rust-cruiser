@@ -39,3 +39,5 @@ related_contracts:
       contract_id: contract.logical-module-boundary.validation-report
   - contract_ref:
       contract_id: contract.logical-module-boundary.cli-outcome
+  - contract_ref:
+      contract_id: contract.ci.quality-gate.binding

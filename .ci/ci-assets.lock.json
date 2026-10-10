@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1",
+  "kind": "ci-github-asset-lock",
+  "sourceRevision": "6cc7f86e2599c3a4aeff36093d8daa041108712b",
+  "generatedAt": "2026-10-10T01:45Z",
+  "assets": [
+    {
+      "path": ".ci/provider-action-pins.yml",
+      "canonicalSha256": "e15ab570c220a3a1be3a984c113509d688954930e3f6fb1b8a3db5f490409030",
+      "appliedSha256": "8dbf072f632f12a3f42dc748dd456284a6f624975092dcebb5b5e784c68da5c6"
+    },
+    {
+      "path": ".github/workflows/quality-gate.yml",
+      "canonicalSha256": "5c54488d74e1946f60f082eb881dbb371bf1af25af9fadf64d75ba4c375b90b3",
+      "appliedSha256": "697c97af07fd4eafa7e7e31336d94963552a4f346b27299618a28d0c37d04681"
+    },
+    {
+      "path": ".github/workflows/release-publication-caller.yml",
+      "canonicalSha256": "eda2520d9cbc4f0a75135bbf860a95cf7d16a1e60164a1c9539f20967760b0c5",
+      "appliedSha256": "02d88e889ebbe662a0191d35de8ecd731f51f476ee2b5ff97807ed8b2477f181"
+    },
+    {
+      "path": ".github/workflows/release-publication-request.yml",
+      "canonicalSha256": "44c2c1c4b7726b25168e75f20b1da7569d3755bcad99e312810d15927f21cc2a",
+      "appliedSha256": "d6acc58eb6ca07a0d9933ef5ee99b95722eaea7f7f1d1549b7360e951f3a9993"
+    },
+    {
+      "path": ".github/workflows/release-request-tag.yml",
+      "canonicalSha256": "5496e7902aca102d5d96012f732798e29dcf390cd20289dfe652d1404b7c2c1e",
+      "appliedSha256": "b743283ec368a562f312a186f13d5d3930f073055700a6a09b8bec16fc5e0469"
+    }
+  ]
+}

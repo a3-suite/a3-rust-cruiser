@@ -1,0 +1,23 @@
+version: 1
+name: contract-observations
+subject_ref: subject.ci.workflow-configuration
+observations:
+  - id: observation.ci.workflow-configuration
+    summary: repositoryに宣言された品質workflow、tag request、Release publicationの設定
+    boundary:
+      ref: boundary.repository-source-configuration
+    locator:
+      surface: GitHub Actions workflow declarations、provider revision、platform manifest、installer assembly
+    value:
+      root: ci
+      kind: object
+      fields:
+        - selector: ci.quality_gate.workflow_binding
+          kind: observation_field
+          meaning: pull requestとdefault branch pushに対する品質workflowのprovider bindingと設定
+        - selector: ci.release_request.workflow_binding
+          kind: observation_field
+          meaning: annotated tag identityをhandoffするtag workflowのtriggerとprovider action binding
+        - selector: ci.release_publication.workflow_binding
+          kind: observation_field
+          meaning: approved request、Release publication provider binding、product installer assemblyを結ぶworkflow設定

@@ -1,0 +1,5 @@
+version: 1
+name: contract-subject
+subject:
+  id: subject.ci.workflow-configuration
+  summary: CI品質workflowとRelease publicationのrepository設定を整合させるcapability

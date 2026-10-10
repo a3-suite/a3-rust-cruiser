@@ -1,0 +1,54 @@
+name: release-request-tag
+on:
+  push:
+    tags:
+      - v*
+permissions: {}
+jobs:
+  request:
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+      contents: read
+    env:
+      CI_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - name: Resolve annotated tag identity
+        id: tag
+        uses: a3-suite/a3-ci-github/actions/ci-annotated-tag-resolver@4683eface1915b15f4c822b00c604a216a78867c
+        with:
+          repository: ${{ github.repository }}
+          tag: ${{ github.ref_name }}
+          github-token: ${{ env.CI_GITHUB_TOKEN }}
+      - name: Write tag request handoff
+        uses: a3-suite/a3-ci-github/actions/ci-release-request-handoff@4683eface1915b15f4c822b00c604a216a78867c
+        with:
+          output-directory: release-request
+          tag-source-sha: ${{ steps.tag.outputs.source-sha }}
+          tag-object-sha: ${{ steps.tag.outputs.tag-object-sha }}
+          github-ref: ${{ github.ref }}
+          github-ref-name: ${{ github.ref_name }}
+          request-run-id: ${{ github.run_id }}
+          request-actor: ${{ github.actor }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-request
+          path: release-request
+          if-no-files-found: error
+  summary:
+    needs: request
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository
+        }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Write workflow summary
+        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@4683eface1915b15f4c822b00c604a216a78867c
+        with:
+          summary-json: '{"jobs":[{"unit":"request","execution":"tag event
+            handoff","rawResult":"${{ needs.request.result
+            }}","applicable":true,"evidence":"${{ env.WORKFLOW_RUN_URL
+            }}","reason":"request job result: ${{ needs.request.result }}"}]}'

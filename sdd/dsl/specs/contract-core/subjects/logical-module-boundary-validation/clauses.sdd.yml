@@ -1125,6 +1125,7 @@ contracts:
         goal: 共通の検証結果をcanonical順序のJSONへ直列化することを確認する
         guarantee_refs:
           - json-schema-version-present
+          - resolved-attribution-json-schema-version-is-three
           - analysis-issues-present
           - analysis-issue-code-supported
           - analysis-issue-reason-present

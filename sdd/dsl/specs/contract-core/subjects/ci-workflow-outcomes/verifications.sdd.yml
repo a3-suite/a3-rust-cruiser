@@ -1,0 +1,34 @@
+version: 1
+name: contract-verifications
+subject_ref: subject.ci.workflow-configuration
+verifications:
+  - id: verification.ci.quality-gate
+    contract_id: contract.ci.quality-gate.binding
+    cases:
+      - id: quality-workflow-provider-is-bound
+        intent_id: quality-gate-provider-binding
+        input:
+          workflow_source: quality-gate.yml
+        checks:
+          - id: check-quality-gate-provider-binding
+            guarantee_ref: quality-workflow-provider-bound
+  - id: verification.ci.release-request
+    contract_id: contract.ci.release-request.binding
+    cases:
+      - id: release-tag-provider-is-bound
+        intent_id: release-request-provider-binding
+        input:
+          workflow_source: release-request-tag.yml
+        checks:
+          - id: check-release-tag-provider-binding
+            guarantee_ref: release-tag-provider-bound
+  - id: verification.ci.release-publication
+    contract_id: contract.ci.release-publication.binding
+    cases:
+      - id: approved-publication-provider-is-bound
+        intent_id: release-publication-provider-binding
+        input:
+          workflow_source: release-publication-caller.yml
+        checks:
+          - id: check-release-publication-provider-binding
+            guarantee_ref: release-publication-provider-bound

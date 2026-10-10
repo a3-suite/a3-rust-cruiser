@@ -1,0 +1,25 @@
+version: 1
+name: contract-verifications
+subject_ref: subject.installer.product-setup
+verifications:
+  - id: verification.installer.product-setup
+    contract_id: contract.installer.product-setup.consistency
+    cases:
+      - id: product-installer-setup-is-consistent
+        intent_id: installer-setup-configuration
+        input:
+          product_source:
+            release_version: 0.1.0
+        checks:
+          - id: check-package-version-matches-release-version
+            guarantee_ref: package-version-matches-release-version
+          - id: check-assembly-version-matches-release-version
+            guarantee_ref: assembly-version-matches-release-version
+          - id: check-manifest-version-matches-release-version
+            guarantee_ref: manifest-version-matches-release-version
+          - id: check-readme-version-matches-release-version
+            guarantee_ref: readme-version-matches-release-version
+          - id: check-skill-setup-entrypoint
+            guarantee_ref: installer-setup-configuration-consistent
+          - id: check-retired-installer-assets-are-absent
+            guarantee_ref: retired-project-installer-assets-absent

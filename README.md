@@ -1,6 +1,6 @@
 # a3-rust-cruiser
 
-JavaScript/TypeScript向けの[dependency-cruiser](https://github.com/sverweij/dependency-cruiser)に着想を得て、Rust版dependency-cruiserを目指している論理モジュール境界検証CLIです。Cargo packageとcompilation targetを1つずつ解析し、依存方向と循環依存をプロジェクト固有のポリシーに対して検証します。
+JavaScript/TypeScript向けの[dependency-cruiser](https://github.com/sverweij/dependency-cruiser)に着想を得た、Rust向けの論理モジュール境界検証CLIです。Cargo packageとcompilation targetを1つずつ解析し、依存方向と循環依存をプロジェクト固有のポリシーに対して検証します。
 
 ## できること
 
@@ -19,19 +19,92 @@ JavaScript/TypeScript向けの[dependency-cruiser](https://github.com/sverweij/d
 - macro expansionや名前解決をRustコンパイラと同等に完全解決する。既定の`compilation` profileではCargo feature、target dependency、rustcのtarget cfg、既知macroと字句scopeを解析し、残る解析範囲外の構造が境界判定へ影響し得る場合だけ`indeterminate`になる。`source-union` profileは同じ判定保証を提供しない
 - dependency-cruiserの設定ファイルやルールとの互換性を提供する
 
-## 前提
+## 導入
 
-- 開発・CIで検証するRust toolchainは1.98.0（`rustc` / `cargo` 1.98.0、`rust-toolchain.toml`で固定）。これはMSRVの宣言ではありません
+Linux x86_64、macOS arm64、Windows x86_64 に対応しています。installer はユーザー単位で配置し、PATH は自動変更しません。
 
-## CLI情報
+### Linux・macOS
 
 ```sh
+curl -fsSL --proto '=https' --proto-redir '=https' "https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install.sh" | sh
+```
+
+managed root はLinuxが `~/.local/share/a3-suite/a3-rust-cruiser/standalone`、macOSが `~/Library/Application Support/a3-suite/a3-rust-cruiser/standalone` です。launcher はどちらも `~/.local/bin/a3-rust-cruiser` に配置されます。コマンド名で実行するには、現在のシェルで PATH に追加します。
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+### Windows
+
+Windows PowerShell 5.1 以降で実行してください。
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm 'https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install.ps1' | iex"
+```
+
+managed root は `%LOCALAPPDATA%\a3-suite\a3-rust-cruiser\standalone`、launcher は `%LOCALAPPDATA%\Programs\a3-suite\a3-rust-cruiser\bin\a3-rust-cruiser.exe` に配置されます。コマンド名で実行するには、現在の PowerShell セッションで PATH に追加して導入を確認します。
+
+```powershell
+$env:Path = "$env:LOCALAPPDATA\Programs\a3-suite\a3-rust-cruiser\bin;$env:Path"
+```
+
+PATH を設定したシェルで次を実行し、`0.1.0` と表示されることを確認してください。
+
+```text
 a3-rust-cruiser --version
+```
+
+オフライン導入は[セットアップ手順](docs/operations/setup-release.md)を参照してください。
+
+### アンインストール
+
+実行中のCLIとインストーラを終了してから削除してください。インストール先の全バージョンと管理情報を削除します。残したいファイルがある場合は事前に退避してください。
+
+Linux:
+
+```sh
+rm -f "$HOME/.local/bin/a3-rust-cruiser"
+rm -r "$HOME/.local/share/a3-suite/a3-rust-cruiser/standalone"
+```
+
+macOS:
+
+```sh
+rm -f "$HOME/.local/bin/a3-rust-cruiser"
+rm -r "$HOME/Library/Application Support/a3-suite/a3-rust-cruiser/standalone"
+```
+
+Windows PowerShell:
+
+```powershell
+$launcher = "$env:LOCALAPPDATA\Programs\a3-suite\a3-rust-cruiser\bin\a3-rust-cruiser.exe"
+$managedRoot = "$env:LOCALAPPDATA\a3-suite\a3-rust-cruiser\standalone"
+if (Test-Path -LiteralPath $launcher) { Remove-Item -LiteralPath $launcher -Force }
+if (Test-Path -LiteralPath $managedRoot) { Remove-Item -LiteralPath $managedRoot -Recurse -Force }
+```
+
+永続設定に追加した製品専用のPATH項目だけ外してください。共有の `~/.local/bin` は残してください。
+
+## 使い方
+
+導入したCLIで、Cargo projectの論理モジュール境界を検証します。検証対象のprojectを扱えるRust toolchain（`rustc` / `cargo`）が利用できる前提です。
+
+```sh
+a3-rust-cruiser check ./my-rust-project \
+  --policy boundary-policy.yaml \
+  --package my-package \
+  --target bin:my-binary \
+  --target-triple "$(rustc -vV | sed -n 's/^host: //p')" \
+  --format text
+```
+
+`decision: conformant` と終了コード `0` が返れば適合です。`non-conformant` は `1`、`indeterminate` は `2`、入力不正や実行失敗は `3` を返します。
+
+```sh
 a3-rust-cruiser --help
 a3-rust-cruiser check --help
 ```
-
-GitHub Releaseの固定版セットアップとchecksum検証は、`skills/a3-rust-cruiser`の公開スキルを使用します。
 
 ## ポリシーの作成
 
@@ -41,21 +114,14 @@ SDDを正本として運用するプロジェクトでは、`boundary-policy.yam
 
 境界入力は、通常のプロジェクトではYAML boundary policyを`--policy`で指定し、SDD対応プロジェクトではownerが生成した`resolved-implementation-attribution` version 1を`--resolved-implementation-attribution`で指定します。2つの入力は相互排他です。解決済み実装帰属は中間変換せず、ownerが確定したfile attributionと依存関係を使用します。
 
-## 最短実行
+## 関連情報
 
-同梱の最小プロジェクトを検証します。
-
-```sh
-cargo run -- check examples/minimal-project \
-  --policy examples/minimal-project/boundary-policy.yaml \
-  --package minimal-project \
-  --target bin:minimal-project \
-  --target-triple "$(rustc -vV | sed -n 's/^host: //p')" \
-  --format text
-```
-
-`decision: conformant` と終了コード `0` が返れば成功です。
+- [成果物の運用（導入・利用の詳細）](docs/operations/README.md)
+- [ドキュメント一覧](docs/README.md)
+- [BoundaryPolicy作成ガイド](skills/a3-rust-cruiser/references/create-boundary-policy.guide.md)
+- [実行ガイド（BoundaryPolicy入力）](skills/a3-rust-cruiser/references/run-boundary-policy-check.guide.md)
+- [実行ガイド（resolved-implementation-attribution入力）](skills/a3-rust-cruiser/references/run-resolved-implementation-attribution-check.guide.md)
 
 ## ライセンス
 
-[MIT License](LICENSE) で公開します。
+[MIT License](LICENSE)のもとで提供します。

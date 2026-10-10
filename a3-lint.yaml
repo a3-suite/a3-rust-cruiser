@@ -6,8 +6,8 @@ project:
 
   rule_sets:
     - id: skill-rust
-      root: ${skills_root}/rust/rust/assets/a3-lint/rules
-      lib_dir: ${skills_root}/rust/rust/assets/a3-lint/shared
+      root: ${skills_root}/rust/assets/a3-lint/rules
+      lib_dir: ${skills_root}/rust/assets/a3-lint/shared
       include:
         - '**/*.lua'
         - '**/*.yml'
@@ -18,8 +18,8 @@ project:
         - any
 
     - id: skill-rust-semantic-extension
-      root: ${skills_root}/rust/rust/assets/a3-lint/semantic-extension
-      lib_dir: ${skills_root}/rust/rust/assets/a3-lint/shared
+      root: ${skills_root}/rust/assets/a3-lint/semantic-extension
+      lib_dir: ${skills_root}/rust/assets/a3-lint/shared
       include:
         - '**/*.lua'
         - '**/*.yml'
@@ -30,8 +30,8 @@ project:
         - any
 
     - id: skill-cargo
-      root: ${skills_root}/rust/cargo/assets/a3-lint/rules
-      lib_dir: ${skills_root}/rust/cargo/assets/a3-lint/shared
+      root: ${skills_root}/cargo/assets/a3-lint/rules
+      lib_dir: ${skills_root}/cargo/assets/a3-lint/shared
       include:
         - '**/*.lua'
         - '**/*.yml'
@@ -42,8 +42,8 @@ project:
         - cargo
 
     - id: skill-cargo-semantic-extension
-      root: ${skills_root}/rust/cargo/assets/a3-lint/semantic-extension
-      lib_dir: ${skills_root}/rust/cargo/assets/a3-lint/shared
+      root: ${skills_root}/cargo/assets/a3-lint/semantic-extension
+      lib_dir: ${skills_root}/cargo/assets/a3-lint/shared
       include:
         - '**/*.lua'
         - '**/*.yml'

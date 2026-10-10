@@ -16,7 +16,12 @@ claim_profile:
   - kind: value-relation
     allowed_ops:
       - in
+      - equals
     relation_compatibility:
+      - left_kind: observation_field
+        right_kind: input_field
+        allowed_ops:
+          - equals
       - left_kind: observation_field
         right_kind: value_set
         allowed_ops:

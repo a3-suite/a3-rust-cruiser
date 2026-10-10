@@ -1,6 +1,6 @@
 ---
 name: a3-rust-cruiser
-description: 非SDDのRustプロジェクトで決定した境界ルールからYAML boundary policyを作成・修正するとき、GitHub Releaseの固定版a3-rust-cruiser CLIをセットアップするとき、またはpolicyやowner生成済みの解決済み実装帰属で論理モジュール依存、境界違反、循環依存を検証するときに使う。
+description: 非SDDのRustプロジェクトで決定した境界ルールからYAML boundary policyを作成・修正するとき、GitHub Releaseの固定版a3-rust-cruiser CLIを標準installer bundleからセットアップするとき、またはpolicyやowner生成済みの解決済み実装帰属で論理モジュール依存、境界違反、循環依存を検証するときに使う。
 ---
 
 # a3-rust-cruiser / SKILL
@@ -8,7 +8,7 @@ description: 非SDDのRustプロジェクトで決定した境界ルールから
 ## 目的
 
 - Rust プロジェクトの論理モジュール境界を、プロジェクトが所有する YAML boundary policyまたはowner生成済みの解決済み実装帰属に対して検証する。
-- GitHub Release の固定版CLIをchecksum検証後に導入し、導入versionとcommand pathを確認する。
+- GitHub Release の標準 installer bundle と固定版CLI archiveをchecksum検証後に導入し、導入versionと実行pathを確認する。
 - 検証結果を `conformant`、`non-conformant`、`indeterminate` に区別し、根拠とともに報告する。
 
 ## 原則
@@ -25,15 +25,15 @@ description: 非SDDのRustプロジェクトで決定した境界ルールから
 
 - 非対象: crate 間や workspace package 間の依存検証。
 - 非対象: プロジェクトのアーキテクチャ方針の独自決定、a3-rust-cruiser 自体の開発。
-- 対応platformはLinux x86_64とmacOS arm64に限定する。
+- 対応platformはLinux x86_64、macOS arm64、Windows x86_64。
 - macro expansion など解析できない構造がある場合、違反が0件でも検証完了とは扱わない。
 
 ## トリガー＆アクション
 
 ### a3-rust-cruiserをセットアップしたい
 
-- 固定version、対応platform、既存CLI、install directory、PATHを事前確認する。
-- 外部取得とinstall directoryへの書き込みについて利用者の承認後、checksum検証を伴うセットアップを実行する。
+- 固定versionと対応platformを確認し、標準 installer bundle と固定 manifest / CLI archive を checksum 検証してからセットアップする。
+- 既定は per-user CLI profile とし、PATH は自動変更しない。取得済みの manifest と CLI archive を使う場合は offline mode を選ぶ。
 - 参照: references/setup-release.guide.md
 
 ### YAML BoundaryPolicyで論理モジュール境界を検証したい
