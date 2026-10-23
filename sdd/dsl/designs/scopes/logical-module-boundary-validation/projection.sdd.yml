@@ -1,6 +1,5 @@
 version: 2
 name: projection
-projection_id: logical-module-boundary-validation-source
 mappings:
   - component_id: entrypoint-composition
     element_id: src-entrypoints

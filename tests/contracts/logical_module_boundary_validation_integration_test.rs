@@ -304,7 +304,20 @@ fn completed_json(output: &Output, exit_code: i32) -> Value {
         "unexpected stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    serde_json::from_slice(&output.stdout).expect("valid JSON report")
+    let report: Value = serde_json::from_slice(&output.stdout).expect("valid JSON report");
+    // Report-wide guarantees hold for every completed JSON report, so the contract test maps
+    // credit them to each test that reads its report through this helper.
+    assert_eq!(report["serialization"], "json");
+    assert_eq!(report["ordering"], "canonical");
+    assert_eq!(report["decision"], completed_decision(exit_code));
+    assert!(matches!(
+        report["analysis_context"]["analysis_profile"].as_str(),
+        Some("compilation" | "source-union")
+    ));
+    assert!(report["dependencies"].is_array());
+    assert!(report["violations"].is_array());
+    assert!(report["analysis_issues"].is_array());
+    report
 }
 
 fn completed_text(output: &Output, exit_code: i32) -> String {
@@ -314,7 +327,22 @@ fn completed_text(output: &Output, exit_code: i32) -> String {
         "unexpected stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    String::from_utf8(output.stdout.clone()).expect("text report is UTF-8")
+    let payload = String::from_utf8(output.stdout.clone()).expect("text report is UTF-8");
+    assert!(payload.contains("serialization: text\n"));
+    assert!(payload.contains("ordering: canonical\n"));
+    assert!(payload.contains(&format!("decision: {}\n", completed_decision(exit_code))));
+    payload
+}
+
+// The CLI exit code of a completed check is defined by its decision, so asserting the exit code
+// and the reported decision together keeps both sides of that contract observable.
+fn completed_decision(exit_code: i32) -> &'static str {
+    match exit_code {
+        0 => "conformant",
+        1 => "non-conformant",
+        2 => "indeterminate",
+        _ => panic!("exit code {exit_code} is not a completed check"),
+    }
 }
 
 fn assert_completed_output(output: &Output, exit_code: i32, decision: &str) {

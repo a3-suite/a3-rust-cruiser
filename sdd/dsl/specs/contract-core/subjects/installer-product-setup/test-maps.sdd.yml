@@ -1,16 +1,15 @@
 version: 1
 name: contract-test-maps
-subject_ref: subject.installer.product-setup
 test_maps:
-  - verification_id: verification.installer.product-setup
+  - contract_id: contract.installer.product-setup.consistency
     case_id: product-installer-setup-is-consistent
     tests:
       - path: tests/ci/installer-standard-contract-test.sh
         symbol: installer_standard_contract
-        check_refs:
-          - check-package-version-matches-release-version
-          - check-assembly-version-matches-release-version
-          - check-manifest-version-matches-release-version
-          - check-readme-version-matches-release-version
-          - check-skill-setup-entrypoint
-          - check-retired-installer-assets-are-absent
+        guarantees:
+          - package-version-matches-release-version
+          - assembly-version-matches-release-version
+          - manifest-version-matches-release-version
+          - readme-version-matches-release-version
+          - installer-setup-configuration-consistent
+          - project-installer-runtime-assets-are-absent

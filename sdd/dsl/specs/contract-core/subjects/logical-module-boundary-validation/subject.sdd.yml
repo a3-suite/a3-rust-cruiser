@@ -3,3 +3,564 @@ name: contract-subject
 subject:
   id: subject.logical-module-boundary.validation
   summary: Rust論理モジュールの依存を観測し、境界ポリシーへの適合性を判定するcapability
+contracts:
+  - id: contract.logical-module-boundary.dependency-graph
+    summary: 1回の解析はcompilationまたはsource-unionを持つ一意なAnalysisContextを使い、ModuleDeclarationを利用依存から分離し、 import、re-export、解決済みpath-referenceだけをDependencyEdgeとして観測する。 compilationはCargo manifest、選択feature、target tripleに対するrustc cfgを組み合わせたcompile条件を観測範囲とし、 有効・無効を確定できるcfg、Cargo target dependency、optional dependencyを選別する。字句scope内のuse alias、local binding、 同一moduleの宣言名、既知の依存中立macroとserdeを正規提供元とするderive、定義形状とmacro namespaceを一意に証明できる限定local macro、既知macroの引数内path、serdeの既知関数path属性、および同じ証明条件を満たす限定item macroの生成itemとpathを解決し、それでも未対応のmacro展開、cfg評価、名前解決が 境界判定へ影響し得る場合だけ解析未完了とする。 source-unionはsourceに記述された全cfg分岐を和集合として観測し、macroまたはattribute展開だけが生成する依存を観測範囲外とするが、明示的な内部参照を解決できない場合は解析未完了とする。 includeとexcludeはBoundaryPolicyと同じLogicalModule ID patternを使い、include省略時は全moduleを候補とし、excludeを優先する。 選択済みmoduleを依存元とし、内部依存先も選択済みの辺だけを保持するが、外部crate依存先は依存元が選択済みなら保持する。 内部論理モジュールと外部crateを区別し、同一入力の集合と順序を決定的にする。
+    external_document_refs:
+      - document_id: dependency-cruiser-readme
+        locator: What's this do?
+      - document_id: dependency-cruiser-output-format
+        locator: modules; dependencies
+    observations:
+      - boundary: boundary.cli-result
+        summary: textまたはJSONへ直列化される共通の検証結果
+        surface: formatで選択したtextまたはJSON標準出力
+        fields:
+          - selector: result.analysis_context
+            meaning: analysis profile、package、compilation target、feature、cfg、target tripleを持つ解析条件
+          - selector: result.analysis_context.analysis_profile
+            meaning: compilationまたはsource-unionで表す依存観測範囲
+          - selector: result.modules
+            meaning: LogicalModule IDで昇順に並ぶ内部論理モジュールの集合
+          - selector: result.module_declarations
+            meaning: 利用依存とは分離されたmod宣言による包含関係
+          - selector: result.dependencies
+            meaning: 依存元、依存先、依存種別、SourceEvidenceを持つ依存辺の集合
+          - selector: result.dependencies.kind
+            meaning: 各依存辺のDependencyKind
+          - selector: result.dependencies.target_scope
+            meaning: 各依存先が内部論理モジュールまたは外部crateのどちらかを表す分類
+          - selector: result.excluded_scopes
+            meaning: 明示的な除外条件により解析対象外となった範囲
+    conditions:
+      - input: compilation-profile-request
+      - input: source-union-request-present
+    guarantees:
+      - id: analysis-context-present
+        claim: {field: result.analysis_context, present: true}
+      - id: analysis-profile-supported
+        claim: {field: result.analysis_context.analysis_profile, in: [compilation, source-union]}
+      - id: source-union-profile-selected
+        applies_to:
+          - source-union-request-present
+        claim: {field: result.analysis_context.analysis_profile, in: [source-union]}
+      - id: logical-modules-present
+        claim: {field: result.modules, present: true}
+      - id: module-declarations-separated
+        claim: {field: result.module_declarations, present: true}
+      - id: dependency-edges-present
+        claim: {field: result.dependencies, present: true}
+      - id: dependency-kind-supported
+        claim: {field: result.dependencies.kind, in: [import, re-export, path-reference]}
+      - id: dependency-target-scope-supported
+        claim: {field: result.dependencies.target_scope, in: [internal-module, external-crate]}
+      - id: excluded-scopes-present
+        claim: {field: result.excluded_scopes, present: true}
+  - id: contract.logical-module-boundary.boundary-policy-input
+    summary: CLIが受け取るBoundaryPolicy YAMLはrules配列をrootとし、各ruleは必須のid、kind、severityと、 任意のfrom、to、modules、dependency_kinds配列を持つ。kindはforbidden、allowed、circular、 severityはerror、warning、dependency_kindsはimport、re-export、path-referenceだけを受理する。 任意配列の省略は空配列として扱う。forbiddenとallowedは空でないfromとtoだけを使用し、 circularは空でないmodulesだけを使用する。patternは空でない`::`区切りのsegment列とし、 各segmentにはliteral、`*`、`**`だけを受理する。未定義field、未対応enum、重複または kebab-caseでないid、kind別field制約またはpattern文法に反するruleは解析開始前の入力失敗として扱う。 CLIはBoundaryPolicy YAMLまたはsdd-designs owner contractが定義する resolved-implementation-attribution version 1一時出力のいずれか一つを受け取り、入力源を相互排他的に扱う。 owner出力は公開CLIから変換なしで受理し、そのshape、provenance、cardinality、帰属選択規則はowner contractに従う。 不正なowner出力はRust dependency観測を開始する前に入力失敗として扱う。 consumerはownerが解決済みのfile帰属、component dependency、scope dependencyを使用し、owner DSL、field binding、 exactまたはdeepest directory規則、親directoryからの暗黙継承を再解釈または再計算しない。 未観測fileの余剰entryは許可し、Rust module ID、covered module、unresolved moduleはconsumerが導出する。 package、compilation target、target triple、features、cfg、analysis profile、include、excludeは公開CLIのconsumer-owned AnalysisContextとして独立に受理する。consumerは同じcheck内の一回のRust dependency観測から、 全選択moduleの全source fileをexact pathでfile帰属へ結合し、全fileが同じowner tupleへ解決したmoduleだけをcoveredとする。 file帰属の欠落、source fileなし、または一つのmodule内でowner tupleが競合する場合はunresolved coverageとして導出する。 解決済みmoduleは同一component、同scope別component、cross-scopeの順に component dependencyまたはscope dependencyへ照合する。scope dependencyのcontract_refsはcontract_idを持ち、 traceabilityだけに用いて依存許可条件にしない。 帰属またはcoverageがunresolvedならconformantへ縮退させずindeterminate、禁止edgeを確定できればnon-conformantとする。 owner一時出力は`--resolved-implementation-attribution`から既存loader、evaluator、reportへ渡し、owner DSLを再解釈せず、version 1入力をversion 2へ暗黙変換しない。
+    observations:
+      - boundary: boundary.cli-result
+        summary: CLIプロセスが返す終了状態と標準streamの種別、textまたはJSONへ直列化される共通の検証結果
+        surface: process exit status、formatで選択したtextまたはJSON標準出力
+        fields:
+          - selector: process.exit_code
+            meaning: ValidationDecisionまたはCLI実行失敗を表す終了コード
+          - selector: process.stdout_status
+            meaning: validation-result、informationまたはemptyで表す標準出力の状態
+          - selector: process.stderr_status
+            meaning: diagnosticまたはemptyで表す標準エラーの状態
+          - selector: process.stderr_diagnostic_source
+            meaning: 標準エラーへ出力された診断の原因となった入力または実行段階の安定した分類
+          - selector: result.decision
+            meaning: conformant、non-conformant、indeterminateのいずれかで表すValidationDecision
+          - selector: result.normalized_sdd_coverage
+            meaning: 公開CLIのresolved-implementation-attribution入力でだけ存在し、producer、dsl nameとartifact identity axesで識別したordered artifact instance provenance、consumerが公開CLIのAnalysisContextと全選択moduleのsource file exact joinから導出したcovered moduleと、module ID、observed file path集合、理由を持つunresolved moduleのcoverage証跡
+    conditions:
+      - input: valid-boundary-policy-input
+      - input: invalid-boundary-policy-input
+      - input: valid-resolved-implementation-attribution-input
+      - input: invalid-resolved-implementation-attribution-input
+      - input: unresolved-implementation-attribution
+      - input: forbidden-resolved-attribution-edge
+    guarantees:
+      - id: valid-policy-source-accepted
+        applies_to:
+          - valid-boundary-policy-input
+          - valid-resolved-implementation-attribution-input
+        claim: {field: process.exit_code, in: ['0', '1', '2']}
+      - id: invalid-policy-source-exits-with-three
+        applies_to:
+          - invalid-boundary-policy-input
+          - invalid-resolved-implementation-attribution-input
+        claim: {field: process.exit_code, in: ['3']}
+      - id: invalid-boundary-policy-input-keeps-stdout-empty
+        applies_to:
+          - invalid-boundary-policy-input
+        claim: {field: process.stdout_status, in: [empty]}
+      - id: invalid-boundary-policy-input-writes-stderr-diagnostic
+        applies_to:
+          - invalid-boundary-policy-input
+        claim: {field: process.stderr_status, in: [diagnostic]}
+      - id: resolved-attribution-coverage-is-reported
+        applies_to:
+          - valid-resolved-implementation-attribution-input
+        claim: {field: result.normalized_sdd_coverage, present: true}
+      - id: invalid-resolved-implementation-attribution-input-reports-its-diagnostic-before-observation
+        applies_to:
+          - invalid-resolved-implementation-attribution-input
+        claim: {field: process.stderr_diagnostic_source, in: [resolved-implementation-attribution]}
+      - id: unresolved-implementation-attribution-is-indeterminate
+        applies_to:
+          - unresolved-implementation-attribution
+        claim: {field: result.decision, in: [indeterminate]}
+      - id: forbidden-resolved-attribution-edge-is-non-conformant
+        applies_to:
+          - forbidden-resolved-attribution-edge
+        claim: {field: result.decision, in: [non-conformant]}
+  - id: contract.logical-module-boundary.policy-evaluation
+    summary: 有効なBoundaryPolicyのforbiddenとallowedはfrom、toのpattern集合、circularはmodulesのpattern集合を使う。 patternはLogicalModule IDの::区切りsegmentへ一致し、*は1 segment、**は0以上のsegment、その他の文字はliteralとして扱う。 dependency_kinds省略時は全DependencyKindへ一致する。 同じ依存に一致するforbidden ruleはすべて違反を生成し、適用可能なallowed rule群は許可先の和集合として評価する。 forbiddenはallowedより優先し、circularは両者から独立して評価して、先に一致したruleだけで結果を隠さない。
+    external_document_refs:
+      - document_id: dependency-cruiser-rules-reference
+        locator: forbidden; allowed; conditions
+    observations:
+      - boundary: boundary.cli-result
+        summary: textまたはJSONへ直列化される共通の検証結果
+        surface: formatで選択したtextまたはJSON標準出力
+        fields:
+          - selector: result.violations
+            meaning: rule ID、重大度、依存元、依存先、依存種別、SourceEvidenceを持つ境界違反の集合
+          - selector: result.violations.kind
+            meaning: 各境界違反を生じさせたBoundaryPolicy ruleの種別
+          - selector: result.violations.rule_id
+            meaning: 違反したBoundaryPolicy ruleの一意なID
+          - selector: result.violations.severity
+            meaning: 違反したruleのerrorまたはwarning重大度
+          - selector: result.violations.source
+            meaning: 違反した依存元のLogicalModule ID
+          - selector: result.violations.target
+            meaning: 違反した依存先のLogicalModule ID
+          - selector: result.violations.dependency_kind
+            meaning: 違反した依存のDependencyKind
+          - selector: result.violations.evidence.path
+            meaning: 違反依存を観測したプロジェクトルート相対のUTF-8ソースパス
+          - selector: result.violations.evidence.line
+            meaning: 違反依存を観測した1始まりの行番号
+          - selector: result.violations.evidence.column
+            meaning: 違反依存を観測した1始まりのUnicode scalar value列番号
+          - selector: result.violations.cycle_path
+            meaning: circular違反に限り循環を閉じる先頭と末尾が同じLogicalModule ID列
+          - selector: result.policy_evaluation.dependency_outcome
+            meaning: 依存1件に対するallowed、forbidden、not-allowedの評価結果
+          - selector: result.policy_evaluation.cycle_outcome
+            meaning: 対象graphに対するacyclicまたはcircularの評価結果
+          - selector: result.policy_evaluation.forbidden_match_handling
+            meaning: 一致した全forbidden ruleを評価したことを表すall-matches
+          - selector: result.policy_evaluation.allowed_match_handling
+            meaning: 適用可能なallowed ruleの許可先を和集合化したことを表すunion
+          - selector: result.policy_evaluation.cycle_handling
+            meaning: allowedとforbiddenから独立して循環を評価したことを表すindependent
+    conditions:
+      - input: forbidden-and-allowed-match
+      - input: allowed-union-matches
+      - input: allowed-union-misses
+      - input: allowed-cycle-present
+    guarantees:
+      - id: violations-present
+        claim: {field: result.violations, present: true}
+      - id: violation-kind-supported
+        applies_to:
+          - forbidden-and-allowed-match
+          - allowed-union-misses
+          - allowed-cycle-present
+        claim: {field: result.violations.kind, in: [forbidden, not-allowed, circular]}
+      - id: violation-rule-id-present
+        applies_to:
+          - forbidden-and-allowed-match
+          - allowed-union-misses
+          - allowed-cycle-present
+        claim: {field: result.violations.rule_id, present: true}
+      - id: violation-severity-supported
+        applies_to:
+          - forbidden-and-allowed-match
+          - allowed-union-misses
+          - allowed-cycle-present
+        claim: {field: result.violations.severity, in: [error, warning]}
+      - id: violation-source-present
+        applies_to:
+          - forbidden-and-allowed-match
+          - allowed-union-misses
+          - allowed-cycle-present
+        claim: {field: result.violations.source, present: true}
+      - id: violation-target-present
+        applies_to:
+          - forbidden-and-allowed-match
+          - allowed-union-misses
+          - allowed-cycle-present
+        claim: {field: result.violations.target, present: true}
+      - id: violation-dependency-kind-present
+        applies_to:
+          - forbidden-and-allowed-match
+          - allowed-union-misses
+          - allowed-cycle-present
+        claim: {field: result.violations.dependency_kind, present: true}
+      - id: violation-source-evidence-present
+        applies_to:
+          - forbidden-and-allowed-match
+          - allowed-union-misses
+          - allowed-cycle-present
+        claim: {field: result.violations.evidence.path, present: true}
+      - id: violation-source-line-present
+        applies_to:
+          - forbidden-and-allowed-match
+          - allowed-union-misses
+          - allowed-cycle-present
+        claim: {field: result.violations.evidence.line, present: true}
+      - id: violation-source-column-present
+        applies_to:
+          - forbidden-and-allowed-match
+          - allowed-union-misses
+          - allowed-cycle-present
+        claim: {field: result.violations.evidence.column, present: true}
+      - id: all-forbidden-matches-evaluated
+        claim: {field: result.policy_evaluation.forbidden_match_handling, in: [all-matches]}
+      - id: allowed-targets-unioned
+        claim: {field: result.policy_evaluation.allowed_match_handling, in: [union]}
+      - id: cycle-evaluated-independently
+        claim: {field: result.policy_evaluation.cycle_handling, in: [independent]}
+      - id: forbidden-overrides-allowed
+        applies_to:
+          - forbidden-and-allowed-match
+        claim: {field: result.policy_evaluation.dependency_outcome, in: [forbidden]}
+      - id: matching-dependency-allowed
+        applies_to:
+          - allowed-union-matches
+          - allowed-cycle-present
+        claim: {field: result.policy_evaluation.dependency_outcome, in: [allowed]}
+      - id: allowed-union-rejects-dependency
+        applies_to:
+          - allowed-union-misses
+        claim: {field: result.policy_evaluation.dependency_outcome, in: [not-allowed]}
+      - id: allowed-rules-do-not-suppress-cycle
+        applies_to:
+          - allowed-cycle-present
+        claim: {field: result.policy_evaluation.cycle_outcome, in: [circular]}
+      - id: circular-violation-cycle-path-present
+        applies_to:
+          - allowed-cycle-present
+        claim: {field: result.violations.cycle_path, present: true}
+  - id: contract.logical-module-boundary.validation-report
+    summary: BoundaryViolationが1件でもあれば重大度によらずnon-conformantを最優先し、 違反がなく現在policyへの影響がpossibleなAnalysisIssueが1件でもあればindeterminate、 それ以外はAnalysisIssueが存在してもconformantとする。JSONとtextは同じ判断、違反、解析問題を表し、 moduleはid、declarationはparent・child・evidence、dependencyはsource・target・kind・evidence、 violationはrule_id・source・target・dependency_kind・evidence、analysis issueはcode・affected_scope・reasonに加え、 観測結果と現在policyへの影響を独立した型付きfieldで保持する。確定依存と確定違反はAnalysisIssueへ複製しない。 未解決依存候補では、sourceとdependency kindに適用可能なforbidden・circular ruleのうち、候補集合が空またはpatternに一致する候補を持つruleを 影響し得るrule IDへ含める。allowed ruleは、候補集合が空、または許可先和集合に含まれない候補が1つでもある場合に、適用可能なrule IDを 影響へ含め、候補集合が空でなく全候補が許可先和集合に含まれる場合は含めない。影響し得るruleがなければnone、1つ以上ならpossibleとする。 候補target、dependency kind、rule ID、excluded scopeは文字列を比較keyとして昇順かつ重複なしで出力する。
+    observations:
+      - boundary: boundary.cli-result
+        summary: textまたはJSONへ直列化される共通の検証結果
+        surface: formatで選択したtextまたはJSON標準出力
+        fields:
+          - selector: result.schema_version
+            meaning: JSON契約のmajor版を表す文字列。BoundaryPolicy YAML入力は2、resolved-implementation-attribution入力とconsumer派生coverageを持つ公開CLI版は3
+          - selector: result.serialization
+            meaning: 共通の検証結果を直列化したtextまたはjson
+          - selector: result.ordering
+            meaning: 契約で定義した比較keyを用いるcanonical順序
+          - selector: result.violations
+            meaning: rule ID、重大度、依存元、依存先、依存種別、SourceEvidenceを持つ境界違反の集合
+          - selector: result.analysis_issues
+            meaning: stable code、理由、影響範囲、観測結果、現在policyへの影響を持つ解析問題の集合
+          - selector: result.analysis_issues.code
+            meaning: 解析問題を分類するstable code
+          - selector: result.analysis_issues.reason
+            meaning: 解析を完了できない理由
+          - selector: result.analysis_issues.affected_scope
+            meaning: 判定不能の影響を受けるLogicalModule IDまたはソース範囲
+          - selector: result.analysis_issues.observation.outcome
+            meaning: unresolved-dependency-candidate、dependency-neutral、analysis-context-unresolved、component-attribution-unresolvedのいずれかで表す観測結果
+          - selector: result.analysis_issues.observation.source_module
+            meaning: 発生元を追跡可能な場合のLogicalModule ID
+          - selector: result.analysis_issues.policy_impact.outcome
+            meaning: 現在policyへの影響をnoneまたはpossibleで表す評価結果
+          - selector: result.analysis_issues.policy_impact.rule_ids
+            meaning: 影響し得る現在policyのrule IDをcanonical順に並べた集合
+          - selector: result.decision
+            meaning: conformant、non-conformant、indeterminateのいずれかで表すValidationDecision
+    conditions:
+      - input: complete-without-violation
+      - input: complete-with-violation
+      - input: observed-violation-with-possible-policy-impact
+      - input: possible-policy-impact-without-violation
+      - input: unresolved-dependency-without-policy-impact
+      - input: unresolved-candidate-allowed-union-matches
+      - input: unresolved-candidate-allowed-union-misses
+      - input: unresolved-candidate-targets-empty
+      - input: dependency-neutral-analysis-issue
+      - input: resolved-analysis-context
+      - input: path-module-analysis-issue
+      - input: legacy-json-report-request
+      - input: resolved-implementation-attribution-json-report-request
+      - input: text-report-request
+      - input: possible-policy-impact-analysis-issue
+    guarantees:
+      - id: conformant-decision
+        applies_to:
+          - complete-without-violation
+          - unresolved-dependency-without-policy-impact
+          - unresolved-candidate-allowed-union-matches
+          - dependency-neutral-analysis-issue
+          - resolved-analysis-context
+        claim: {field: result.decision, in: [conformant]}
+      - id: non-conformant-decision
+        applies_to:
+          - complete-with-violation
+          - observed-violation-with-possible-policy-impact
+        claim: {field: result.decision, in: [non-conformant]}
+      - id: indeterminate-decision
+        applies_to:
+          - possible-policy-impact-without-violation
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+          - path-module-analysis-issue
+          - possible-policy-impact-analysis-issue
+        claim: {field: result.decision, in: [indeterminate]}
+      - id: analysis-issue-has-possible-policy-impact
+        applies_to:
+          - observed-violation-with-possible-policy-impact
+          - possible-policy-impact-without-violation
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+          - path-module-analysis-issue
+          - possible-policy-impact-analysis-issue
+        claim: {field: result.analysis_issues.policy_impact.outcome, in: [possible]}
+      - id: possible-policy-impact-rule-ids-present
+        applies_to:
+          - observed-violation-with-possible-policy-impact
+          - possible-policy-impact-without-violation
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+          - path-module-analysis-issue
+          - possible-policy-impact-analysis-issue
+        claim: {field: result.analysis_issues.policy_impact.rule_ids, present: true}
+      - id: path-module-source-module-present
+        applies_to:
+          - path-module-analysis-issue
+        claim: {field: result.analysis_issues.observation.source_module, present: true}
+      - id: json-schema-version-present
+        applies_to:
+          - legacy-json-report-request
+        claim: {field: result.schema_version, in: ['2']}
+      - id: resolved-attribution-json-schema-version-is-three
+        applies_to:
+          - resolved-implementation-attribution-json-report-request
+        claim: {field: result.schema_version, in: ['3']}
+      - id: analysis-issues-present
+        applies_to:
+          - possible-policy-impact-without-violation
+          - unresolved-dependency-without-policy-impact
+          - unresolved-candidate-allowed-union-matches
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+          - dependency-neutral-analysis-issue
+          - resolved-analysis-context
+          - path-module-analysis-issue
+          - legacy-json-report-request
+          - resolved-implementation-attribution-json-report-request
+          - text-report-request
+          - possible-policy-impact-analysis-issue
+        claim: {field: result.analysis_issues, present: true}
+      - id: analysis-issue-code-supported
+        applies_to:
+          - possible-policy-impact-without-violation
+          - unresolved-dependency-without-policy-impact
+          - unresolved-candidate-allowed-union-matches
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+          - dependency-neutral-analysis-issue
+          - path-module-analysis-issue
+          - legacy-json-report-request
+          - text-report-request
+          - possible-policy-impact-analysis-issue
+        claim: {field: result.analysis_issues.code, in: [analysis.unresolved-reference, analysis.unsupported-macro-expansion, analysis.unsupported-name-resolution, analysis.unsupported-syntax, analysis.unsupported-analysis-context]}
+      - id: analysis-issue-reason-present
+        applies_to:
+          - possible-policy-impact-without-violation
+          - unresolved-dependency-without-policy-impact
+          - unresolved-candidate-allowed-union-matches
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+          - dependency-neutral-analysis-issue
+          - path-module-analysis-issue
+          - legacy-json-report-request
+          - text-report-request
+          - possible-policy-impact-analysis-issue
+        claim: {field: result.analysis_issues.reason, present: true}
+      - id: analysis-issue-affected-scope-present
+        applies_to:
+          - possible-policy-impact-without-violation
+          - unresolved-dependency-without-policy-impact
+          - unresolved-candidate-allowed-union-matches
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+          - dependency-neutral-analysis-issue
+          - path-module-analysis-issue
+          - legacy-json-report-request
+          - text-report-request
+          - possible-policy-impact-analysis-issue
+        claim: {field: result.analysis_issues.affected_scope, present: true}
+      - id: analysis-observation-outcome-supported
+        applies_to:
+          - possible-policy-impact-without-violation
+          - unresolved-dependency-without-policy-impact
+          - unresolved-candidate-allowed-union-matches
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+          - dependency-neutral-analysis-issue
+          - path-module-analysis-issue
+          - legacy-json-report-request
+          - text-report-request
+          - possible-policy-impact-analysis-issue
+        claim: {field: result.analysis_issues.observation.outcome, in: [unresolved-dependency-candidate, dependency-neutral, analysis-context-unresolved, component-attribution-unresolved]}
+      - id: analysis-policy-impact-outcome-supported
+        applies_to:
+          - possible-policy-impact-without-violation
+          - unresolved-dependency-without-policy-impact
+          - unresolved-candidate-allowed-union-matches
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+          - dependency-neutral-analysis-issue
+          - path-module-analysis-issue
+          - legacy-json-report-request
+          - text-report-request
+          - possible-policy-impact-analysis-issue
+        claim: {field: result.analysis_issues.policy_impact.outcome, in: [none, possible]}
+      - id: dependency-neutral-has-no-policy-impact
+        applies_to:
+          - unresolved-dependency-without-policy-impact
+          - unresolved-candidate-allowed-union-matches
+          - dependency-neutral-analysis-issue
+        claim: {field: result.analysis_issues.policy_impact.outcome, in: [none]}
+      - id: unresolved-dependency-observation
+        applies_to:
+          - unresolved-dependency-without-policy-impact
+          - unresolved-candidate-allowed-union-matches
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+        claim: {field: result.analysis_issues.observation.outcome, in: [unresolved-dependency-candidate]}
+      - id: report-serialization-supported
+        applies_to:
+          - possible-policy-impact-without-violation
+          - unresolved-dependency-without-policy-impact
+          - unresolved-candidate-allowed-union-matches
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+          - dependency-neutral-analysis-issue
+          - resolved-analysis-context
+          - path-module-analysis-issue
+          - legacy-json-report-request
+          - resolved-implementation-attribution-json-report-request
+          - text-report-request
+          - possible-policy-impact-analysis-issue
+        claim: {field: result.serialization, in: [text, json]}
+      - id: report-ordering-canonical
+        applies_to:
+          - possible-policy-impact-without-violation
+          - unresolved-dependency-without-policy-impact
+          - unresolved-candidate-allowed-union-matches
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+          - dependency-neutral-analysis-issue
+          - resolved-analysis-context
+          - path-module-analysis-issue
+          - legacy-json-report-request
+          - resolved-implementation-attribution-json-report-request
+          - text-report-request
+          - possible-policy-impact-analysis-issue
+        claim: {field: result.ordering, in: [canonical]}
+      - id: report-decision-supported
+        applies_to:
+          - possible-policy-impact-without-violation
+          - unresolved-dependency-without-policy-impact
+          - unresolved-candidate-allowed-union-matches
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+          - dependency-neutral-analysis-issue
+          - resolved-analysis-context
+          - path-module-analysis-issue
+          - legacy-json-report-request
+          - resolved-implementation-attribution-json-report-request
+          - text-report-request
+          - possible-policy-impact-analysis-issue
+        claim: {field: result.decision, in: [conformant, non-conformant, indeterminate]}
+      - id: report-violations-present
+        applies_to:
+          - possible-policy-impact-without-violation
+          - unresolved-dependency-without-policy-impact
+          - unresolved-candidate-allowed-union-matches
+          - unresolved-candidate-allowed-union-misses
+          - unresolved-candidate-targets-empty
+          - dependency-neutral-analysis-issue
+          - resolved-analysis-context
+          - path-module-analysis-issue
+          - legacy-json-report-request
+          - resolved-implementation-attribution-json-report-request
+          - text-report-request
+          - possible-policy-impact-analysis-issue
+        claim: {field: result.violations, present: true}
+  - id: contract.logical-module-boundary.cli-outcome
+    summary: CLIはconformantを0、non-conformantを1、indeterminateを2、 不正な呼出し、読込不能または契約不適合のBoundaryPolicy、その他の実行失敗を3へ写像する。 helpとversionは情報を標準出力へ返して0で終了する。完了した解析だけがtextまたはJSONの検証結果を 標準出力へ返し、実行失敗の説明は標準エラーへ返す。
+    observations:
+      - boundary: boundary.cli-result
+        summary: CLIプロセスが返す終了状態と標準streamの種別
+        surface: process exit status
+        fields:
+          - selector: process.exit_code
+            meaning: ValidationDecisionまたはCLI実行失敗を表す終了コード
+          - selector: process.stdout_status
+            meaning: validation-result、informationまたはemptyで表す標準出力の状態
+          - selector: process.stderr_status
+            meaning: diagnosticまたはemptyで表す標準エラーの状態
+    conditions:
+      - input: cli-information-request
+      - input: conformant-result
+      - input: non-conformant-result
+      - input: indeterminate-result
+      - input: cli-execution-failure
+    guarantees:
+      - id: exit-code-zero
+        applies_to:
+          - cli-information-request
+          - conformant-result
+        claim: {field: process.exit_code, in: ['0']}
+      - id: non-conformant-exit-code
+        applies_to:
+          - non-conformant-result
+        claim: {field: process.exit_code, in: ['1']}
+      - id: indeterminate-exit-code
+        applies_to:
+          - indeterminate-result
+        claim: {field: process.exit_code, in: ['2']}
+      - id: execution-failure-exit-code
+        applies_to:
+          - cli-execution-failure
+        claim: {field: process.exit_code, in: ['3']}
+      - id: completed-result-written-to-stdout
+        applies_to:
+          - conformant-result
+          - non-conformant-result
+          - indeterminate-result
+        claim: {field: process.stdout_status, in: [validation-result]}
+      - id: stderr-empty
+        applies_to:
+          - cli-information-request
+          - conformant-result
+          - non-conformant-result
+          - indeterminate-result
+        claim: {field: process.stderr_status, in: [empty]}
+      - id: execution-failure-keeps-stdout-empty
+        applies_to:
+          - cli-execution-failure
+        claim: {field: process.stdout_status, in: [empty]}
+      - id: execution-failure-writes-stderr-diagnostic
+        applies_to:
+          - cli-execution-failure
+        claim: {field: process.stderr_status, in: [diagnostic]}
+      - id: cli-information-written-to-stdout
+        applies_to:
+          - cli-information-request
+        claim: {field: process.stdout_status, in: [information]}

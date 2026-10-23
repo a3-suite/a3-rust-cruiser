@@ -10,10 +10,7 @@ response_measure:
   - 論理モジュールと依存辺の集合が一致する
   - 各診断の識別子、重大度、依存元、依存先、ソース位置が一致する
 related_requirements:
-  - requirement_ref:
-      requirement_id: validate-rust-logical-module-boundaries
+  - validate-rust-logical-module-boundaries
 related_contracts:
-  - contract_ref:
-      contract_id: contract.logical-module-boundary.dependency-graph
-  - contract_ref:
-      contract_id: contract.logical-module-boundary.validation-report
+  - contract.logical-module-boundary.dependency-graph
+  - contract.logical-module-boundary.validation-report

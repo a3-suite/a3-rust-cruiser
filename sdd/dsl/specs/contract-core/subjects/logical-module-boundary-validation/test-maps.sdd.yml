@@ -1,1110 +1,1671 @@
 version: 1
 name: contract-test-maps
-subject_ref: subject.logical-module-boundary.validation
 test_maps:
-  - verification_id: verification.logical-module-boundary.dependency-graph
+  - contract_id: contract.logical-module-boundary.dependency-graph
     case_id: typed-dependencies-and-declarations
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_typed_dependencies_and_declarations_are_reported
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-          - check-logical-modules
-          - check-module-declarations
-          - check-dependency-edges
-          - check-dependency-kind
-          - check-dependency-target-scope
-          - check-excluded-scopes
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - logical-modules-present
+          - module-declarations-separated
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
+          - excluded-scopes-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_aliases_and_multiple_super_segments_are_resolved
-        check_refs:
-          - check-dependency-edges
-          - check-dependency-target-scope
+        guarantees:
+          - dependency-edges-present
+          - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_supported_compilation_targets_select_their_entry_files
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_conventional_compilation_target_paths_are_supported
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_required_feature_activates_the_selected_target
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_inline_nested_and_declared_external_dependencies_are_observed
-        check_refs:
-          - check-logical-modules
-          - check-module-declarations
-          - check-dependency-edges
-          - check-dependency-kind
-          - check-dependency-target-scope
+        guarantees:
+          - logical-modules-present
+          - module-declarations-separated
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_leading_colon_selects_the_external_crate_namespace
-        check_refs:
-          - check-dependency-edges
-          - check-dependency-kind
-          - check-dependency-target-scope
+        guarantees:
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_declared_item_kinds_support_complete_path_resolution
-        check_refs:
-          - check-dependency-edges
-          - check-dependency-kind
-          - check-dependency-target-scope
+        guarantees:
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_dev_dependency_is_available_to_test_target
-        check_refs:
-          - check-analysis-context
-          - check-dependency-edges
-          - check-dependency-kind
-          - check-dependency-target-scope
+        guarantees:
+          - analysis-context-present
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_exact_target_dependency_is_active_for_the_selected_triple
-        check_refs:
-          - check-analysis-context
-          - check-dependency-edges
-          - check-dependency-kind
-          - check-dependency-target-scope
+        guarantees:
+          - analysis-context-present
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_handle_public_reexport_cycle_deterministically
-        check_refs:
-          - check-dependency-edges
-          - check-dependency-kind
-          - check-dependency-target-scope
+        guarantees:
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_default_features_expand_optional_dependencies_for_test_targets
-        check_refs:
-          - check-dependency-edges
-          - check-dependency-kind
-          - check-dependency-target-scope
-  - verification_id: verification.logical-module-boundary.dependency-graph
+        guarantees:
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
+  - contract_id: contract.logical-module-boundary.dependency-graph
     case_id: source-union-source-authored-dependencies
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_source_union_observes_source_authored_dependencies_without_expansion_issues
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-          - check-source-union-profile
-          - check-dependency-edges
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - source-union-profile-selected
+          - dependency-edges-present
+          - logical-modules-present
+          - module-declarations-separated
+          - dependency-kind-supported
+          - dependency-target-scope-supported
+          - excluded-scopes-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_source_union_unions_cfg_gated_alias_candidates
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-          - check-source-union-profile
-          - check-dependency-edges
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - source-union-profile-selected
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_source_union_includes_conditional_external_dependencies
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-          - check-source-union-profile
-          - check-dependency-edges
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - source-union-profile-selected
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_source_union_preserves_conditional_dependency_kind_boundaries
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-          - check-source-union-profile
-          - check-dependency-edges
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - source-union-profile-selected
+          - dependency-edges-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_source_union_does_not_expand_exact_runtime_item_macro
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-          - check-source-union-profile
-          - check-dependency-edges
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - source-union-profile-selected
+          - dependency-edges-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_source_union_does_not_observe_serde_function_path_dependency
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-          - check-source-union-profile
-          - check-dependency-edges
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - source-union-profile-selected
+          - dependency-edges-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_glob_import_and_reexport_chain_resolve_in_both_profiles
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-          - check-source-union-profile
-          - check-dependency-edges
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - source-union-profile-selected
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_crate_visible_glob_reexport_resolves_in_both_profiles
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-          - check-source-union-profile
-          - check-dependency-edges
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - source-union-profile-selected
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_crate_visible_super_glob_reexport_resolves_in_both_profiles
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-          - check-source-union-profile
-          - check-dependency-edges
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - source-union-profile-selected
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_glob_import_keeps_unresolved_names_indeterminate_in_source_union
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-          - check-source-union-profile
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - source-union-profile-selected
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_glob_reexport_does_not_resolve_private_items
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-  - verification_id: verification.logical-module-boundary.dependency-graph
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+  - contract_id: contract.logical-module-boundary.dependency-graph
     case_id: exact-runtime-item-macro-generated-dependencies
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_exact_policy_runtime_item_macro_observes_generated_dependencies
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-          - check-dependency-edges
-          - check-dependency-kind
-          - check-dependency-target-scope
-  - verification_id: verification.logical-module-boundary.dependency-graph
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
+  - contract_id: contract.logical-module-boundary.dependency-graph
     case_id: serde-function-path-generated-dependencies
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
         symbol: should_serde_function_path_observes_explicit_internal_dependency
-        check_refs:
-          - check-analysis-context
-          - check-analysis-profile
-          - check-dependency-edges
-          - check-dependency-kind
-          - check-dependency-target-scope
-  - verification_id: verification.logical-module-boundary.boundary-policy-input
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: documented-policy-shape-is-accepted
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: should_documented_boundary_policy_shape_is_accepted
-        check_refs:
-          - check-valid-policy-accepted
-  - verification_id: verification.logical-module-boundary.boundary-policy-input
+        guarantees:
+          - valid-policy-source-accepted
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: omitted-optional-policy-collections-default-empty
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: should_omitted_boundary_policy_collections_default_to_empty
-        check_refs:
-          - check-valid-policy-accepted
-  - verification_id: verification.logical-module-boundary.boundary-policy-input
+        guarantees:
+          - valid-policy-source-accepted
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: unknown-policy-field-is-rejected
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: should_unknown_boundary_policy_field_is_rejected
-        check_refs:
-          - check-invalid-policy-exit-code
-          - check-invalid-policy-stdout
-          - check-invalid-policy-stderr
-  - verification_id: verification.logical-module-boundary.boundary-policy-input
+        guarantees:
+          - invalid-policy-source-exits-with-three
+          - invalid-boundary-policy-input-keeps-stdout-empty
+          - invalid-boundary-policy-input-writes-stderr-diagnostic
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: unsupported-policy-enum-is-rejected
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: should_unsupported_boundary_policy_enum_is_rejected
-        check_refs:
-          - check-invalid-policy-exit-code
-          - check-invalid-policy-stdout
-          - check-invalid-policy-stderr
-  - verification_id: verification.logical-module-boundary.boundary-policy-input
+        guarantees:
+          - invalid-policy-source-exits-with-three
+          - invalid-boundary-policy-input-keeps-stdout-empty
+          - invalid-boundary-policy-input-writes-stderr-diagnostic
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: invalid-policy-rules-are-rejected
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: should_invalid_boundary_policy_rules_are_rejected
-        check_refs:
-          - check-invalid-policy-exit-code
-          - check-invalid-policy-stdout
-          - check-invalid-policy-stderr
-  - verification_id: verification.logical-module-boundary.boundary-policy-input
+        guarantees:
+          - invalid-policy-source-exits-with-three
+          - invalid-boundary-policy-input-keeps-stdout-empty
+          - invalid-boundary-policy-input-writes-stderr-diagnostic
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: resolved-implementation-attribution-is-consumed-directly
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: should_public_resolved_implementation_attribution_is_accepted
-        check_refs:
-          - check-resolved-attribution-public-cli-acceptance
-          - check-resolved-attribution-coverage
+        guarantees:
+          - valid-policy-source-accepted
+          - resolved-attribution-coverage-is-reported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: should_public_resolved_attribution_accept_multiple_scopes_and_artifacts
-        check_refs:
-          - check-resolved-attribution-public-cli-acceptance
-          - check-resolved-attribution-coverage
-  - verification_id: verification.logical-module-boundary.boundary-policy-input
+        guarantees:
+          - valid-policy-source-accepted
+          - resolved-attribution-coverage-is-reported
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: invalid-resolved-implementation-attribution-is-rejected
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: should_invalid_resolved_attribution_is_rejected_before_analysis
-        check_refs:
-          - check-invalid-resolved-attribution-exit-code
-          - check-invalid-resolved-attribution-diagnostic-precedes-analysis-failure
+        guarantees:
+          - invalid-policy-source-exits-with-three
+          - invalid-resolved-implementation-attribution-input-reports-its-diagnostic-before-observation
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: should_malformed_resolved_attribution_report_its_path
-        check_refs:
-          - check-invalid-resolved-attribution-exit-code
-          - check-invalid-resolved-attribution-diagnostic-precedes-analysis-failure
-  - verification_id: verification.logical-module-boundary.boundary-policy-input
+        guarantees:
+          - invalid-policy-source-exits-with-three
+          - invalid-resolved-implementation-attribution-input-reports-its-diagnostic-before-observation
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: resolved-attribution-and-other-policy-sources-are-rejected
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: should_resolved_attribution_is_exclusive_with_other_policy_sources
-        check_refs:
-          - check-exclusive-resolved-attribution-exit-code
-  - verification_id: verification.logical-module-boundary.boundary-policy-input
+        guarantees:
+          - invalid-policy-source-exits-with-three
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: unresolved-implementation-attribution-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: should_public_resolved_attribution_is_indeterminate_when_unresolved
-        check_refs:
-          - check-resolved-attribution-indeterminate
-  - verification_id: verification.logical-module-boundary.boundary-policy-input
+        guarantees:
+          - unresolved-implementation-attribution-is-indeterminate
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: resolved-attribution-forbidden-edge-is-non-conformant
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
         symbol: should_public_resolved_attribution_forbidden_scope_edge_is_non_conformant
-        check_refs:
-          - check-resolved-attribution-non-conformant
-  - verification_id: verification.logical-module-boundary.policy-evaluation
+        guarantees:
+          - forbidden-resolved-attribution-edge-is-non-conformant
+  - contract_id: contract.logical-module-boundary.policy-evaluation
     case_id: forbidden-overrides-matching-allowed-rule
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/policy_evaluation.rs
         symbol: should_forbidden_rule_overrides_matching_allowed_rule
-        check_refs:
-          - check-policy-violations
-          - check-policy-violation-kind
-          - check-policy-rule-id
-          - check-policy-severity
-          - check-policy-source
-          - check-policy-target
-          - check-policy-dependency-kind
-          - check-policy-source-evidence
-          - check-policy-source-line
-          - check-policy-source-column
-          - check-all-forbidden-matches
-          - check-forbidden-precedence
-  - verification_id: verification.logical-module-boundary.policy-evaluation
+        guarantees:
+          - violations-present
+          - violation-kind-supported
+          - violation-rule-id-present
+          - violation-severity-supported
+          - violation-source-present
+          - violation-target-present
+          - violation-dependency-kind-present
+          - violation-source-evidence-present
+          - violation-source-line-present
+          - violation-source-column-present
+          - all-forbidden-matches-evaluated
+          - forbidden-overrides-allowed
+          - allowed-targets-unioned
+          - cycle-evaluated-independently
+  - contract_id: contract.logical-module-boundary.policy-evaluation
     case_id: applicable-allowed-rules-use-target-union
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/policy_evaluation.rs
         symbol: should_applicable_allowed_rules_use_target_union
-        check_refs:
-          - check-policy-violations
-          - check-allowed-target-union
-          - check-allowed-union-acceptance
-  - verification_id: verification.logical-module-boundary.policy-evaluation
+        guarantees:
+          - violations-present
+          - allowed-targets-unioned
+          - matching-dependency-allowed
+          - all-forbidden-matches-evaluated
+          - cycle-evaluated-independently
+  - contract_id: contract.logical-module-boundary.policy-evaluation
     case_id: unmatched-applicable-allowed-rules-produce-violation
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/policy_evaluation.rs
         symbol: should_unmatched_applicable_allowed_rules_produce_violation
-        check_refs:
-          - check-policy-violations
-          - check-policy-violation-kind
-          - check-policy-rule-id
-          - check-policy-severity
-          - check-policy-source
-          - check-policy-target
-          - check-policy-dependency-kind
-          - check-policy-source-evidence
-          - check-policy-source-line
-          - check-policy-source-column
-          - check-allowed-target-union
-          - check-allowed-union-rejection
-  - verification_id: verification.logical-module-boundary.policy-evaluation
+        guarantees:
+          - violations-present
+          - violation-kind-supported
+          - violation-rule-id-present
+          - violation-severity-supported
+          - violation-source-present
+          - violation-target-present
+          - violation-dependency-kind-present
+          - violation-source-evidence-present
+          - violation-source-line-present
+          - violation-source-column-present
+          - allowed-targets-unioned
+          - allowed-union-rejects-dependency
+          - all-forbidden-matches-evaluated
+          - cycle-evaluated-independently
+  - contract_id: contract.logical-module-boundary.policy-evaluation
     case_id: circular-rule-is-independent-from-allowed-rules
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/policy_evaluation.rs
         symbol: should_circular_rule_is_independent_from_allowed_rules
-        check_refs:
-          - check-policy-violations
-          - check-policy-violation-kind
-          - check-policy-rule-id
-          - check-policy-severity
-          - check-policy-source
-          - check-policy-target
-          - check-policy-dependency-kind
-          - check-policy-source-evidence
-          - check-policy-source-line
-          - check-policy-source-column
-          - check-cycle-independent
-          - check-cycle-dependencies-allowed
-          - check-cycle-not-suppressed
-          - check-cycle-path
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - violations-present
+          - violation-kind-supported
+          - violation-rule-id-present
+          - violation-severity-supported
+          - violation-source-present
+          - violation-target-present
+          - violation-dependency-kind-present
+          - violation-source-evidence-present
+          - violation-source-line-present
+          - violation-source-column-present
+          - cycle-evaluated-independently
+          - matching-dependency-allowed
+          - allowed-rules-do-not-suppress-cycle
+          - circular-violation-cycle-path-present
+          - all-forbidden-matches-evaluated
+          - allowed-targets-unioned
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: complete-without-violation
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_complete_graph_without_violations_is_conformant
-        check_refs:
-          - check-conformant-decision
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - conformant-decision
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: complete-with-violation
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_standard_macro_arguments_are_observed_recursively
+        guarantees:
+          - non-conformant-decision
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_complete_graph_with_violations_is_non_conformant
-        check_refs:
-          - check-non-conformant-decision
+        guarantees:
+          - non-conformant-decision
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_safe_local_macro_observes_internal_paths_in_arguments
-        check_refs:
-          - check-non-conformant-decision
+        guarantees:
+          - non-conformant-decision
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_serde_function_path_observes_aliased_internal_dependency
-        check_refs:
-          - check-non-conformant-decision
+        guarantees:
+          - non-conformant-decision
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_exact_require_shape_macro_observes_internal_path_argument
-        check_refs:
-          - check-non-conformant-decision
+        guarantees:
+          - non-conformant-decision
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_internal_module_named_like_a_prelude_type_is_observed
-        check_refs:
-          - check-non-conformant-decision
+        guarantees:
+          - non-conformant-decision
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_nested_json_and_matches_guards_observe_internal_paths
-        check_refs:
-          - check-non-conformant-decision
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - non-conformant-decision
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: incomplete-with-observed-violation
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_confirmed_violations_are_non_conformant_even_with_possible_issues
-        check_refs:
-          - check-non-conformant-decision
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - non-conformant-decision
+          - analysis-issue-has-possible-policy-impact
+          - possible-policy-impact-rule-ids-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: unresolved-candidate-without-policy-impact
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unresolved_candidate_outside_the_policy_is_conformant
-        check_refs:
-          - check-conformant-decision
-          - check-analysis-observation-outcome
-          - check-analysis-policy-impact-outcome
-          - check-unresolved-observation
-          - check-no-policy-impact
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - conformant-decision
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - unresolved-dependency-observation
+          - dependency-neutral-has-no-policy-impact
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: unresolved-candidate-allowed-union-matches
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unresolved_candidate_with_allowed_target_union_is_conformant
-        check_refs:
-          - check-conformant-decision
-          - check-unresolved-observation
-          - check-allowed-union-match-no-impact
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - conformant-decision
+          - unresolved-dependency-observation
+          - dependency-neutral-has-no-policy-impact
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: unresolved-candidate-allowed-union-misses
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unresolved_candidate_outside_allowed_target_union_is_indeterminate
-        check_refs:
-          - check-indeterminate-decision
-          - check-unresolved-observation
-          - check-allowed-union-miss-possible
-          - check-possible-policy-rule-ids
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - indeterminate-decision
+          - unresolved-dependency-observation
+          - analysis-issue-has-possible-policy-impact
+          - possible-policy-impact-rule-ids-present
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: unresolved-candidate-with-empty-targets
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unresolved_candidate_without_targets_is_indeterminate_for_allowed_rule
-        check_refs:
-          - check-indeterminate-decision
-          - check-unresolved-observation
-          - check-empty-targets-possible
-          - check-possible-policy-rule-ids
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - indeterminate-decision
+          - unresolved-dependency-observation
+          - analysis-issue-has-possible-policy-impact
+          - possible-policy-impact-rule-ids-present
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: dependency-neutral-without-policy-impact
     tests:
       - path: src/boundary_evaluation/evaluation.rs
         symbol: should_keep_dependency_neutral_issues_conformant
-        check_refs:
-          - check-conformant-decision
-          - check-neutral-policy-impact
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - conformant-decision
+          - dependency-neutral-has-no-policy-impact
+      - path: src/command_interface/report.rs
+        symbol: should_project_a_dependency_neutral_issue_into_a_json_report
+        guarantees:
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - dependency-neutral-has-no-policy-impact
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: possible-policy-impact-without-violation-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unresolved_reference_is_indeterminate
-        check_refs:
-          - check-indeterminate-decision
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - indeterminate-decision
+          - analysis-issue-has-possible-policy-impact
+          - possible-policy-impact-rule-ids-present
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: known-compilation-context-is-resolved
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_cfg_selected_dependency_uses_the_rustc_target_context
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_selected_optional_dependency_uses_the_cargo_feature_context
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_inactive_cfg_items_are_excluded_before_dependency_observation
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_block_scoped_use_is_resolved_within_its_lexical_scope
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_local_binding_shadowing_does_not_create_a_module_dependency
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_dependency_neutral_standard_macro_is_conformant
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_dependency_neutral_external_macro_with_proven_identity_is_conformant
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_absolute_external_macro_import_ignore_local_item_shadow
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_absolute_external_macro_root_ignore_lexical_aliases
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_dependency_neutral_builtin_derive_is_conformant
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_external_derive_macros_with_proven_crate_identity_are_conformant
-        check_refs:
-          - check-conformant-decision
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_standard_macro_arguments_are_observed_recursively
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_safe_local_single_arm_macro_is_conformant
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_serde_function_paths_to_same_module_helpers_are_conformant
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_lexical_pattern_bindings_are_not_reported_as_unresolved
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_package_crate_alias_is_resolved_for_library_targets
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_known_dependency_observing_macros_and_safe_serde_attributes_are_conformant
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_serde_prelude_function_path_is_conformant
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_safe_local_macro_allows_known_nested_macro
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_exact_require_contract_value_macro_is_conformant
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_exact_require_shape_macro_is_conformant
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_cfg_expression_macro_is_dependency_neutral
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_generic_type_parameters_are_dependency_neutral
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_generic_associated_paths_are_dependency_neutral
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_renamed_extern_crate_is_resolved_as_external
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_inactive_cfg_macro_statements_are_excluded_before_macro_observation
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_inactive_cfg_fields_are_excluded_before_name_observation
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_safe_local_macro_allows_cfg_expression
-        check_refs:
-          - check-conformant-decision
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_safe_local_macro_ignores_token_neutral_nested_arguments
-        check_refs:
-          - check-conformant-decision
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: inactive-cfg-attr-path-module-is-ignored
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_inactive_cfg_attr_path_module_is_ignored
-        check_refs:
-          - check-conformant-decision
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: path-module-unsupported-syntax-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_path_module_declaration_is_indeterminate_for_child_policy
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issue-code
-          - check-analysis-issue-affected-scope
-          - check-path-module-source-module
-          - check-analysis-observation-outcome
-          - check-analysis-policy-impact-outcome
-          - check-path-module-policy-impact
-          - check-path-module-policy-rule-ids
+        guarantees:
+          - indeterminate-decision
+          - analysis-issue-code-supported
+          - analysis-issue-affected-scope-present
+          - path-module-source-module-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - analysis-issue-has-possible-policy-impact
+          - possible-policy-impact-rule-ids-present
+          - analysis-issues-present
+          - analysis-issue-reason-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_active_cfg_attr_path_module_is_indeterminate_for_child_policy
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issue-code
-          - check-analysis-issue-affected-scope
-          - check-path-module-source-module
-          - check-path-module-policy-impact
-          - check-path-module-policy-rule-ids
+        guarantees:
+          - indeterminate-decision
+          - analysis-issue-code-supported
+          - analysis-issue-affected-scope-present
+          - path-module-source-module-present
+          - analysis-issue-has-possible-policy-impact
+          - possible-policy-impact-rule-ids-present
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_source_union_treats_cfg_attr_path_module_as_policy_relevant
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issue-code
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - indeterminate-decision
+          - analysis-issue-code-supported
+          - analysis-issues-present
+          - analysis-issue-reason-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: json-report
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_json_report_projects_common_validation_result
-        check_refs:
-          - check-json-schema-version
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
-          - check-analysis-observation-outcome
-          - check-analysis-policy-impact-outcome
-          - check-report-serialization
-          - check-report-ordering
-          - check-report-decision
-          - check-report-violations
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - json-schema-version-present
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: resolved-attribution-json-report
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_public_resolved_attribution_report_schema_three_and_coverage
-        check_refs:
-          - check-resolved-attribution-json-schema-version
-          - check-resolved-attribution-report-serialization
-          - check-resolved-attribution-report-ordering
-          - check-resolved-attribution-report-decision
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - resolved-attribution-json-schema-version-is-three
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - analysis-issues-present
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: text-report
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_text_report_projects_common_validation_result
-        check_refs:
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
-          - check-analysis-observation-outcome
-          - check-analysis-policy-impact-outcome
-          - check-report-serialization
-          - check-report-ordering
-          - check-report-decision
-          - check-report-violations
+        guarantees:
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_text_report_projects_circular_cycle_path
-        check_refs:
-          - check-report-serialization
-          - check-report-ordering
-          - check-report-decision
-          - check-report-violations
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: unresolved-reference-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unresolved_reference_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - analysis-issue-has-possible-policy-impact
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: source-union-unresolved-reference-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_source_union_keeps_unresolved_internal_references_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: repeated-json-report
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_repeated_json_report_is_byte_stable
-        check_refs:
-          - check-json-schema-version
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
-          - check-report-serialization
-          - check-report-ordering
-          - check-report-decision
-          - check-report-violations
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - json-schema-version-present
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: unsupported-macro-expansion-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unsupported_macro_expansion_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unsupported_derive_macro_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_shadowed_dependency_neutral_external_macro_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_absolute_unknown_external_macro_root_not_resolve_through_lexical_alias
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_local_item_shadowing_external_macro_crate_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_ambiguous_dependency_neutral_external_macro_import_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_altered_runtime_item_macro_definition_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_invalid_runtime_item_macro_arguments_are_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unsupported_local_macro_shapes_are_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_ambiguous_runtime_macro_import_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unknown_external_derive_macro_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unknown_external_single_segment_derive_alias_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_mixed_external_derive_alias_candidates_are_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_local_macro_with_internal_path_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_invalid_serde_function_path_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unsupported_serde_function_path_shape_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_inner_local_macro_shadowing_preserves_fail_closed_behavior
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_exact_require_macro_with_shadowed_err_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_exact_require_macro_with_shadowed_format_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_exact_require_macro_with_block_shadowing_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_exact_require_macro_with_block_item_shadowing_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_require_shape_macro_with_unknown_method_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_shadowed_nested_macro_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_multi_arm_local_macro_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_cfg_guarded_local_macro_is_not_safe
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unknown_cfg_guarded_local_macro_is_not_safe
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_safe_local_macro_at_item_position_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_shadowed_builtin_macro_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: unsupported-name-resolution-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unsupported_name_resolution_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unresolved_single_segment_type_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unsupported_expression_name_resolution_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_dev_dependency_is_unavailable_to_binary_target
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_serde_function_path_with_unknown_alias_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_undeclared_package_name_is_not_treated_as_a_library_alias
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_package_name_is_not_external_without_a_library_target
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_serde_function_path_with_shadowed_prelude_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_serde_function_path_without_implicit_prelude_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_serde_function_path_with_ambiguous_glob_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_no_implicit_prelude_keeps_prelude_names_unresolved
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: unsupported-syntax-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unsupported_syntax_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
-  - verification_id: verification.logical-module-boundary.validation-report
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
     case_id: unsupported-analysis-context-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unsupported_analysis_context_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_missing_target_required_feature_is_indeterminate
-        check_refs:
-          - check-indeterminate
-          - check-analysis-issues
-          - check-analysis-issue-code
-          - check-analysis-issue-reason
-          - check-analysis-issue-affected-scope
-  - verification_id: verification.logical-module-boundary.cli-outcome
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.cli-outcome
     case_id: root-help
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_root_help_exits_with_zero
-        check_refs:
-          - check-information-exit-code
-          - check-information-stdout
-          - check-information-stderr
-  - verification_id: verification.logical-module-boundary.cli-outcome
+        guarantees:
+          - exit-code-zero
+          - cli-information-written-to-stdout
+          - stderr-empty
+  - contract_id: contract.logical-module-boundary.cli-outcome
     case_id: check-help
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_check_help_exits_with_zero
-        check_refs:
-          - check-information-exit-code
-          - check-information-stdout
-          - check-information-stderr
-  - verification_id: verification.logical-module-boundary.cli-outcome
+        guarantees:
+          - exit-code-zero
+          - cli-information-written-to-stdout
+          - stderr-empty
+  - contract_id: contract.logical-module-boundary.cli-outcome
     case_id: version
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_version_exits_with_zero
-        check_refs:
-          - check-information-exit-code
-          - check-information-stdout
-          - check-information-stderr
-  - verification_id: verification.logical-module-boundary.cli-outcome
+        guarantees:
+          - exit-code-zero
+          - cli-information-written-to-stdout
+          - stderr-empty
+  - contract_id: contract.logical-module-boundary.cli-outcome
     case_id: conformant-exit
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_conformant_result_exits_with_zero
-        check_refs:
-          - check-conformant-exit-code
-          - check-completed-stdout
-          - check-completed-stderr
-  - verification_id: verification.logical-module-boundary.cli-outcome
+        guarantees:
+          - exit-code-zero
+          - completed-result-written-to-stdout
+          - stderr-empty
+  - contract_id: contract.logical-module-boundary.cli-outcome
     case_id: non-conformant-exit
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_non_conformant_result_exits_with_one
-        check_refs:
-          - check-non-conformant-exit-code
-          - check-completed-stdout
-          - check-completed-stderr
-  - verification_id: verification.logical-module-boundary.cli-outcome
+        guarantees:
+          - non-conformant-exit-code
+          - completed-result-written-to-stdout
+          - stderr-empty
+  - contract_id: contract.logical-module-boundary.cli-outcome
     case_id: indeterminate-exit
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_indeterminate_result_exits_with_two
-        check_refs:
-          - check-indeterminate-exit-code
-          - check-completed-stdout
-          - check-completed-stderr
-  - verification_id: verification.logical-module-boundary.cli-outcome
+        guarantees:
+          - indeterminate-exit-code
+          - completed-result-written-to-stdout
+          - stderr-empty
+  - contract_id: contract.logical-module-boundary.cli-outcome
     case_id: execution-failure-exit
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_execution_failure_exits_with_three
-        check_refs:
-          - check-execution-failure-exit-code
-          - check-execution-failure-stdout
-          - check-execution-failure-stderr
+        guarantees:
+          - execution-failure-exit-code
+          - execution-failure-keeps-stdout-empty
+          - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_stdout_write_failure_exits_with_three
-        check_refs:
-          - check-execution-failure-exit-code
-          - check-execution-failure-stdout
-          - check-execution-failure-stderr
+        guarantees:
+          - execution-failure-exit-code
+          - execution-failure-keeps-stdout-empty
+          - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_invalid_cli_options_are_rejected
-        check_refs:
-          - check-execution-failure-exit-code
-          - check-execution-failure-stdout
-          - check-execution-failure-stderr
+        guarantees:
+          - execution-failure-exit-code
+          - execution-failure-keeps-stdout-empty
+          - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_disabled_auto_discovery_rejects_hidden_target
-        check_refs:
-          - check-execution-failure-exit-code
-          - check-execution-failure-stdout
-          - check-execution-failure-stderr
+        guarantees:
+          - execution-failure-exit-code
+          - execution-failure-keeps-stdout-empty
+          - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_missing_target_source_is_rejected
-        check_refs:
-          - check-execution-failure-exit-code
-          - check-execution-failure-stdout
-          - check-execution-failure-stderr
+        guarantees:
+          - execution-failure-exit-code
+          - execution-failure-keeps-stdout-empty
+          - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_invalid_manifest_and_target_requests_fail_with_diagnostics
-        check_refs:
-          - check-execution-failure-exit-code
-          - check-execution-failure-stdout
-          - check-execution-failure-stderr
+        guarantees:
+          - execution-failure-exit-code
+          - execution-failure-keeps-stdout-empty
+          - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_manifest_target_and_dependency_types_are_rejected
-        check_refs:
-          - check-execution-failure-exit-code
-          - check-execution-failure-stdout
-          - check-execution-failure-stderr
+        guarantees:
+          - execution-failure-exit-code
+          - execution-failure-keeps-stdout-empty
+          - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_malformed_manifest_shapes_fail_before_analysis
-        check_refs:
-          - check-execution-failure-exit-code
-          - check-execution-failure-stdout
-          - check-execution-failure-stderr
+        guarantees:
+          - execution-failure-exit-code
+          - execution-failure-keeps-stdout-empty
+          - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_missing_required_analysis_context_is_rejected
-        check_refs:
-          - check-execution-failure-exit-code
-          - check-execution-failure-stdout
-          - check-execution-failure-stderr
+        guarantees:
+          - execution-failure-exit-code
+          - execution-failure-keeps-stdout-empty
+          - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_missing_boundary_policy_source_is_rejected
-        check_refs:
-          - check-execution-failure-exit-code
-          - check-execution-failure-stdout
-          - check-execution-failure-stderr
+        guarantees:
+          - execution-failure-exit-code
+          - execution-failure-keeps-stdout-empty
+          - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_missing_module_file_report_candidates_and_declaration_location
-        check_refs:
-          - check-execution-failure-exit-code
-          - check-execution-failure-stdout
-          - check-execution-failure-stderr
+        guarantees:
+          - execution-failure-exit-code
+          - execution-failure-keeps-stdout-empty
+          - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
         symbol: should_project_root_is_required_for_check
-        check_refs:
-          - check-execution-failure-exit-code
-          - check-execution-failure-stdout
-          - check-execution-failure-stderr
+        guarantees:
+          - execution-failure-exit-code
+          - execution-failure-keeps-stdout-empty
+          - execution-failure-writes-stderr-diagnostic

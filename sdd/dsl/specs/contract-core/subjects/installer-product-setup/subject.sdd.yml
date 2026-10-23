@@ -3,3 +3,36 @@ name: contract-subject
 subject:
   id: subject.installer.product-setup
   summary: CLI Release installerの製品設定と利用者向け導入案内を整合させるcapability
+contracts:
+  - id: contract.installer.product-setup.consistency
+    summary: installer assembly、platform manifests、利用者向け導入案内は同じ製品versionと導入経路を表す。
+    observations:
+      - boundary: boundary.repository-source-configuration
+        summary: repositoryに宣言されたinstaller設定と利用者向け導入案内
+        surface: Cargo package version、installer assembly、platform manifests、README、setup guides
+        fields:
+          - selector: installer.product_setup.package.release_version
+            meaning: Cargo packageに宣言された製品version
+          - selector: installer.product_setup.assembly.release_version
+            meaning: installer assemblyが共有wrapperの配布URLに指定する製品version
+          - selector: installer.product_setup.manifests.release_version
+            meaning: platform manifestsのrelease pathに指定された製品version
+          - selector: installer.product_setup.readme.release_version
+            meaning: READMEのinstaller download URLに指定された製品version
+          - selector: installer.product_setup.installation_guidance
+            meaning: repository root READMEとSkillのrepository setup entrypointにある導入案内
+          - selector: installer.product_setup.project_installer_runtime_assets_present
+            meaning: assemblyとmanifest以外に、provider所有のinstaller runtimeを置き換えるproject-owned実装資産が存在するときに真
+    guarantees:
+      - id: package-version-matches-release-version
+        claim: {field: installer.product_setup.package.release_version, equals_input: input.product_source.release_version}
+      - id: assembly-version-matches-release-version
+        claim: {field: installer.product_setup.assembly.release_version, equals_input: input.product_source.release_version}
+      - id: manifest-version-matches-release-version
+        claim: {field: installer.product_setup.manifests.release_version, equals_input: input.product_source.release_version}
+      - id: readme-version-matches-release-version
+        claim: {field: installer.product_setup.readme.release_version, equals_input: input.product_source.release_version}
+      - id: installer-setup-configuration-consistent
+        claim: {field: installer.product_setup.installation_guidance, present: true}
+      - id: project-installer-runtime-assets-are-absent
+        claim: {field: installer.product_setup.project_installer_runtime_assets_present, in: ['false']}

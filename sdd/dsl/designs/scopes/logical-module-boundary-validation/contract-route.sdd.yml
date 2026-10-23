@@ -2,39 +2,29 @@ version: 2
 name: contract-route
 routes:
   - route_id: load-boundary-policy
-    contract_ref:
-      subject_ref: subject.logical-module-boundary.validation
-      contract_id: contract.logical-module-boundary.boundary-policy-input
+    contract_id: contract.logical-module-boundary.boundary-policy-input
     hops:
-      - component_id: boundary-policy-input
-      - component_id: boundary-validation
-      - component_id: command-interface
+      - boundary-policy-input
+      - boundary-validation
+      - command-interface
   - route_id: observe-dependency-graph
-    contract_ref:
-      subject_ref: subject.logical-module-boundary.validation
-      contract_id: contract.logical-module-boundary.dependency-graph
+    contract_id: contract.logical-module-boundary.dependency-graph
     hops:
-      - component_id: rust-dependency-observation
-      - component_id: boundary-validation
+      - rust-dependency-observation
+      - boundary-validation
   - route_id: evaluate-boundary-policy
-    contract_ref:
-      subject_ref: subject.logical-module-boundary.validation
-      contract_id: contract.logical-module-boundary.policy-evaluation
+    contract_id: contract.logical-module-boundary.policy-evaluation
     hops:
-      - component_id: boundary-policy-input
-      - component_id: boundary-validation
-      - component_id: boundary-evaluation
+      - boundary-policy-input
+      - boundary-validation
+      - boundary-evaluation
   - route_id: present-validation-report
-    contract_ref:
-      subject_ref: subject.logical-module-boundary.validation
-      contract_id: contract.logical-module-boundary.validation-report
+    contract_id: contract.logical-module-boundary.validation-report
     hops:
-      - component_id: boundary-validation
-      - component_id: command-interface
+      - boundary-validation
+      - command-interface
   - route_id: present-cli-outcome
-    contract_ref:
-      subject_ref: subject.logical-module-boundary.validation
-      contract_id: contract.logical-module-boundary.cli-outcome
+    contract_id: contract.logical-module-boundary.cli-outcome
     hops:
-      - component_id: boundary-validation
-      - component_id: command-interface
+      - boundary-validation
+      - command-interface

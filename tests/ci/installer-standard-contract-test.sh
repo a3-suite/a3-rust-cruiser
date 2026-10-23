@@ -21,7 +21,7 @@ assert project_version, "Cargo.toml package version is missing"
 release_version = project_version.group(1)
 verification = (root / "sdd/dsl/specs/contract-core/subjects/installer-product-setup/verifications.sdd.yml").read_text(encoding="utf-8")
 case_release_version = re.search(
-    r"(?m)^            release_version: (.+)$",
+    r"(?m)^        release_version: (.+)$",
     verification,
 )
 assert case_release_version, "installer contract case release version is missing"

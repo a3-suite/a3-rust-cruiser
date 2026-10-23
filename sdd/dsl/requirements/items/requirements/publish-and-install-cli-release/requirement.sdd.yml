@@ -5,8 +5,7 @@ requirements:
     type: functional
     summary: 利用者が検証済みのCLI Releaseを取得して導入できる
     description: 承認されたrelease tagのsourceからCLI platform archiveとplatform installer script、manifestを組み立ててGitHub Releaseへ公開し、利用者がchecksum検証つきでCLIを導入・更新できるようにする
-    rationale:
-      why: 境界検証CLIを利用者が固定versionで再現可能に導入でき、配布物の改ざんを検知できるようにするため
+    rationale: 境界検証CLIを利用者が固定versionで再現可能に導入でき、配布物の改ざんを検知できるようにするため
     subject:
       namespace: a3-rust-cruiser
       key: cli-release-distribution
@@ -18,7 +17,3 @@ requirements:
       - target-specific installer は対応する固定manifestとCLI archiveをchecksumで検証する。事前取得入力を使うoffline実行を任意で選択できる
       - releaseごとの配置先はversionごとに分離され、同じmanaged rootで次のversionへのupgradeができる
       - 利用者がchecksumを検証してCLIを導入・更新でき、失敗時は未完了の理由と影響範囲を確認できる
-    derived_artifacts:
-      use_cases:
-        - use_case_ref:
-            use_case_id: publish-and-install-cli-release

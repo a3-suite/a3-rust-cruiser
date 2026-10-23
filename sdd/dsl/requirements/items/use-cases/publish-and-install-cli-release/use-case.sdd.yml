@@ -22,22 +22,18 @@ preconditions:
   - release notesが承認されapproval識別子が発行されている
 trigger: release担当者が承認済みrelease notesで公開を要求する
 main_success_scenario:
-  - summary: release tagから解決したsource SHAとversionで3 platform向けCLI archive、target-specific installer、manifestが組み立てられる
-  - summary: checksumと組立証跡が作成され、Releaseがdraftとして公開される
-  - summary: 公開後にremote assetとapprovalが再確認され、final Releaseとして確定する
-  - summary: Unixでは利用者が共有wrapperを実行し、wrapperが対応platformのinstallerをchecksum検証して実行する。Windowsでは利用者が対象別installerを実行してCLIを導入する
+  - release tagから解決したsource SHAとversionで3 platform向けCLI archive、target-specific installer、manifestが組み立てられる
+  - checksumと組立証跡が作成され、Releaseがdraftとして公開される
+  - 公開後にremote assetとapprovalが再確認され、final Releaseとして確定する
+  - Unixでは利用者が共有wrapperを実行し、wrapperが対応platformのinstallerをchecksum検証して実行する。Windowsでは利用者が対象別installerを実行してCLIを導入する
 success_outcomes:
   - 利用者がUnix共有wrapperまたはWindows対象別installerと、checksumに対応するCLI archiveを取得できる
   - 利用者が固定versionのCLIを導入または更新できる
 failure_outcomes:
   - 承認が無効、source identityが不一致、またはassetが不足する場合、公開せず理由を報告する
 related_requirements:
-  - requirement_ref:
-      requirement_id: publish-and-install-cli-release
+  - publish-and-install-cli-release
 related_contracts:
-  - contract_ref:
-      contract_id: contract.ci.release-request.binding
-  - contract_ref:
-      contract_id: contract.ci.release-publication.binding
-  - contract_ref:
-      contract_id: contract.installer.product-setup.consistency
+  - contract.ci.release-request.binding
+  - contract.ci.release-publication.binding
+  - contract.installer.product-setup.consistency

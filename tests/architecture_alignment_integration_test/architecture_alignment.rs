@@ -13,8 +13,8 @@ const CLI_OPTION_VOCABULARY: &str =
     include_str!("../../sdd/dsl/specs/cli/cli-option-vocabulary.sdd.yml");
 const CLI_COMMAND_MANIFEST: &str =
     include_str!("../../sdd/dsl/specs/cli/cli-command-manifest.sdd.yml");
-const CONTRACT_CLAUSES: &str = include_str!(
-    "../../sdd/dsl/specs/contract-core/subjects/logical-module-boundary-validation/clauses.sdd.yml"
+const CONTRACT_SUBJECT: &str = include_str!(
+    "../../sdd/dsl/specs/contract-core/subjects/logical-module-boundary-validation/subject.sdd.yml"
 );
 const CONTRACT_ROUTE: &str = include_str!(
     "../../sdd/dsl/designs/scopes/logical-module-boundary-validation/contract-route.sdd.yml"
@@ -97,12 +97,12 @@ fn should_cli_help_is_a_projection_of_sdd_command_definitions() {
 #[test]
 fn should_contract_routes_resolve_to_declared_projected_components() {
     // Arrange
-    let clauses = parse_yaml(CONTRACT_CLAUSES);
+    let subject = parse_yaml(CONTRACT_SUBJECT);
     let route = parse_yaml(CONTRACT_ROUTE);
     let logical = parse_yaml(LOGICAL_STRUCTURE);
     let projection = parse_yaml(PROJECTION);
     let physical = parse_yaml(PHYSICAL_STRUCTURE);
-    let contracts = sequence(&clauses, "contracts");
+    let contracts = sequence(&subject, "contracts");
     let contract_ids = contracts
         .iter()
         .map(|contract| string(contract, "id").to_owned())
@@ -192,14 +192,14 @@ fn should_contract_routes_resolve_to_declared_projected_components() {
     for route in routes {
         let route_id = string(route, "route_id");
         assert!(route_ids.insert(route_id), "duplicate route id: {route_id}");
-        let contract_id = string(&route["contract_ref"], "contract_id");
+        let contract_id = string(route, "contract_id");
         assert!(
             contract_ids.contains(contract_id),
             "route {route_id} references unknown contract {contract_id}"
         );
         let mut hop_ids = BTreeSet::new();
         for hop in sequence(route, "hops") {
-            let component_id = string(hop, "component_id");
+            let component_id = scalar(hop, "hop");
             assert!(
                 component_ids.contains(component_id),
                 "route {route_id} references unknown component {component_id}"
@@ -230,9 +230,11 @@ fn assert_cli_help(vocabulary: &YamlValue, command: &YamlValue, output: &Output)
     assert_eq!(output.status.code(), Some(0));
     assert!(output.stderr.is_empty());
     let stdout = String::from_utf8(output.stdout.clone()).expect("help is UTF-8");
+    let usage = sequence(&command["command"], "usage");
+    assert_eq!(usage.len(), 1, "CLI help prints a single Usage line");
     assert_eq!(
         usage_line(&stdout),
-        format!("Usage: {}", string(&command["command"]["help"], "usage"))
+        format!("Usage: {}", scalar(&usage[0], "usage"))
     );
     assert_eq!(
         option_tokens(&stdout),

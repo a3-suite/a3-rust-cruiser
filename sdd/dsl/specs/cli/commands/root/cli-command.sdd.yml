@@ -11,5 +11,5 @@ command:
       options:
         - help
         - version
-  help:
-    usage: a3-rust-cruiser <COMMAND>
+  usage:
+    - a3-rust-cruiser <COMMAND>

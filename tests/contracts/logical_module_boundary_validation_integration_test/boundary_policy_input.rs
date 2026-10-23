@@ -66,7 +66,7 @@ fn should_public_resolved_attribution_accept_multiple_scopes_and_artifacts() {
         )
         .replace(
             "scope_dependencies: []",
-            "scope_dependencies:\n  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example",
+            "scope_dependencies:\n  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - contract_id: contract.example",
         );
     fixture.write("resolved-implementation-attribution.sdd.yml", &attribution);
 
@@ -98,7 +98,7 @@ fn should_public_resolved_attribution_accept_multiple_scopes_and_artifacts() {
     no_edge_fixture.write(
         "resolved-implementation-attribution.sdd.yml",
         &attribution.replace(
-            "scope_dependencies:\n  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example",
+            "scope_dependencies:\n  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - contract_id: contract.example",
             "scope_dependencies: []",
         ),
     );
@@ -205,10 +205,7 @@ fn should_invalid_resolved_attribution_is_rejected_before_analysis() {
             "empty-scope-dependency-target",
             "scope dependency target must not be empty",
         ),
-        (
-            "empty-contract-subject",
-            "scope dependency subject reference must not be empty",
-        ),
+        ("legacy-contract-subject-ref", "unknown field `subject_ref`"),
         (
             "empty-contract-id",
             "scope dependency contract ID must not be empty",
@@ -266,22 +263,22 @@ fn should_invalid_resolved_attribution_is_rejected_before_analysis() {
             ),
             "empty-scope-dependency-source" => valid.replacen(
                 "scope_dependencies: []",
-                "scope_dependencies:\n  - from_scope: ''\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example",
+                "scope_dependencies:\n  - from_scope: ''\n    to_scope: scope-b\n    contract_refs:\n      - contract_id: contract.example",
                 1,
             ),
             "empty-scope-dependency-target" => valid.replacen(
                 "scope_dependencies: []",
-                "scope_dependencies:\n  - from_scope: fixture\n    to_scope: ''\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example",
+                "scope_dependencies:\n  - from_scope: fixture\n    to_scope: ''\n    contract_refs:\n      - contract_id: contract.example",
                 1,
             ),
-            "empty-contract-subject" => valid.replacen(
+            "legacy-contract-subject-ref" => valid.replacen(
                 "scope_dependencies: []",
-                "scope_dependencies:\n  - from_scope: fixture\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: ''\n        contract_id: contract.example",
+                "scope_dependencies:\n  - from_scope: fixture\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example",
                 1,
             ),
             "empty-contract-id" => valid.replacen(
                 "scope_dependencies: []",
-                "scope_dependencies:\n  - from_scope: fixture\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: ''",
+                "scope_dependencies:\n  - from_scope: fixture\n    to_scope: scope-b\n    contract_refs:\n      - contract_id: ''",
                 1,
             ),
             _ => unreachable!("known normalized input case"),

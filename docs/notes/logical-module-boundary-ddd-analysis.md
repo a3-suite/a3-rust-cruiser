@@ -89,8 +89,7 @@ Adapter 候補:
 不変条件と検証可能な観測項目は正本へ昇格済みであり、このメモでは再定義しない。
 
 - 要求: `../../sdd/dsl/requirements/items/requirements/validate-rust-logical-module-boundaries/requirement.sdd.yml`
-- 契約条項: `../../sdd/dsl/specs/contract-core/subjects/logical-module-boundary-validation/clauses.sdd.yml`
-- 観測項目: `../../sdd/dsl/specs/contract-core/subjects/logical-module-boundary-validation/observations.sdd.yml`
+- 契約（観測項目を含む）: `../../sdd/dsl/specs/contract-core/subjects/logical-module-boundary-validation/subject.sdd.yml`
 - 検証項目: `../../sdd/dsl/specs/contract-core/subjects/logical-module-boundary-validation/verifications.sdd.yml`
 
 ## 失敗の分類
