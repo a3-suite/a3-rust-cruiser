@@ -1,0 +1,21 @@
+# 配置: {project-root}/.agents/skill-deploy.yml（Git で管理する）
+# デプロイ先のパスは .env の SKILLS_*_DIR で指定する。
+version: 1
+name: project-skill-deploy-config
+sources:
+  # root: プロジェクトルートからの相対パス。配下の SKILL.md を持つディレクトリを探索する。
+  # システムが常に探索・配布から除外するもの: _build、__pycache__、*.pyc、*.pyo
+  # スキルとして探索しないもの: . で始まるディレクトリ
+  - root: skills
+    # include: root からの相対パス（スキルまたはその上位ディレクトリ）。省略時は全スキル。
+    # include:
+    #   - category
+# targets: 任意。デプロイ先ごとの追加保護。
+#   キー: codex / claude / gemini / copilot / agents（.env の SKILLS_<KEY>_DIR に対応）
+#   ignore: 配置先ルート直下の名前（パスとglobは不可）。指定したものは追加・削除・上書きしない。
+# システムが常に保護するもの（指定不要）: 配置先ルート直下の .system、synced
+# targets:
+#   agents:
+#     ignore:
+#       - custom-skill
+#       - local.txt
