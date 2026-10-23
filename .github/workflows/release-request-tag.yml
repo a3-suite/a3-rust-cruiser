@@ -8,20 +8,19 @@ jobs:
   request:
     runs-on: ubuntu-24.04
     permissions:
-      actions: write
       contents: read
     env:
       CI_GITHUB_TOKEN: ${{ github.token }}
     steps:
       - name: Resolve annotated tag identity
         id: tag
-        uses: a3-suite/a3-ci-github/actions/ci-annotated-tag-resolver@4683eface1915b15f4c822b00c604a216a78867c
+        uses: a3-suite/a3-ci-github/actions/ci-annotated-tag-resolver@1c7f2d610441d952004b6d96c7c8aad2d2242920
         with:
           repository: ${{ github.repository }}
           tag: ${{ github.ref_name }}
           github-token: ${{ env.CI_GITHUB_TOKEN }}
       - name: Write tag request handoff
-        uses: a3-suite/a3-ci-github/actions/ci-release-request-handoff@4683eface1915b15f4c822b00c604a216a78867c
+        uses: a3-suite/a3-ci-github/actions/ci-release-request-handoff@1c7f2d610441d952004b6d96c7c8aad2d2242920
         with:
           output-directory: release-request
           tag-source-sha: ${{ steps.tag.outputs.source-sha }}
@@ -30,7 +29,7 @@ jobs:
           github-ref-name: ${{ github.ref_name }}
           request-run-id: ${{ github.run_id }}
           request-actor: ${{ github.actor }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: release-request
           path: release-request
@@ -41,14 +40,11 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-    env:
-      WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository
-        }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Write workflow summary
-        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@4683eface1915b15f4c822b00c604a216a78867c
+        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@1c7f2d610441d952004b6d96c7c8aad2d2242920
         with:
           summary-json: '{"jobs":[{"unit":"request","execution":"tag event
             handoff","rawResult":"${{ needs.request.result
-            }}","applicable":true,"evidence":"${{ env.WORKFLOW_RUN_URL
-            }}","reason":"request job result: ${{ needs.request.result }}"}]}'
+            }}","applicable":true,"reason":"request job result: ${{
+            needs.request.result }}"}]}'

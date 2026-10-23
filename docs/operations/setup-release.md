@@ -2,7 +2,7 @@
 
 ## 対象
 
-オンライン導入と起動確認は `README.md` を参照してください。この文書では、事前取得した manifest と CLI archive を使うオフライン導入を説明します。製品固有の asset 宣言は `installer/assembly.json` と `installer/manifests/` が正本です。
+オンライン導入と起動確認は `README.md` を参照してください。この文書では、事前取得した manifest と CLI archive を使うオフライン導入を説明します。製品固有の asset 宣言は `.ci/installer/assembly.json` と `.ci/installer/manifests/` が正本です。
 
 ## オフライン導入
 

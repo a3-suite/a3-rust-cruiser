@@ -40,7 +40,7 @@ export PATH="$HOME/.local/bin:$PATH"
 Windows PowerShell 5.1 以降で実行してください。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm 'https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install.ps1' | iex"
+powershell -ExecutionPolicy Bypass -NoProfile -Command "irm 'https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install.ps1' | iex"
 ```
 
 managed root は `%LOCALAPPDATA%\a3-suite\a3-rust-cruiser\standalone`、launcher は `%LOCALAPPDATA%\Programs\a3-suite\a3-rust-cruiser\bin\a3-rust-cruiser.exe` に配置されます。コマンド名で実行するには、現在の PowerShell セッションで PATH に追加して導入を確認します。
@@ -56,6 +56,10 @@ a3-rust-cruiser --version
 ```
 
 オフライン導入は[セットアップ手順](docs/operations/setup-release.md)を参照してください。
+
+### Agent Skillのインストール
+
+本製品は対応スキルとセットで使用します。同じ版の[対応スキルZIP](https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/a3-rust-cruiser-skills.zip)と同じReleaseの`.sha256`をダウンロードし、SHA-256を照合してから展開して、利用者環境の適切なスキルフォルダに配置してください。削除する場合は、配備した`<skill-root>/a3-rust-cruiser/`だけを削除します。
 
 ### アンインストール
 

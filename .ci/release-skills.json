@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "ci.release-skills.v1",
+  "skills": [
+    {
+      "path": "skills/a3-rust-cruiser",
+      "include": [
+        "SKILL.md",
+        "references"
+      ],
+      "requiredFiles": [
+        "SKILL.md",
+        "references/create-boundary-policy.guide.md",
+        "references/run-boundary-policy-check.guide.md",
+        "references/run-logical-module-boundary-check.guide.md",
+        "references/run-resolved-implementation-attribution-check.guide.md",
+        "references/setup-release.guide.md"
+      ]
+    }
+  ]
+}

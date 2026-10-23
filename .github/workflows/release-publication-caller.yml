@@ -20,41 +20,10 @@ jobs:
       request_run_id: ${{ steps.request.outputs['request-run-id'] }}
     steps:
       - name: Validate triggering workflow run
-        shell: bash
-        env:
-          REQUEST_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          REQUEST_REPOSITORY: ${{ github.event.workflow_run.repository.full_name }}
-          REQUEST_WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
-          REQUEST_WORKFLOW_PATH: ${{ github.event.workflow_run.path }}
-          REQUEST_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
-          REQUEST_EVENT: ${{ github.event.workflow_run.event }}
-          REQUEST_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-          REQUEST_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: >
-          set -euo pipefail
-
-          test "$REQUEST_CONCLUSION" = success
-
-          test "$REQUEST_REPOSITORY" = "$GITHUB_REPOSITORY"
-
-          test "$REQUEST_WORKFLOW_NAME" = release-publication-request
-
-          test "$REQUEST_EVENT" = workflow_dispatch
-
-          test -n "$DEFAULT_BRANCH"
-
-          test "$REQUEST_HEAD_BRANCH" = "$DEFAULT_BRANCH"
-
-          case "$REQUEST_WORKFLOW_PATH" in
-            .github/workflows/release-publication-request.yml|.github/workflows/release-publication-request.yml@"$DEFAULT_BRANCH") ;;
-            *) exit 1 ;;
-          esac
-
-          [[ "$REQUEST_WORKFLOW_RUN_ID" =~ ^[1-9][0-9]*$ ]]
-
-          [[ "$REQUEST_HEAD_SHA" =~ ^[a-f0-9]{40}$ ]]
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        uses: a3-suite/a3-ci-github/actions/ci-release-publication-control@1c7f2d610441d952004b6d96c7c8aad2d2242920
+        with:
+          operation: verify-trigger
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: release-publication-request
           path: release-publication-request
@@ -62,7 +31,7 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
       - id: request
         name: Validate publication request identity
-        uses: a3-suite/a3-ci-github/actions/ci-release-publication-control@4683eface1915b15f4c822b00c604a216a78867c
+        uses: a3-suite/a3-ci-github/actions/ci-release-publication-control@1c7f2d610441d952004b6d96c7c8aad2d2242920
         with:
           operation: verify-publication-request
           request-workflow-run-id: ${{ github.event.workflow_run.id }}
@@ -72,22 +41,21 @@ jobs:
     permissions:
       actions: read
       contents: write
-    uses: a3-suite/a3-ci-github/.github/workflows/ci-release-publication.yml@6cc7f86e2599c3a4aeff36093d8daa041108712b
+    uses: a3-suite/a3-ci-github/.github/workflows/ci-release-publication.yml@708fe45368ff54488a5fc260d7e9f6dd89b6de2a
     with:
-      sha256sum-version: "9.4"
       runner: ubuntu-24.04
       language-profile: rust
       platform-manifest: .ci/platform-manifest.yml
       toolchain-version: 1.98.0
-      uv-version: ""
       cargo-audit-version: 0.22.1
-      gh-version: 2.92.0
       jq-version: 1.7.1
       release-implementation: rust-cli-release
       standard-bundle-id: rust-cargo-quality
       adapter-descriptor: ""
       cargo-manifest-path: Cargo.toml
       cargo-lock-path: Cargo.lock
+      cargo-deny-version: ""
+      cargo-deny-config-path: ""
       release-binary-name: a3-rust-cruiser
       release-asset-prefix: a3-rust-cruiser
       request_run_id: ${{ needs.validate-request.outputs.request_run_id }}
@@ -95,7 +63,8 @@ jobs:
       supplemental_release_asset_enabled: true
       supplemental_release_asset_owner_contract: installer.asset-assembly-evidence-contract
       supplemental_release_asset_implementation: standard-installer
-      supplemental_release_asset_config_path: installer/assembly.json
+      supplemental_release_asset_config_path: .ci/installer/assembly.json
+      release_skills_config_path: .ci/release-skills.json
   summary:
     needs:
       - validate-request
@@ -104,19 +73,16 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-    env:
-      WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository
-        }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Write workflow summary
-        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@4683eface1915b15f4c822b00c604a216a78867c
+        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@1c7f2d610441d952004b6d96c7c8aad2d2242920
         with:
           summary-json: '{"jobs":[{"unit":"validate-request","execution":"trusted
             publication request validation","rawResult":"${{
-            needs.validate-request.result }}","applicable":true,"evidence":"${{
-            env.WORKFLOW_RUN_URL }}","reason":"validate-request result: ${{
+            needs.validate-request.result
+            }}","applicable":true,"reason":"validate-request result: ${{
             needs.validate-request.result
             }}"},{"unit":"publish","execution":"trusted release
             publication","rawResult":"${{ needs.publish.result
-            }}","applicable":true,"evidence":"${{ env.WORKFLOW_RUN_URL
-            }}","reason":"publish result: ${{ needs.publish.result }}"}]}'
+            }}","applicable":true,"reason":"publish result: ${{
+            needs.publish.result }}"}]}'

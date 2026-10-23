@@ -29,14 +29,14 @@ contracts:
       - id: release-tag-provider-bound
         claim: {field: ci.release_request.workflow_binding, present: true}
   - id: contract.ci.release-publication.binding
-    summary: repositoryは承認済みrequestを固定providerとproduct installer assemblyへ結び付ける。
+    summary: repositoryは承認済みrequestを固定provider、product installer assembly、公開スキル宣言へ結び付ける。
     observations:
       - boundary: boundary.repository-source-configuration
         summary: repositoryに宣言された品質workflow、tag request、Release publicationの設定
         surface: GitHub Actions workflow declarations、provider revision、platform manifest、installer assembly
         fields:
           - selector: ci.release_publication.workflow_binding
-            meaning: approved request、Release publication provider binding、product installer assemblyを結ぶworkflow設定
+            meaning: approved request、Release publication provider binding、product installer assembly、公開スキル宣言を結ぶworkflow設定
     guarantees:
       - id: release-publication-provider-bound
         claim: {field: ci.release_publication.workflow_binding, present: true}

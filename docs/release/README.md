@@ -19,7 +19,7 @@
 - 採用プリセットと公開経路:
   - `release-request`（tag variant）: `.github/workflows/release-request-tag.yml`
   - `release-publication`（request / caller、実処理は provider reusable `a3-suite/a3-ci-github/.github/workflows/ci-release-publication.yml`）: `.github/workflows/release-publication-request.yml`、`.github/workflows/release-publication-caller.yml`
-- 3 platform の CLI archive、target-specific installer、Unix共有wrapper: `.ci/platform-manifest.yml`、`installer/assembly.json`、`installer/manifests/`
+- 3 platform の CLI archive、target-specific installer、Unix共有wrapper: `.ci/platform-manifest.yml`、`.ci/installer/assembly.json`、`.ci/installer/manifests/`
 - 利用者向け導入手順: `docs/operations/setup-release.md`
 - スキルからの導入手順参照: `skills/a3-rust-cruiser/references/setup-release.guide.md`
 

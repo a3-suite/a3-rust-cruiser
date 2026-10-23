@@ -80,7 +80,7 @@ done
 grep -Fx 'platforms:' "$ci_root/platform-manifest.yml" >/dev/null
 test "$(grep -c '^  - id:' "$ci_root/platform-manifest.yml")" = 3
 grep -Fx '    runner: ubuntu-24.04' "$ci_root/platform-manifest.yml" >/dev/null
-grep -Fx '    runner: macos-14' "$ci_root/platform-manifest.yml" >/dev/null
+grep -Fx '    runner: macos-15' "$ci_root/platform-manifest.yml" >/dev/null
 grep -Fx '    runner: windows-2022' "$ci_root/platform-manifest.yml" >/dev/null
 grep -Fx '    target: x86_64-unknown-linux-gnu' "$ci_root/platform-manifest.yml" >/dev/null
 grep -Fx '    target: aarch64-apple-darwin' "$ci_root/platform-manifest.yml" >/dev/null
@@ -122,7 +122,7 @@ release_publication_contract() {
   grep -F 'supplemental_release_asset_enabled: true' "$workflow_root/release-publication-caller.yml" >/dev/null
   grep -F 'supplemental_release_asset_owner_contract: installer.asset-assembly-evidence-contract' "$workflow_root/release-publication-caller.yml" >/dev/null
   grep -F 'supplemental_release_asset_implementation: standard-installer' "$workflow_root/release-publication-caller.yml" >/dev/null
-  grep -F 'supplemental_release_asset_config_path: installer/assembly.json' "$workflow_root/release-publication-caller.yml" >/dev/null
+  grep -F 'supplemental_release_asset_config_path: .ci/installer/assembly.json' "$workflow_root/release-publication-caller.yml" >/dev/null
   grep -F 'release_identity:' "$workflow_root/release-publication-request.yml" >/dev/null
   grep -F 'approval_id:' "$workflow_root/release-publication-request.yml" >/dev/null
   grep -F 'approval_body_sha256:' "$workflow_root/release-publication-request.yml" >/dev/null
@@ -130,7 +130,27 @@ release_publication_contract() {
     echo "publication request must not hold contents write" >&2
     exit 1
   fi
-  test -f "$repository_root/installer/assembly.json"
+  test -f "$repository_root/.ci/installer/assembly.json"
+  grep -F 'release_skills_config_path: .ci/release-skills.json' "$workflow_root/release-publication-caller.yml" >/dev/null
+  # 公開スキルの宣言が実在する root と必須 file を指し、Release ZIP の収録漏れを公開前に検出する。
+  python3 - "$ci_root/release-skills.json" "$repository_root" <<'PY'
+import json, sys
+from pathlib import Path
+
+declaration = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+root = Path(sys.argv[2])
+if declaration.get("schemaVersion") != "ci.release-skills.v1" or not declaration.get("skills"):
+    raise SystemExit("invalid release skills declaration")
+for skill in declaration["skills"]:
+    skill_root = root / skill["path"]
+    if not (skill_root / "SKILL.md").is_file():
+        raise SystemExit(f"release skill root has no SKILL.md: {skill['path']}")
+    for required in skill["requiredFiles"]:
+        if not (skill_root / required).is_file():
+            raise SystemExit(f"release skill required file is missing: {skill['path']}/{required}")
+        if not any(required == item or required.startswith(f"{item}/") for item in skill["include"]):
+            raise SystemExit(f"release skill required file is not included: {skill['path']}/{required}")
+PY
 }
 
 quality_gate_contract

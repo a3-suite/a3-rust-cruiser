@@ -17,3 +17,4 @@ requirements:
       - target-specific installer は対応する固定manifestとCLI archiveをchecksumで検証する。事前取得入力を使うoffline実行を任意で選択できる
       - releaseごとの配置先はversionごとに分離され、同じmanaged rootで次のversionへのupgradeができる
       - 利用者がchecksumを検証してCLIを導入・更新でき、失敗時は未完了の理由と影響範囲を確認できる
+      - CLIとセットで使う公開スキルのZIPとそのchecksumが、CLIと同じRelease identityで公開される
