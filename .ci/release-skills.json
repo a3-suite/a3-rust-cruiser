@@ -12,8 +12,7 @@
         "references/create-boundary-policy.guide.md",
         "references/run-boundary-policy-check.guide.md",
         "references/run-logical-module-boundary-check.guide.md",
-        "references/run-resolved-implementation-attribution-check.guide.md",
-        "references/setup-release.guide.md"
+        "references/run-resolved-implementation-attribution-check.guide.md"
       ]
     }
   ]

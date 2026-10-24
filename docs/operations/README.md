@@ -17,7 +17,6 @@
 
 - 成果物の概要・できること・できないこと: `README.md`
 - オフライン導入（対象別installer、事前取得manifest・archive）: `docs/operations/setup-release.md`
-- a3-rust-cruiser スキルからのセットアップ参照: `skills/a3-rust-cruiser/references/setup-release.guide.md`
 - 使い方（実行ガイド）:
   - BoundaryPolicy 入力: `skills/a3-rust-cruiser/references/run-boundary-policy-check.guide.md`
   - resolved-implementation-attribution 入力: `skills/a3-rust-cruiser/references/run-resolved-implementation-attribution-check.guide.md`

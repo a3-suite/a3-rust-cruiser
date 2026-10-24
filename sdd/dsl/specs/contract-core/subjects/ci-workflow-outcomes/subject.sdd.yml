@@ -6,6 +6,9 @@ subject:
 contracts:
   - id: contract.ci.quality-gate.binding
     summary: repositoryはpull requestとdefault branch pushに品質workflowを結び付ける。
+    inputs:
+      - name: workflow_source
+        meaning: 契約対象が読むrepository内のworkflow宣言ファイル
     observations:
       - boundary: boundary.repository-source-configuration
         summary: repositoryに宣言された品質workflow、tag request、Release publicationの設定
@@ -18,6 +21,9 @@ contracts:
         claim: {field: ci.quality_gate.workflow_binding, present: true}
   - id: contract.ci.release-request.binding
     summary: repositoryはannotated release tagを固定providerへhandoffする設定を持つ。
+    inputs:
+      - name: workflow_source
+        meaning: 契約対象が読むrepository内のworkflow宣言ファイル
     observations:
       - boundary: boundary.repository-source-configuration
         summary: repositoryに宣言された品質workflow、tag request、Release publicationの設定
@@ -30,6 +36,9 @@ contracts:
         claim: {field: ci.release_request.workflow_binding, present: true}
   - id: contract.ci.release-publication.binding
     summary: repositoryは承認済みrequestを固定provider、product installer assembly、公開スキル宣言へ結び付ける。
+    inputs:
+      - name: workflow_source
+        meaning: 契約対象が読むrepository内のworkflow宣言ファイル
     observations:
       - boundary: boundary.repository-source-configuration
         summary: repositoryに宣言された品質workflow、tag request、Release publicationの設定

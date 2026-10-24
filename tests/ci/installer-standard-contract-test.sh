@@ -28,7 +28,6 @@ assert case_release_version, "installer contract case release version is missing
 assert case_release_version.group(1) == release_version, "installer contract case version differs from Cargo.toml"
 assembly = json.loads((root / ".ci/installer/assembly.json").read_text(encoding="utf-8"))
 readme = (root / "README.md").read_text(encoding="utf-8")
-setup_guide = (root / "skills/a3-rust-cruiser/references/setup-release.guide.md").read_text(encoding="utf-8")
 operations_guide = (root / "docs/operations/setup-release.md").read_text(encoding="utf-8")
 expected = {
     "linux-x86_64": (".ci/installer/manifests/linux-x86_64.json", "install-linux-x86_64.sh"),
@@ -71,8 +70,6 @@ assert "--source offline" in operations_guide
 assert "-Source offline" in operations_guide
 assert "/download/" not in operations_guide
 assert "pwsh -NoProfile -File" not in operations_guide
-assert "https://github.com/a3-suite/a3-rust-cruiser" in setup_guide
-assert "/download/" not in setup_guide
 
 for platform_id, (manifest_path, asset_name) in expected.items():
     declaration = assembly["platforms"][platform_id]

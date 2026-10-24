@@ -35,7 +35,7 @@ JSONレポートが大きく、全文を出力として扱うと切り詰めら�
 
 | 観測結果 | 先に調べる場所 | 修正候補 |
 | --- | --- | --- |
-| コマンド未検出、version不一致、platform非対応、checksum・PATH・install directoryエラー | `references/setup-release.guide.md`、実行ファイルのversion・実体・PATH | セットアップまたは実行環境。policy入力は変更しない |
+| コマンド未検出、version不一致、platform非対応、checksum・PATH・install directoryエラー | 製品READMEの導入手順、実行ファイルのversion・実体・PATH | セットアップまたは実行環境。policy入力は変更しない |
 | 終了コード `3`、policy入力の欠落・形式不正・引数不正 | 指定した入力パス、YAML boundary policy、resolved-implementation-attribution、package/target指定 | 入力定義または実行指定。正しい入力をツールが拒否する場合だけツールの入力検証を修正候補にする |
 | `non-conformant` と `violations` | 違反のrule ID、依存元・依存先、証拠位置、policyのfrom/to、解決済み帰属 | 依存方向が意図に反するなら対象ソースまたはpolicyを修正し、ruleやowner出力が意図と違うなら各入力のownerを調査する |
 | `indeterminate` と `analysis.unsupported-analysis-context` | target triple、Cargo feature、rustc cfg、target dependency、`analysis_issues`のaffected scope | 実行コンテキストが不足していれば呼び出し側の指定を修正し、指定済みの有効条件をツールが評価できないならツールの解析境界を修正候補にする |

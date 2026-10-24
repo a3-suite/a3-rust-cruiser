@@ -1,6 +1,6 @@
 ---
 name: a3-rust-cruiser
-description: 非SDDのRustプロジェクトで決定した境界ルールからYAML boundary policyを作成・修正するとき、GitHub Releaseの固定版a3-rust-cruiser CLIを標準installer bundleからセットアップするとき、またはpolicyやowner生成済みの解決済み実装帰属で論理モジュール依存、境界違反、循環依存を検証するときに使う。
+description: 非SDDのRustプロジェクトで決定した境界ルールからYAML boundary policyを作成・修正するとき、またはpolicyやowner生成済みの解決済み実装帰属で論理モジュール依存、境界違反、循環依存を検証するときに使う。
 ---
 
 # a3-rust-cruiser / SKILL
@@ -8,7 +8,6 @@ description: 非SDDのRustプロジェクトで決定した境界ルールから
 ## 目的
 
 - Rust プロジェクトの論理モジュール境界を、プロジェクトが所有する YAML boundary policyまたはowner生成済みの解決済み実装帰属に対して検証する。
-- GitHub Release の標準 installer bundle と固定版CLI archiveをchecksum検証後に導入し、導入versionと実行pathを確認する。
 - 検証結果を `conformant`、`non-conformant`、`indeterminate` に区別し、根拠とともに報告する。
 
 ## 原則
@@ -17,7 +16,6 @@ description: 非SDDのRustプロジェクトで決定した境界ルールから
 - 境界入力、package、target、target triple は推測せず、対象プロジェクトとツールチェーンから確認する。
 - YAML boundary policyはSDDを正本として運用しないプロジェクトの入力として扱う。SDDプロジェクトでは作成・使用しない。
 - 解決済み実装帰属は、`a3-sdd`の正規導線で生成されたowner出力を変換せずに使用する。SDD DSLの意味、current artifactの解決、出力方法は`a3-sdd`および`sdd-designs`へ委譲し、a3-rust-cruiserはraw owner DSLの解釈や帰属の再計算を行わない。package、target、target triple、feature、cfg、analysis profile、include、excludeはCLIの解析コンテキストとして別に確定する。
-- セットアップでは固定versionだけを使用し、`latest`やbranchから取得しない。
 - `indeterminate` と実行エラーを適合として扱わない。
 - 除外指定を、違反を隠して適合させる目的で追加しない。
 
@@ -29,12 +27,6 @@ description: 非SDDのRustプロジェクトで決定した境界ルールから
 - macro expansion など解析できない構造がある場合、違反が0件でも検証完了とは扱わない。
 
 ## トリガー＆アクション
-
-### a3-rust-cruiserをセットアップしたい
-
-- 固定versionと対応platformを確認し、標準 installer bundle と固定 manifest / CLI archive を checksum 検証してからセットアップする。
-- 既定は per-user CLI profile とし、PATH は自動変更しない。取得済みの manifest と CLI archive を使う場合は offline mode を選ぶ。
-- 参照: references/setup-release.guide.md
 
 ### YAML BoundaryPolicyで論理モジュール境界を検証したい
 

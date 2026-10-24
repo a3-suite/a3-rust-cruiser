@@ -6,6 +6,11 @@ subject:
 contracts:
   - id: contract.logical-module-boundary.dependency-graph
     summary: 1回の解析はcompilationまたはsource-unionを持つ一意なAnalysisContextを使い、ModuleDeclarationを利用依存から分離し、 import、re-export、解決済みpath-referenceだけをDependencyEdgeとして観測する。 compilationはCargo manifest、選択feature、target tripleに対するrustc cfgを組み合わせたcompile条件を観測範囲とし、 有効・無効を確定できるcfg、Cargo target dependency、optional dependencyを選別する。字句scope内のuse alias、local binding、 同一moduleの宣言名、既知の依存中立macroとserdeを正規提供元とするderive、定義形状とmacro namespaceを一意に証明できる限定local macro、既知macroの引数内path、serdeの既知関数path属性、および同じ証明条件を満たす限定item macroの生成itemとpathを解決し、それでも未対応のmacro展開、cfg評価、名前解決が 境界判定へ影響し得る場合だけ解析未完了とする。 source-unionはsourceに記述された全cfg分岐を和集合として観測し、macroまたはattribute展開だけが生成する依存を観測範囲外とするが、明示的な内部参照を解決できない場合は解析未完了とする。 includeとexcludeはBoundaryPolicyと同じLogicalModule ID patternを使い、include省略時は全moduleを候補とし、excludeを優先する。 選択済みmoduleを依存元とし、内部依存先も選択済みの辺だけを保持するが、外部crate依存先は依存元が選択済みなら保持する。 内部論理モジュールと外部crateを区別し、同一入力の集合と順序を決定的にする。
+    inputs:
+      - name: analysis_context
+        meaning: CLIが受け取るAnalysisContextのoption（package、compilation target、features、cfg、target triple、analysis profile、include、exclude）
+      - name: rust_project
+        meaning: caseが整える解析対象のCargo projectとsource tree、およびそこに含まれる依存と構文
     external_document_refs:
       - document_id: dependency-cruiser-readme
         locator: What's this do?
@@ -58,6 +63,15 @@ contracts:
         claim: {field: result.excluded_scopes, present: true}
   - id: contract.logical-module-boundary.boundary-policy-input
     summary: CLIが受け取るBoundaryPolicy YAMLはrules配列をrootとし、各ruleは必須のid、kind、severityと、 任意のfrom、to、modules、dependency_kinds配列を持つ。kindはforbidden、allowed、circular、 severityはerror、warning、dependency_kindsはimport、re-export、path-referenceだけを受理する。 任意配列の省略は空配列として扱う。forbiddenとallowedは空でないfromとtoだけを使用し、 circularは空でないmodulesだけを使用する。patternは空でない`::`区切りのsegment列とし、 各segmentにはliteral、`*`、`**`だけを受理する。未定義field、未対応enum、重複または kebab-caseでないid、kind別field制約またはpattern文法に反するruleは解析開始前の入力失敗として扱う。 CLIはBoundaryPolicy YAMLまたはsdd-designs owner contractが定義する resolved-implementation-attribution version 1一時出力のいずれか一つを受け取り、入力源を相互排他的に扱う。 owner出力は公開CLIから変換なしで受理し、そのshape、provenance、cardinality、帰属選択規則はowner contractに従う。 不正なowner出力はRust dependency観測を開始する前に入力失敗として扱う。 consumerはownerが解決済みのfile帰属、component dependency、scope dependencyを使用し、owner DSL、field binding、 exactまたはdeepest directory規則、親directoryからの暗黙継承を再解釈または再計算しない。 未観測fileの余剰entryは許可し、Rust module ID、covered module、unresolved moduleはconsumerが導出する。 package、compilation target、target triple、features、cfg、analysis profile、include、excludeは公開CLIのconsumer-owned AnalysisContextとして独立に受理する。consumerは同じcheck内の一回のRust dependency観測から、 全選択moduleの全source fileをexact pathでfile帰属へ結合し、全fileが同じowner tupleへ解決したmoduleだけをcoveredとする。 file帰属の欠落、source fileなし、または一つのmodule内でowner tupleが競合する場合はunresolved coverageとして導出する。 解決済みmoduleは同一component、同scope別component、cross-scopeの順に component dependencyまたはscope dependencyへ照合する。scope dependencyのcontract_refsはcontract_idを持ち、 traceabilityだけに用いて依存許可条件にしない。 帰属またはcoverageがunresolvedならconformantへ縮退させずindeterminate、禁止edgeを確定できればnon-conformantとする。 owner一時出力は`--resolved-implementation-attribution`から既存loader、evaluator、reportへ渡し、owner DSLを再解釈せず、version 1入力をversion 2へ暗黙変換しない。
+    inputs:
+      - name: boundary_policy
+        meaning: CLIが`--policy`で読むBoundaryPolicy YAMLの内容
+      - name: resolved_implementation_attribution
+        meaning: CLIが`--resolved-implementation-attribution`で読むowner一時出力の内容
+      - name: policy_source_options
+        meaning: CLIが同じ呼出しで受け取るpolicy入力源のoption
+      - name: rust_project
+        meaning: caseが整える解析対象のCargo projectとsource tree、およびそこに含まれる依存と構文
     observations:
       - boundary: boundary.cli-result
         summary: CLIプロセスが返す終了状態と標準streamの種別、textまたはJSONへ直列化される共通の検証結果
@@ -119,6 +133,11 @@ contracts:
         claim: {field: result.decision, in: [non-conformant]}
   - id: contract.logical-module-boundary.policy-evaluation
     summary: 有効なBoundaryPolicyのforbiddenとallowedはfrom、toのpattern集合、circularはmodulesのpattern集合を使う。 patternはLogicalModule IDの::区切りsegmentへ一致し、*は1 segment、**は0以上のsegment、その他の文字はliteralとして扱う。 dependency_kinds省略時は全DependencyKindへ一致する。 同じ依存に一致するforbidden ruleはすべて違反を生成し、適用可能なallowed rule群は許可先の和集合として評価する。 forbiddenはallowedより優先し、circularは両者から独立して評価して、先に一致したruleだけで結果を隠さない。
+    inputs:
+      - name: rust_project
+        meaning: caseが整える解析対象のCargo projectとsource tree、およびそこに含まれる依存と構文
+      - name: boundary_policy
+        meaning: CLIが`--policy`で読むBoundaryPolicy YAMLの内容
     external_document_refs:
       - document_id: dependency-cruiser-rules-reference
         locator: forbidden; allowed; conditions
@@ -250,6 +269,15 @@ contracts:
         claim: {field: result.violations.cycle_path, present: true}
   - id: contract.logical-module-boundary.validation-report
     summary: BoundaryViolationが1件でもあれば重大度によらずnon-conformantを最優先し、 違反がなく現在policyへの影響がpossibleなAnalysisIssueが1件でもあればindeterminate、 それ以外はAnalysisIssueが存在してもconformantとする。JSONとtextは同じ判断、違反、解析問題を表し、 moduleはid、declarationはparent・child・evidence、dependencyはsource・target・kind・evidence、 violationはrule_id・source・target・dependency_kind・evidence、analysis issueはcode・affected_scope・reasonに加え、 観測結果と現在policyへの影響を独立した型付きfieldで保持する。確定依存と確定違反はAnalysisIssueへ複製しない。 未解決依存候補では、sourceとdependency kindに適用可能なforbidden・circular ruleのうち、候補集合が空またはpatternに一致する候補を持つruleを 影響し得るrule IDへ含める。allowed ruleは、候補集合が空、または許可先和集合に含まれない候補が1つでもある場合に、適用可能なrule IDを 影響へ含め、候補集合が空でなく全候補が許可先和集合に含まれる場合は含めない。影響し得るruleがなければnone、1つ以上ならpossibleとする。 候補target、dependency kind、rule ID、excluded scopeは文字列を比較keyとして昇順かつ重複なしで出力する。
+    inputs:
+      - name: project_and_policy
+        meaning: caseが整える解析対象のCargo project、source treeと、CLIが読むpolicy入力の組。違反する依存、解析できない構文、その構文が適用可能なruleへ影響するか、未解決依存の候補と許可先を含む
+      - name: policy_source
+        meaning: CLIが受け取るpolicy入力源の種類（BoundaryPolicy YAMLまたはresolved-implementation-attribution）
+      - name: report_options
+        meaning: CLIが受け取る出力形式と、caseが同じ入力で繰り返す実行回数
+      - name: analysis_context
+        meaning: CLIが受け取るAnalysisContextのoption（package、compilation target、features、cfg、target triple、analysis profile、include、exclude）
     observations:
       - boundary: boundary.cli-result
         summary: textまたはJSONへ直列化される共通の検証結果
@@ -504,6 +532,11 @@ contracts:
         claim: {field: result.violations, present: true}
   - id: contract.logical-module-boundary.cli-outcome
     summary: CLIはconformantを0、non-conformantを1、indeterminateを2、 不正な呼出し、読込不能または契約不適合のBoundaryPolicy、その他の実行失敗を3へ写像する。 helpとversionは情報を標準出力へ返して0で終了する。完了した解析だけがtextまたはJSONの検証結果を 標準出力へ返し、実行失敗の説明は標準エラーへ返す。
+    inputs:
+      - name: cli_arguments
+        meaning: CLIが受け取るsubcommandとoption
+      - name: project_and_policy
+        meaning: caseが整える解析対象のCargo project、source treeと、CLIが読むpolicy入力の組。違反する依存、解析できない構文、その構文が適用可能なruleへ影響するか、未解決依存の候補と許可先を含む
     observations:
       - boundary: boundary.cli-result
         summary: CLIプロセスが返す終了状態と標準streamの種別
