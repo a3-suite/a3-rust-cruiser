@@ -1,0 +1,8 @@
+version: 1
+name: contract-environment
+environment_id: project-contract-environment
+boundaries:
+  - id: boundary.cli-result
+    summary: CLIから利用者と継続的インテグレーションへ返す検証結果
+  - id: boundary.repository-source-configuration
+    summary: repositoryに宣言されたinstaller構成と利用者向け導入案内

@@ -15,7 +15,7 @@ pub(super) use module_index::{
     local_macro_bindings, path_to_string, public_glob_imports, public_item_names,
     public_use_bindings, syn_path_segments, use_aliases,
 };
-pub(super) use visitor::PathVisitor;
+pub(super) use visitor::{ObservedPath, PathVisitor, ScopedUse};
 
 #[cfg(test)]
 mod tests {

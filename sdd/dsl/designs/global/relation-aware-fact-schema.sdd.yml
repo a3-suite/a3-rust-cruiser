@@ -1,33 +1,29 @@
 version: 1
-system: relation-aware-analysis
-document:
-  canonical_name: a3-rust-cruiser-relation-aware-fact-schema
-  summary: Rust 論理モジュールと依存関係を観測する fact shape
-schema:
-  schema_version: a3-rust-cruiser-relation-aware:v1
-  file_facts:
-    rust_source_file:
-      required:
-        - file_path
-      optional:
-        - logical_module_ids
-        - module_declaration_ids
-  project_relation_facts:
-    rust_module_declaration_relation:
-      required:
-        - declaration_id
-        - parent
-        - child
-        - evidence_path
-        - evidence_line
-        - evidence_column
-    rust_dependency_relation:
-      required:
-        - candidate_id
-        - source
-        - target
-        - dependency_kind
-        - target_scope
-        - evidence_path
-        - evidence_line
-        - evidence_column
+summary: Rust 論理モジュールと依存関係を観測する fact shape
+schema_version: a3-rust-cruiser-relation-aware:v1
+file_facts:
+  rust_source_file:
+    required:
+      - file_path
+    optional:
+      - logical_module_ids
+      - module_declaration_ids
+project_relation_facts:
+  rust_module_declaration_relation:
+    required:
+      - declaration_id
+      - parent
+      - child
+      - evidence_path
+      - evidence_line
+      - evidence_column
+  rust_dependency_relation:
+    required:
+      - candidate_id
+      - source
+      - target
+      - dependency_kind
+      - target_scope
+      - evidence_path
+      - evidence_line
+      - evidence_column

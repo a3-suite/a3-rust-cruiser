@@ -28,17 +28,22 @@ fn should_check_help_exits_with_zero() {
     let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
 
     // Act
-    let output = Command::new(binary)
-        .args(["check", "--help"])
-        .output()
-        .expect("binary should run");
+    for option in ["--help", "-h"] {
+        let output = Command::new(binary)
+            .args(["check", option])
+            .output()
+            .expect("binary should run");
 
-    // Assert
-    assert_eq!(output.status.code(), Some(0));
-    assert!(output.stderr.is_empty());
-    let stdout = String::from_utf8(output.stdout).expect("help is UTF-8");
-    assert!(stdout.contains("Usage: a3-rust-cruiser check <PROJECT_ROOT>"));
-    assert!(stdout.contains("--analysis-profile <compilation|source-union>"));
+        // Assert
+        assert_eq!(output.status.code(), Some(0));
+        assert!(output.stderr.is_empty());
+        let stdout = String::from_utf8(output.stdout).expect("help is UTF-8");
+        assert!(stdout.contains("Usage: a3-rust-cruiser check <PROJECT_ROOT>"));
+        assert!(stdout.contains(
+            "--resolved-implementation-attribution <RESOLVED_IMPLEMENTATION_ATTRIBUTION_PATH>"
+        ));
+        assert!(stdout.contains("--analysis-profile <compilation|source-union>"));
+    }
 }
 
 #[test]
@@ -115,6 +120,35 @@ fn should_execution_failure_exits_with_three() {
     assert!(!output.stderr.is_empty());
 }
 
+#[cfg(unix)]
+#[test]
+fn should_stdout_write_failure_exits_with_three() {
+    // Arrange
+    use std::{
+        fs::File,
+        os::unix::io::{FromRawFd, IntoRawFd},
+        os::unix::net::UnixStream,
+        process::Stdio,
+    };
+
+    let binary = env!("CARGO_BIN_EXE_a3-rust-cruiser");
+    let (child_stdout, peer) = UnixStream::pair().expect("socket pair should be created");
+    drop(peer);
+    let child_stdout = unsafe { File::from_raw_fd(child_stdout.into_raw_fd()) };
+
+    // Act
+    let output = Command::new(binary)
+        .arg("--help")
+        .stdout(Stdio::from(child_stdout))
+        .output()
+        .expect("binary should run");
+
+    // Assert
+    assert_eq!(output.status.code(), Some(3));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("failed to write validation result"));
+}
+
 #[test]
 fn should_missing_boundary_policy_source_is_rejected() {
     // Arrange
@@ -133,8 +167,86 @@ fn should_missing_boundary_policy_source_is_rejected() {
     // Assert
     assert_execution_failure(
         &output,
-        "--policy or complete SDD boundary policy input is required",
+        "--policy or --resolved-implementation-attribution is required",
     );
+}
+
+#[test]
+fn should_missing_boundary_policy_report_its_path() {
+    // Arrange
+    let fixture = TempFixture::new("missing-boundary-policy-path");
+    let missing_policy = fixture.join("missing-policy.yaml");
+
+    // Act
+    let output = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"))
+        .args([
+            "check",
+            fixture.path().to_str().expect("fixture path is UTF-8"),
+            "--policy",
+            missing_policy.to_str().expect("policy path is UTF-8"),
+            "--package",
+            fixture.package(),
+            "--target",
+            fixture.target().as_str(),
+            "--target-triple",
+            "x86_64-unknown-linux-gnu",
+        ])
+        .output()
+        .expect("binary should run");
+
+    // Assert
+    assert_execution_failure(
+        &output,
+        missing_policy.to_str().expect("policy path is UTF-8"),
+    );
+}
+
+#[test]
+fn should_missing_resolved_attribution_report_its_path() {
+    // Arrange
+    let fixture = TempFixture::new("missing-resolved-attribution-path");
+    let missing_attribution = fixture.join("missing-resolved.sdd.yml");
+
+    // Act
+    let output = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"))
+        .args([
+            "check",
+            fixture.path().to_str().expect("fixture path is UTF-8"),
+            "--resolved-implementation-attribution",
+            missing_attribution
+                .to_str()
+                .expect("attribution path is UTF-8"),
+            "--package",
+            fixture.package(),
+            "--target",
+            fixture.target().as_str(),
+            "--target-triple",
+            "x86_64-unknown-linux-gnu",
+        ])
+        .output()
+        .expect("binary should run");
+
+    // Assert
+    assert_execution_failure(
+        &output,
+        missing_attribution
+            .to_str()
+            .expect("attribution path is UTF-8"),
+    );
+}
+
+#[test]
+fn should_missing_manifest_report_its_path() {
+    // Arrange
+    let fixture = TempFixture::new("missing-manifest-path");
+    let manifest = fixture.join("Cargo.toml");
+    std::fs::remove_file(&manifest).expect("manifest should be removed");
+
+    // Act
+    let output = run_check(&fixture, "json");
+
+    // Assert
+    assert_execution_failure(&output, manifest.to_str().expect("manifest path is UTF-8"));
 }
 
 #[test]
@@ -161,7 +273,11 @@ fn should_invalid_cli_options_are_rejected() {
     let outputs = [
         (
             run_check_with(&fixture, "bin", "xml", &[]),
-            "unsupported output format",
+            "unsupported output format: xml; expected one of: text, json",
+        ),
+        (
+            run_check_with(&fixture, "bin", "json", &["--analysis-profile", "invalid"]),
+            "unsupported analysis profile: invalid; expected one of: compilation, source-union",
         ),
         (
             run_check_with(&fixture, "bin", "json", &["--unknown"]),
@@ -204,6 +320,25 @@ fn should_missing_target_source_is_rejected() {
 
     // Assert
     assert_execution_failure(&output, "target source file not found");
+    assert!(!String::from_utf8_lossy(&output.stderr).contains("I/O error"));
+}
+
+#[test]
+fn should_missing_module_file_report_candidates_and_declaration_location() {
+    // Arrange
+    let fixture = TempFixture::new("missing-module-file");
+    fixture.write("src/main.rs", "mod missing;\nfn main() {}\n");
+
+    // Act
+    let output = run_check(&fixture, "json");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // Assert
+    assert_execution_failure(&output, "module file not found for crate::missing");
+    assert!(!stderr.contains("I/O error"));
+    assert!(stderr.contains("src/missing.rs"));
+    assert!(stderr.contains("src/missing/mod.rs"));
+    assert!(stderr.contains("src/main.rs:1:"));
 }
 
 #[test]
@@ -242,6 +377,7 @@ fn should_invalid_manifest_and_target_requests_fail_with_diagnostics() {
     );
     fixture.write("Cargo.toml", "not valid TOML = [\n");
     let invalid_manifest = run_check_with(&fixture, "lib", "json", &[]);
+    let manifest_path = fixture.join("Cargo.toml");
 
     // Assert
     assert_execution_failure(&mismatch, "does not match");
@@ -249,6 +385,10 @@ fn should_invalid_manifest_and_target_requests_fail_with_diagnostics() {
     assert_execution_failure(&empty_example, "requires a name");
     assert_execution_failure(&unsupported, "unsupported compilation target");
     assert_execution_failure(&invalid_manifest, "invalid Cargo.toml");
+    assert!(
+        String::from_utf8_lossy(&invalid_manifest.stderr)
+            .contains(manifest_path.to_str().expect("manifest path is UTF-8"))
+    );
 }
 
 #[test]

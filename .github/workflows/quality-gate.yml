@@ -1,0 +1,45 @@
+name: quality-gate
+on:
+  pull_request: null
+  push:
+    branches:
+      - main
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' &&
+    github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  quality:
+    uses: a3-suite/a3-ci-github/.github/workflows/ci-quality.yml@9d735ed49889f77c288ed69f661dfe663c3f363d
+    permissions:
+      contents: read
+    with:
+      runner: ubuntu-24.04
+      language-profile: rust
+      toolchain-version: 1.98.0
+      uv-version: ""
+      cargo-audit-version: 0.22.1
+      cargo-manifest-path: Cargo.toml
+      cargo-lock-path: Cargo.lock
+      cargo-deny-version: ""
+      cargo-deny-config-path: ""
+      jq-version: ""
+      standard-bundle-id: rust-cargo-quality
+      adapter-descriptor: ""
+      docs-only-patterns: docs/**,README.md,**/*.md
+  summary:
+    needs: quality
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Write workflow summary
+        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@77b1afe50b994c4b8ac54bfe5ba3ea849ed4d633
+        with:
+          summary-json: '{"jobs":[{"unit":"quality","execution":"fixed reusable quality
+            workflow","rawResult":"${{ needs.quality.result
+            }}","applicable":true,"reason":"reusable quality workflow result:
+            ${{ needs.quality.result }}"}]}'

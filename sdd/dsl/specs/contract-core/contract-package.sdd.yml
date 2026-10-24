@@ -2,11 +2,12 @@ version: 1
 name: contract-package
 package_id: a3-rust-cruiser-contracts
 subject_scopes:
-  - subject_id: subject.logical-module-boundary.validation
-    path: subjects/logical-module-boundary-validation/
+  - subjects/logical-module-boundary-validation/
+  - subjects/ci-workflow-outcomes/
+  - subjects/installer-product-setup/
 environment_ref:
-  environment_id: logical-module-boundary-contract-environment
-  path: environments/logical-module-boundary.sdd.yml
+  environment_id: project-contract-environment
+  path: environments/project.sdd.yml
 validator_profile_ref:
   profile_id: logical-module-boundary-validator-profile
   path: validator-profiles/logical-module-boundary.sdd.yml

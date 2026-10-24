@@ -4,6 +4,40 @@
 use super::*;
 
 #[test]
+fn should_not_report_restricted_visibility_paths_as_dependencies() {
+    // Arrange
+    let fixture = TempFixture::new("restricted-visibility-is-not-a-dependency");
+    fixture.write("src/main.rs", "mod outer;\nfn main() {}\n");
+    fixture.write("src/outer.rs", "pub mod inner;\n");
+    fixture.write(
+        "src/outer/inner.rs",
+        "pub(crate) struct CrateVisible;\npub(super) struct ParentVisible;\npub(in crate::outer) struct OuterVisible;\n",
+    );
+    fixture.write("policy.yaml", "rules: []\n");
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert_eq!(report["decision"], "conformant");
+    assert!(!dependency_exists(
+        &report,
+        "crate::outer::inner",
+        "crate",
+        "path-reference",
+        "internal-module"
+    ));
+    assert!(!dependency_exists(
+        &report,
+        "crate::outer::inner",
+        "crate::outer",
+        "path-reference",
+        "internal-module"
+    ));
+}
+
+#[test]
 fn should_typed_dependencies_and_declarations_are_reported() {
     // Arrange
     let fixture = TempFixture::new("typed-dependencies");
@@ -151,6 +185,17 @@ fn should_source_union_observes_source_authored_dependencies_without_expansion_i
         "internal-module"
     ));
     assert_eq!(report["violations"][0]["rule_id"], "forbid-platform-right");
+    assert!(array_contains(&report["modules"], "id", "crate::platform"));
+    assert!(
+        report["module_declarations"]
+            .as_array()
+            .is_some_and(|items| {
+                items
+                    .iter()
+                    .any(|item| item["parent"] == "crate" && item["child"] == "crate::left")
+            })
+    );
+    assert_eq!(report["excluded_scopes"], serde_json::json!([]));
 }
 
 #[test]
@@ -186,6 +231,10 @@ fn should_glob_import_and_reexport_chain_resolve_in_both_profiles() {
     );
 
     // Assert
+    assert_eq!(
+        source_union["analysis_context"]["analysis_profile"],
+        "source-union"
+    );
     for report in [&compilation, &source_union] {
         assert_eq!(report["analysis_issues"], serde_json::json!([]));
         assert_eq!(report["decision"], "conformant");
@@ -246,6 +295,10 @@ fn should_crate_visible_glob_reexport_resolves_in_both_profiles() {
     );
 
     // Assert
+    assert_eq!(
+        source_union["analysis_context"]["analysis_profile"],
+        "source-union"
+    );
     for report in [&compilation, &source_union] {
         assert_eq!(report["analysis_issues"], serde_json::json!([]));
         assert_eq!(report["decision"], "conformant");
@@ -302,6 +355,10 @@ fn should_crate_visible_super_glob_reexport_resolves_in_both_profiles() {
     );
 
     // Assert
+    assert_eq!(
+        source_union["analysis_context"]["analysis_profile"],
+        "source-union"
+    );
     for report in [&compilation, &source_union] {
         assert_eq!(report["analysis_issues"], serde_json::json!([]));
         assert_eq!(report["decision"], "conformant");
@@ -361,6 +418,10 @@ fn should_glob_import_keeps_unresolved_names_indeterminate_in_source_union() {
     );
 
     // Assert
+    assert_eq!(
+        source_union["analysis_context"]["analysis_profile"],
+        "source-union"
+    );
     for report in [&compilation, &source_union] {
         assert_issue(report, "analysis.unsupported-name-resolution");
         let issue = report["analysis_issues"]
@@ -414,6 +475,39 @@ fn should_glob_reexport_does_not_resolve_private_items() {
 }
 
 #[test]
+fn should_handle_public_reexport_cycle_deterministically() {
+    // Arrange
+    let fixture = TempFixture::new("cyclic-public-reexports");
+    fixture.write(
+        "src/main.rs",
+        "mod left;\nmod right;\nuse crate::left::Thing;\nfn main() { let _ = std::any::type_name::<Thing>(); }\n",
+    );
+    fixture.write("src/left.rs", "pub use crate::right::Thing;\n");
+    fixture.write("src/right.rs", "pub use crate::left::Thing;\n");
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+    assert!(dependency_exists(
+        &report,
+        "crate::left",
+        "crate::right",
+        "re-export",
+        "internal-module"
+    ));
+    assert!(dependency_exists(
+        &report,
+        "crate::right",
+        "crate::left",
+        "re-export",
+        "internal-module"
+    ));
+}
+
+#[test]
 fn should_source_union_unions_cfg_gated_alias_candidates() {
     // Arrange
     let fixture = TempFixture::new("source-union-cfg-aliases");
@@ -440,6 +534,10 @@ fn should_source_union_unions_cfg_gated_alias_candidates() {
     );
 
     // Assert
+    assert_eq!(
+        report["analysis_context"]["analysis_profile"],
+        "source-union"
+    );
     assert_eq!(report["analysis_issues"], serde_json::json!([]));
     assert!(dependency_exists(
         &report,
@@ -480,6 +578,10 @@ fn should_source_union_includes_conditional_external_dependencies() {
     );
 
     // Assert
+    assert_eq!(
+        report["analysis_context"]["analysis_profile"],
+        "source-union"
+    );
     assert_eq!(report["analysis_issues"], serde_json::json!([]));
     assert_eq!(report["decision"], "conformant");
     assert!(dependency_exists(
@@ -785,6 +887,38 @@ fn should_dev_dependency_is_available_to_test_target() {
 }
 
 #[test]
+fn should_default_features_expand_optional_dependencies_for_test_targets() {
+    // Arrange
+    let fixture = TempFixture::new("default-feature-test-dependencies");
+    fixture.write_manifest(
+        "[dependencies]\noptional-dep = { version = \"1\", optional = true }\n[features]\ndefault = [\"dep:optional-dep\", \"named\"]\nnamed = [\"optional-dep\"]\n[target.x86_64-unknown-linux-gnu.dev-dependencies]\ntarget-test-only = \"1\"\n",
+    );
+    fixture.write(
+        "tests/contract.rs",
+        "use optional_dep;\nuse target_test_only;\nfn contract() {}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check_with(&fixture, "test:contract", "json", &[]), 0);
+
+    // Assert
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "optional_dep",
+        "import",
+        "external-crate"
+    ));
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "target_test_only",
+        "import",
+        "external-crate"
+    ));
+}
+
+#[test]
 fn should_exact_target_dependency_is_active_for_the_selected_triple() {
     // Arrange
     let fixture = TempFixture::new("exact-target-dependency");
@@ -833,6 +967,7 @@ fn should_serde_function_path_observes_explicit_internal_dependency() {
                 dependency["source"] == "crate"
                     && dependency["target"] == "crate::forbidden"
                     && dependency["kind"] == "path-reference"
+                    && dependency["target_scope"] == "internal-module"
             })
         })
         .expect("serde helper dependency");
@@ -867,6 +1002,10 @@ fn should_source_union_does_not_observe_serde_function_path_dependency() {
     );
 
     // Assert
+    assert_eq!(
+        report["analysis_context"]["analysis_profile"],
+        "source-union"
+    );
     assert_eq!(report["decision"], "conformant");
     assert!(!dependency_exists(
         &report,
@@ -1053,6 +1192,10 @@ fn should_source_union_does_not_expand_exact_runtime_item_macro() {
     );
 
     // Assert
+    assert_eq!(
+        report["analysis_context"]["analysis_profile"],
+        "source-union"
+    );
     assert_eq!(report["decision"], "conformant");
     assert!(!dependency_exists(
         &report,
@@ -1062,4 +1205,91 @@ fn should_source_union_does_not_expand_exact_runtime_item_macro() {
         "internal-module"
     ));
     assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn should_observe_workspace_member_with_project_relative_evidence() {
+    for virtual_root in [false, true] {
+        let fixture = TempFixture::new(if virtual_root {
+            "virtual-member"
+        } else {
+            "root-member"
+        });
+        if virtual_root {
+            fixture.write(
+                "Cargo.toml",
+                "[workspace]\nmembers=[\"crates/engine\"]\nresolver=\"3\"\n",
+            );
+        } else {
+            fixture.write_manifest("[workspace]\nmembers=[\"crates/engine\"]\nresolver=\"3\"\n");
+        }
+        fixture.write(
+            "crates/engine/Cargo.toml",
+            "[package]\nname=\"member-engine\"\nversion=\"0.1.0\"\nedition=\"2024\"\n",
+        );
+        fixture.write(
+            "crates/engine/src/lib.rs",
+            "mod domain;\npub fn run() -> domain::Value { domain::Value }\n",
+        );
+        fixture.write("crates/engine/src/domain.rs", "pub struct Value;\n");
+        let output = run_custom(
+            &fixture,
+            "member-engine",
+            "lib",
+            "x86_64-unknown-linux-gnu",
+            &["--format", "json"],
+        );
+        let report = completed_json(&output, 0);
+        assert_eq!(report["decision"], "conformant");
+        assert_eq!(report["analysis_issues"], serde_json::json!([]));
+        assert!(dependency_exists(
+            &report,
+            "crate",
+            "crate::domain",
+            "path-reference",
+            "internal-module"
+        ));
+        let evidence = &report["dependencies"][0]["evidence"]["path"];
+        assert_eq!(evidence, "crates/engine/src/lib.rs");
+        let relative = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"))
+            .current_dir(fixture.path())
+            .args([
+                "check",
+                ".",
+                "--policy",
+                "policy.yaml",
+                "--package",
+                "member-engine",
+                "--target",
+                "lib",
+                "--target-triple",
+                "x86_64-unknown-linux-gnu",
+                "--format",
+                "json",
+            ])
+            .output()
+            .expect("binary should run from workspace");
+        assert_eq!(completed_json(&relative, 0), report);
+
+        assert_execution_failure(
+            &run_custom(
+                &fixture,
+                "unknown-member",
+                "lib",
+                "x86_64-unknown-linux-gnu",
+                &[],
+            ),
+            "missing or ambiguous",
+        );
+        assert_execution_failure(
+            &run_custom(
+                &fixture,
+                "member-engine",
+                "bin:unknown",
+                "x86_64-unknown-linux-gnu",
+                &[],
+            ),
+            "target not found",
+        );
+    }
 }

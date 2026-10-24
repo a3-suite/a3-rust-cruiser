@@ -1,0 +1,24 @@
+version: 1
+name: contract-test-maps
+test_maps:
+  - contract_id: contract.ci.quality-gate.binding
+    case_id: quality-workflow-provider-is-bound
+    tests:
+      - path: tests/ci/ci-workflow-contract-test.sh
+        symbol: quality_gate_contract
+        guarantees:
+          - quality-workflow-provider-bound
+  - contract_id: contract.ci.release-request.binding
+    case_id: release-tag-provider-is-bound
+    tests:
+      - path: tests/ci/ci-workflow-contract-test.sh
+        symbol: release_request_contract
+        guarantees:
+          - release-tag-provider-bound
+  - contract_id: contract.ci.release-publication.binding
+    case_id: approved-publication-provider-is-bound
+    tests:
+      - path: tests/ci/ci-workflow-contract-test.sh
+        symbol: release_publication_contract
+        guarantees:
+          - release-publication-provider-bound

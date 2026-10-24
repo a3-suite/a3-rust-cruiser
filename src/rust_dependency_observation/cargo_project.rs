@@ -12,10 +12,87 @@ use super::cfg_context::{CfgContext, CfgDecision};
 
 pub(super) fn load_manifest(project_root: &Path) -> Result<toml::Value> {
     let manifest_path = project_root.join("Cargo.toml");
-    let content = fs::read_to_string(manifest_path)?;
-    content
-        .parse()
-        .map_err(|error| CruiserError::Parse(format!("invalid Cargo.toml: {error}")))
+    let content = fs::read_to_string(&manifest_path).map_err(|error| {
+        CruiserError::io(format!("Cargo manifest {}", manifest_path.display()), error)
+    })?;
+    content.parse().map_err(|error| {
+        CruiserError::parse(
+            format!("invalid Cargo.toml {}", manifest_path.display()),
+            error,
+        )
+    })
+}
+
+/// Select a Cargo package while keeping observation paths relative to PROJECT_ROOT.
+pub(super) fn selected_manifest(
+    project_root: &Path,
+    context: &AnalysisContext,
+) -> Result<(PathBuf, toml::Value)> {
+    let manifest = load_manifest(project_root)?;
+    if manifest
+        .get("package")
+        .and_then(|p| p.get("name"))
+        .and_then(toml::Value::as_str)
+        == Some(context.package.as_str())
+    {
+        return Ok((project_root.to_path_buf(), manifest));
+    }
+    if manifest.get("workspace").is_none() {
+        return Ok((project_root.to_path_buf(), manifest));
+    }
+    let output = std::process::Command::new("cargo")
+        .current_dir(project_root)
+        .args([
+            "metadata",
+            "--offline",
+            "--locked",
+            "--no-deps",
+            "--format-version=1",
+        ])
+        .output()
+        .map_err(|error| CruiserError::io("Cargo workspace metadata", error))?;
+    if !output.status.success() {
+        return Err(CruiserError::InvalidInput(format!(
+            "Cargo workspace metadata failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    let metadata: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| CruiserError::parse("invalid Cargo workspace metadata", error))?;
+    let packages = metadata["packages"]
+        .as_array()
+        .ok_or_else(|| CruiserError::InvalidInput("Cargo packages unavailable".into()))?;
+    let members = metadata["workspace_members"]
+        .as_array()
+        .ok_or_else(|| CruiserError::InvalidInput("Cargo workspace members unavailable".into()))?;
+    let matching: Vec<_> = packages
+        .iter()
+        .filter(|p| {
+            p["name"].as_str() == Some(context.package.as_str()) && members.contains(&p["id"])
+        })
+        .collect();
+    let [package] = matching.as_slice() else {
+        return Err(CruiserError::InvalidInput(format!(
+            "requested package {} is missing or ambiguous in the Cargo workspace",
+            context.package
+        )));
+    };
+    let path = package["manifest_path"]
+        .as_str()
+        .ok_or_else(|| CruiserError::InvalidInput("Cargo package manifest unavailable".into()))?;
+    let path = Path::new(path)
+        .canonicalize()
+        .map_err(|error| CruiserError::io("Cargo package manifest", error))?;
+    let root = project_root
+        .canonicalize()
+        .map_err(|error| CruiserError::io("Cargo project root", error))?;
+    let package_root = path
+        .parent()
+        .filter(|p| p.starts_with(&root))
+        .ok_or_else(|| {
+            CruiserError::InvalidInput("selected Cargo package must be under PROJECT_ROOT".into())
+        })?;
+    Ok((package_root.to_path_buf(), load_manifest(package_root)?))
 }
 
 pub(super) fn declared_external_crates(
@@ -360,9 +437,9 @@ pub(super) fn target_entry(
     if path.is_file() {
         Ok((path, issues))
     } else {
-        Err(CruiserError::Io(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            format!("target source file not found: {}", path.display()),
+        Err(CruiserError::InvalidInput(format!(
+            "target source file not found: {}",
+            path.display()
         )))
     }
 }

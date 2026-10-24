@@ -50,221 +50,12 @@ fn should_confirmed_violations_are_non_conformant_even_with_possible_issues() {
             .is_empty()
     );
     assert!(report["analysis_issues"].as_array().is_some_and(|issues| {
-        issues
-            .iter()
-            .any(|issue| issue["policy_impact"]["outcome"] == "possible")
-    }));
-}
-
-#[test]
-fn should_ambiguous_component_attribution_retains_safe_violations_as_non_conformant() {
-    // Arrange
-    let fixture = many_to_one_sdd_fixture();
-
-    // Act
-    let report = completed_json(&run_sdd_check(&fixture, true), 1);
-
-    // Assert
-    assert_eq!(report["decision"], "non-conformant");
-    assert_eq!(report["ordering"], "canonical");
-    assert_issue(&report, "analysis.ambiguous-component-attribution");
-    let structural_issue = report["analysis_issues"]
-        .as_array()
-        .and_then(|issues| {
-            issues.iter().find(|issue| {
-                issue["code"] == "analysis.ambiguous-component-attribution"
-                    && issue["observation"].get("source_module").is_none()
-            })
+        issues.iter().any(|issue| {
+            issue["policy_impact"]["outcome"] == "possible"
+                && issue["policy_impact"]["rule_ids"]
+                    .as_array()
+                    .is_some_and(|rule_ids| !rule_ids.is_empty())
         })
-        .expect("structural attribution issue");
-    assert_eq!(structural_issue["affected_scope"], "crate::shared");
-    assert_eq!(
-        structural_issue["reason"],
-        "Rust module crate::shared represents multiple logical components: application, domain"
-    );
-    assert_eq!(structural_issue["policy_impact"]["outcome"], "none");
-    let violations = report["violations"]
-        .as_array()
-        .expect("violations should be an array");
-    assert!(violations.iter().any(|violation| {
-        violation["source"] == "crate::reporting" && violation["target"] == "crate::infrastructure"
-    }));
-    assert!(violations.iter().all(|violation| {
-        violation["source"] != "crate::shared" && violation["target"] != "crate::shared"
-    }));
-}
-
-#[test]
-fn should_invariant_allowed_component_assignments_are_conformant() {
-    // Arrange
-    let fixture = many_to_one_sdd_fixture();
-    fixture.write(
-        "logical-structure.sdd.yml",
-        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: domain\n  - component_id: application\n  - component_id: infrastructure\n  - component_id: reporting\n  - component_id: ci-publish-script-adapter\ndependencies:\n  - from_component_id: application\n    to_component_id: infrastructure\n  - from_component_id: domain\n    to_component_id: infrastructure\n  - from_component_id: reporting\n    to_component_id: infrastructure\n",
-    );
-
-    // Act
-    let report = completed_json(&run_sdd_check(&fixture, true), 0);
-
-    // Assert
-    assert_eq!(report["decision"], "conformant");
-    assert_issue(&report, "analysis.ambiguous-component-attribution");
-    assert_eq!(
-        report["analysis_issues"][0]["policy_impact"]["outcome"],
-        "none"
-    );
-    assert_eq!(report["violations"], serde_json::json!([]));
-}
-
-#[test]
-fn should_invariant_forbidden_component_assignments_are_non_conformant() {
-    // Arrange
-    let fixture = many_to_one_sdd_fixture();
-    fixture.write(
-        "logical-structure.sdd.yml",
-        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: domain\n  - component_id: application\n  - component_id: infrastructure\n  - component_id: reporting\n  - component_id: ci-publish-script-adapter\ndependencies: []\n",
-    );
-
-    // Act
-    let report = completed_json(&run_sdd_check(&fixture, true), 1);
-
-    // Assert
-    assert_eq!(report["decision"], "non-conformant");
-    assert_eq!(
-        report["analysis_issues"][0]["policy_impact"]["outcome"],
-        "none"
-    );
-    assert!(report["violations"].as_array().is_some_and(|violations| {
-        violations.iter().any(|violation| {
-            violation["source"] == "crate::shared" && violation["target"] == "crate::infrastructure"
-        })
-    }));
-}
-
-#[test]
-fn should_assignment_dependent_component_outcomes_remain_indeterminate_without_safe_violations() {
-    // Arrange
-    let fixture = many_to_one_sdd_fixture();
-    fixture.write("src/reporting.rs", "pub fn report() {}\n");
-
-    // Act
-    let report = completed_json(&run_sdd_check(&fixture, true), 2);
-
-    // Assert
-    assert_eq!(report["decision"], "indeterminate");
-    assert_issue(&report, "analysis.ambiguous-component-attribution");
-    let issues = report["analysis_issues"]
-        .as_array()
-        .expect("analysis issues should be an array");
-    let structural_issue = issues
-        .iter()
-        .find(|issue| {
-            issue["code"] == "analysis.ambiguous-component-attribution"
-                && issue["observation"].get("source_module").is_none()
-        })
-        .expect("structural attribution issue should remain observable");
-    assert_eq!(structural_issue["policy_impact"]["outcome"], "none");
-    let edge_issue = issues
-        .iter()
-        .find(|issue| {
-            issue["code"] == "analysis.ambiguous-component-attribution"
-                && issue["policy_impact"]["outcome"] == "possible"
-        })
-        .expect("assignment-dependent edge should remain possible");
-    assert_eq!(
-        issues
-            .iter()
-            .filter(|issue| issue["policy_impact"]["outcome"] == "possible")
-            .count(),
-        1
-    );
-    assert_eq!(edge_issue["affected_scope"], "crate::infrastructure");
-    assert_eq!(edge_issue["observation"]["source_module"], "crate::shared");
-    assert_eq!(
-        edge_issue["observation"]["candidate_targets"],
-        serde_json::json!(["crate::infrastructure"])
-    );
-    assert_eq!(
-        edge_issue["observation"]["candidate_components"],
-        serde_json::json!(["application", "domain", "infrastructure"])
-    );
-    assert_eq!(
-        edge_issue["observation"]["dependency_kinds"],
-        serde_json::json!(["import"])
-    );
-    assert_eq!(
-        edge_issue["observation"]["evidence"]["path"],
-        "src/shared.rs"
-    );
-    assert_eq!(edge_issue["policy_impact"]["outcome"], "possible");
-    assert_eq!(report["violations"], serde_json::json!([]));
-}
-
-#[test]
-fn should_many_component_assignments_remain_invariant() {
-    // Arrange
-    let fixture = TempFixture::new("many-component-assignments-invariant");
-    let mut main_source = String::new();
-    let mut logical =
-        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n".to_owned();
-    let mut projection =
-        "version: 1\nname: projection\nprojection_id: fixture-source\nmappings:\n".to_owned();
-    let mut directories =
-        "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n".to_owned();
-    for index in 0..13 {
-        main_source.push_str(&format!("mod scope{index};\n"));
-        fixture.write(&format!("src/scope{index}.rs"), "pub fn run() {}\n");
-        for side in ["left", "right"] {
-            logical.push_str(&format!("  - component_id: {side}-{index}\n"));
-            projection.push_str(&format!(
-                "  - component_id: {side}-{index}\n    node_id: scope-{index}\n"
-            ));
-        }
-        directories.push_str(&format!(
-            "  - node_id: scope-{index}\n    path: src/scope{index}.rs\n"
-        ));
-    }
-    main_source.push_str("fn main() {}\n");
-    logical.push_str("dependencies: []\n");
-    fixture.write("src/main.rs", &main_source);
-    fixture.write("logical-structure.sdd.yml", &logical);
-    fixture.write("projection.sdd.yml", &projection);
-    fixture.write("directory-structure.sdd.yml", &directories);
-
-    // Act
-    let report = completed_json(&run_sdd_check(&fixture, true), 0);
-
-    // Assert
-    assert_eq!(report["decision"], "conformant");
-    assert_issue(&report, "analysis.ambiguous-component-attribution");
-    assert!(report["analysis_issues"].as_array().is_some_and(|issues| {
-        issues
-            .iter()
-            .all(|issue| issue["policy_impact"]["outcome"] == "none")
-    }));
-}
-
-#[test]
-fn should_unobserved_overlapping_rust_module_projections_are_conformant() {
-    // Arrange
-    let fixture = TempFixture::new("overlapping-rust-module-sdd-policy-input");
-    write_sdd_policy_input(&fixture);
-    fixture.write(
-        "directory-structure.sdd.yml",
-        "nodes:\n  - node_id: src-application\n    path: src/application\n  - node_id: src-domain\n    path: src/application/domain.rs\n",
-    );
-
-    // Act
-    let output = run_sdd_check(&fixture, true);
-
-    // Assert
-    let report = completed_json(&output, 0);
-    assert_eq!(report["decision"], "conformant");
-    assert_issue(&report, "analysis.ambiguous-component-attribution");
-    assert!(report["analysis_issues"].as_array().is_some_and(|issues| {
-        issues
-            .iter()
-            .all(|issue| issue["policy_impact"]["outcome"] == "none")
     }));
 }
 
@@ -292,11 +83,7 @@ fn should_json_report_projects_common_validation_result() {
             .is_empty()
     );
     let issue = &report["analysis_issues"][0];
-    assert!(
-        issue["code"]
-            .as_str()
-            .is_some_and(|code| code.starts_with("analysis."))
-    );
+    assert_eq!(issue["code"], "analysis.unsupported-macro-expansion");
     assert!(
         issue["reason"]
             .as_str()
@@ -330,9 +117,39 @@ fn should_text_report_projects_common_validation_result() {
     assert!(payload.contains("analysis_profile: compilation"));
     assert!(payload.contains("decision: non-conformant"));
     assert!(payload.contains("violations:\n  - forbidden-application forbidden"));
-    assert!(payload.contains("analysis_issues:\n  - analysis."));
+    assert!(payload.contains(
+        "analysis_issues:\n  - analysis.unsupported-macro-expansion [crate:3] macro expansion"
+    ));
     assert!(payload.contains("observation: unresolved-dependency-candidate"));
     assert!(payload.contains("policy_impact: possible [possible-crate-cycle]"));
+}
+
+#[test]
+fn should_public_resolved_attribution_report_schema_three_and_coverage() {
+    // Arrange
+    let fixture = TempFixture::new("normalized-public-report");
+    write_resolved_implementation_attribution(&fixture);
+
+    // Act
+    let report = completed_json(&run_resolved_attribution_check(&fixture, &[]), 0);
+
+    // Assert
+    assert_eq!(report["schema_version"], "3");
+    assert_eq!(report["serialization"], "json");
+    assert_eq!(report["ordering"], "canonical");
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(
+        report["normalized_sdd_coverage"]["covered_modules"][0],
+        "crate"
+    );
+    assert_eq!(
+        report["normalized_sdd_coverage"]["source_provenance"]["producer"],
+        "owner-resolved-current-family"
+    );
+    assert_eq!(
+        report["normalized_sdd_coverage"]["unresolved_modules"],
+        serde_json::json!([])
+    );
 }
 
 #[test]
@@ -402,6 +219,10 @@ fn should_unresolved_candidate_with_allowed_target_union_is_conformant() {
     assert_issue(&report, "analysis.unsupported-name-resolution");
     let issue = &report["analysis_issues"][0];
     assert_eq!(
+        issue["observation"]["outcome"],
+        "unresolved-dependency-candidate"
+    );
+    assert_eq!(
         issue["observation"]["candidate_targets"],
         serde_json::json!(["crate::left", "crate::right"])
     );
@@ -425,6 +246,10 @@ fn should_unresolved_candidate_outside_allowed_target_union_is_indeterminate() {
     assert_eq!(report["decision"], "indeterminate");
     assert_issue(&report, "analysis.unsupported-name-resolution");
     let issue = &report["analysis_issues"][0];
+    assert_eq!(
+        issue["observation"]["outcome"],
+        "unresolved-dependency-candidate"
+    );
     assert_eq!(
         issue["observation"]["candidate_targets"],
         serde_json::json!(["crate::left", "crate::right"])
@@ -456,6 +281,10 @@ fn should_unresolved_candidate_without_targets_is_indeterminate_for_allowed_rule
     assert_eq!(report["decision"], "indeterminate");
     assert_issue(&report, "analysis.unresolved-reference");
     let issue = &report["analysis_issues"][0];
+    assert_eq!(
+        issue["observation"]["outcome"],
+        "unresolved-dependency-candidate"
+    );
     assert_eq!(
         issue["observation"]["candidate_targets"],
         serde_json::json!([])
@@ -621,6 +450,55 @@ fn should_known_dependency_observing_macros_and_safe_serde_attributes_are_confor
     // Assert
     assert_eq!(report["decision"], "conformant");
     assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn should_nested_json_and_matches_guards_observe_internal_paths() {
+    // Arrange
+    let fixture = TempFixture::new("nested-json-and-matches-paths");
+    fixture.write_manifest("[dependencies]\nserde-json = \"1\"\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-json-array-path\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::json_array]\n  - id: forbid-json-map-path\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::json_map]\n  - id: forbid-matches-guard-path\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::guard_forbidden]\n",
+    );
+    fixture.write(
+        "src/main.rs",
+        "mod json_array;\nmod json_map;\nmod guard_forbidden;\nfn main() {\n    let value = serde_json::json!({\"values\": [crate::json_array::build_value(), {\"other\": crate::json_map::other_value()}], \"flag\": true});\n    let _ = matches!(value, serde_json::Value::Object(_) if crate::guard_forbidden::is_valid());\n}\n",
+    );
+    fixture.write("src/json_array.rs", "pub fn build_value() -> usize { 1 }\n");
+    fixture.write("src/json_map.rs", "pub fn other_value() -> usize { 2 }\n");
+    fixture.write(
+        "src/guard_forbidden.rs",
+        "pub fn is_valid() -> bool { true }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+
+    // Assert
+    assert_eq!(report["decision"], "non-conformant");
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "crate::json_array",
+        "path-reference",
+        "internal-module"
+    ));
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "crate::json_map",
+        "path-reference",
+        "internal-module"
+    ));
+    assert!(dependency_exists(
+        &report,
+        "crate",
+        "crate::guard_forbidden",
+        "path-reference",
+        "internal-module"
+    ));
+    assert_eq!(report["violations"].as_array().map(Vec::len), Some(3));
 }
 
 #[test]
@@ -819,6 +697,9 @@ fn should_repeated_json_report_is_byte_stable() {
     assert_eq!(first.stdout, second.stdout);
     assert!(first.stderr.is_empty());
     assert!(second.stderr.is_empty());
+    let report = completed_json(&first, 1);
+    assert_eq!(report["schema_version"], "2");
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
 }
 
 #[test]
@@ -1949,6 +1830,37 @@ fn should_inactive_cfg_attr_path_module_is_ignored() {
     // Assert
     assert_eq!(report["decision"], "conformant");
     assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn should_source_union_treats_cfg_attr_path_module_as_policy_relevant() {
+    // Arrange
+    let fixture = TempFixture::new("source-union-cfg-attr-path-module");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-restricted-to-forbidden\n    kind: forbidden\n    severity: error\n    from: [crate::restricted]\n    to: [crate::forbidden]\n",
+    );
+    fixture.write(
+        "src/main.rs",
+        "#[cfg_attr(unix, path = \"alternate.rs\")]\nmod restricted;\nfn main() {}\n",
+    );
+    fixture.write("src/restricted.rs", "pub struct DefaultSource;\n");
+    fixture.write("src/alternate.rs", "use crate::forbidden::Thing;\n");
+    fixture.write("src/forbidden.rs", "pub struct Thing;\n");
+
+    // Act
+    let report = completed_json(
+        &run_check_with(
+            &fixture,
+            "bin",
+            "json",
+            &["--analysis-profile", "source-union"],
+        ),
+        2,
+    );
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-syntax");
 }
 
 #[test]

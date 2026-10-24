@@ -1,15 +1,18 @@
-version: 1
+version: 2
 name: logical-structure
 structure_id: logical-module-boundary-validation
 components:
+  - component_id: entrypoint-composition
+    responsibility: crate の entrypoint から各 component の composition 配線を担う
+    kind_ref: composition-root
   - component_id: command-interface
     responsibility: CLI 入力を検証要求へ変換し、ValidationDecision と CLI 実行失敗を終了コードと標準 stream へ変換する
     kind_ref: controller
   - component_id: boundary-validation
-    responsibility: 依存観測、ポリシー入力の意味検証と導出、境界評価を調停して ValidationDecision を確定する
+    responsibility: 依存観測とポリシー入力を受け取り、入力の妥当性を確認したうえで境界評価を調停し、ValidationDecision を確定する
     kind_ref: application-service
   - component_id: boundary-evaluation
-    responsibility: 観測済み依存 graph と BoundaryPolicy から違反と循環を評価する
+    responsibility: 観測済み依存 graph と評価用ポリシーから評価規則を導出し、違反と循環を評価する
     kind_ref: domain-model
   - component_id: rust-dependency-observation
     responsibility: Rust project の意味情報を LogicalModule と型付き DependencyEdge の graph へ変換する
@@ -18,6 +21,12 @@ components:
     responsibility: 外部のポリシー表現を中立なポリシー入力契約として取得し、技術的な入力失敗を隔離する
     kind_ref: project-input-adapter
 dependencies:
+  - from_component_id: entrypoint-composition
+    to_component_id: command-interface
+  - from_component_id: entrypoint-composition
+    to_component_id: rust-dependency-observation
+  - from_component_id: entrypoint-composition
+    to_component_id: boundary-policy-input
   - from_component_id: command-interface
     to_component_id: boundary-validation
   - from_component_id: boundary-validation

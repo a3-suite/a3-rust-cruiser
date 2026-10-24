@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "installer.manifest.v2",
+  "releaseVersion": "<release-version>",
+  "targetPlatformId": "<target-platform-id>",
+  "source": {
+    "kind": "github-release",
+    "owner": "<repository-owner>",
+    "repository": "<repository-name>",
+    "fixedReference": "<release-tag>"
+  },
+  "artifact": {
+    "url": "<fixed-release-asset-url>",
+    "fileName": "<artifact-file-name>",
+    "checksum": "sha256:<artifact-sha256>"
+  },
+  "placement": {
+    "managedRoot": "%LOCALAPPDATA%\\a3-suite\\a3-rust-cruiser\\standalone",
+    "releasePath": "%LOCALAPPDATA%\\a3-suite\\a3-rust-cruiser\\standalone\\releases\\0.1.0",
+    "currentLink": "%LOCALAPPDATA%\\a3-suite\\a3-rust-cruiser\\standalone\\current",
+    "profile": "per-user-cli",
+    "channel": "standalone"
+  },
+  "activation": {
+    "strategy": "active-pointer",
+    "launcherPath": "%LOCALAPPDATA%\\Programs\\a3-suite\\a3-rust-cruiser\\bin\\a3-rust-cruiser.exe"
+  },
+  "concurrency": {
+    "lockPath": "%LOCALAPPDATA%\\a3-suite\\a3-rust-cruiser\\standalone\\install.lock"
+  },
+  "state": {
+    "installStatePath": "%LOCALAPPDATA%\\a3-suite\\a3-rust-cruiser\\standalone\\state\\install-state.json"
+  },
+  "compatibility": {
+    "requiredInstallerVersion": "2"
+  },
+  "provenance": {
+    "sourceTag": "<release-tag>",
+    "sourceCommit": "<source-commit-sha>",
+    "ciRunId": "<ci-run-or-assembly-id>"
+  }
+}

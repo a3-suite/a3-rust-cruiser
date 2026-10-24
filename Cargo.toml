@@ -2,7 +2,6 @@
 name = "a3-rust-cruiser"
 version = "0.1.0"
 edition = "2024"
-license = "MIT"
 
 [dependencies]
 proc-macro2 = { version = "1", features = ["span-locations"] }

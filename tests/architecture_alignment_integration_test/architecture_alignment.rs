@@ -13,8 +13,8 @@ const CLI_OPTION_VOCABULARY: &str =
     include_str!("../../sdd/dsl/specs/cli/cli-option-vocabulary.sdd.yml");
 const CLI_COMMAND_MANIFEST: &str =
     include_str!("../../sdd/dsl/specs/cli/cli-command-manifest.sdd.yml");
-const CONTRACT_CLAUSES: &str = include_str!(
-    "../../sdd/dsl/specs/contract-core/subjects/logical-module-boundary-validation/clauses.sdd.yml"
+const CONTRACT_SUBJECT: &str = include_str!(
+    "../../sdd/dsl/specs/contract-core/subjects/logical-module-boundary-validation/subject.sdd.yml"
 );
 const CONTRACT_ROUTE: &str = include_str!(
     "../../sdd/dsl/designs/scopes/logical-module-boundary-validation/contract-route.sdd.yml"
@@ -25,8 +25,8 @@ const LOGICAL_STRUCTURE: &str = include_str!(
 const PROJECTION: &str = include_str!(
     "../../sdd/dsl/designs/scopes/logical-module-boundary-validation/projection.sdd.yml"
 );
-const DIRECTORY_STRUCTURE: &str =
-    include_str!("../../sdd/dsl/designs/global/directory-structure.sdd.yml");
+const PHYSICAL_STRUCTURE: &str =
+    include_str!("../../sdd/dsl/designs/global/physical-structure.sdd.yml");
 
 #[test]
 fn should_cli_help_is_a_projection_of_sdd_command_definitions() {
@@ -97,12 +97,12 @@ fn should_cli_help_is_a_projection_of_sdd_command_definitions() {
 #[test]
 fn should_contract_routes_resolve_to_declared_projected_components() {
     // Arrange
-    let clauses = parse_yaml(CONTRACT_CLAUSES);
+    let subject = parse_yaml(CONTRACT_SUBJECT);
     let route = parse_yaml(CONTRACT_ROUTE);
     let logical = parse_yaml(LOGICAL_STRUCTURE);
     let projection = parse_yaml(PROJECTION);
-    let directories = parse_yaml(DIRECTORY_STRUCTURE);
-    let contracts = sequence(&clauses, "contracts");
+    let physical = parse_yaml(PHYSICAL_STRUCTURE);
+    let contracts = sequence(&subject, "contracts");
     let contract_ids = contracts
         .iter()
         .map(|contract| string(contract, "id").to_owned())
@@ -123,39 +123,63 @@ fn should_contract_routes_resolve_to_declared_projected_components() {
         "component IDs must be unique"
     );
     let projection_mappings = sequence(&projection, "mappings");
-    let mappings = projection_mappings
+    let mapping_pairs = projection_mappings
         .iter()
         .map(|mapping| {
             (
                 string(mapping, "component_id").to_owned(),
-                string(mapping, "node_id").to_owned(),
+                string(mapping, "element_id").to_owned(),
             )
         })
-        .collect::<BTreeMap<_, _>>();
+        .collect::<Vec<_>>();
     assert_eq!(
         projection_mappings.len(),
-        mappings.len(),
-        "projection component IDs must be unique"
+        mapping_pairs.iter().cloned().collect::<BTreeSet<_>>().len(),
+        "projection mapping pairs must be unique"
     );
-    let directory_nodes = sequence(&directories, "nodes");
-    let nodes = directory_nodes
+    let mut component_elements = BTreeMap::<String, Vec<String>>::new();
+    let mut element_owners = BTreeMap::<String, BTreeSet<String>>::new();
+    for (component_id, element_id) in &mapping_pairs {
+        component_elements
+            .entry(component_id.clone())
+            .or_default()
+            .push(element_id.clone());
+        element_owners
+            .entry(element_id.clone())
+            .or_default()
+            .insert(component_id.clone());
+    }
+    let elements = sequence(&physical, "elements");
+    let element_paths = elements
         .iter()
-        .map(|node| {
+        .map(|element| {
             (
-                string(node, "node_id").to_owned(),
-                string(node, "path").to_owned(),
+                string(element, "element_id").to_owned(),
+                string(element, "path").to_owned(),
             )
         })
         .collect::<BTreeMap<_, _>>();
     assert_eq!(
-        directory_nodes.len(),
-        nodes.len(),
-        "directory node IDs must be unique"
+        elements.len(),
+        element_paths.len(),
+        "physical element IDs must be unique"
     );
     assert_eq!(
         component_ids,
-        mappings.keys().cloned().collect::<BTreeSet<_>>()
+        component_elements.keys().cloned().collect::<BTreeSet<_>>()
     );
+    assert_eq!(
+        element_paths.keys().cloned().collect::<BTreeSet<_>>(),
+        element_owners.keys().cloned().collect::<BTreeSet<_>>(),
+        "every physical element must be owned by the current projection family"
+    );
+    for (element_id, owners) in &element_owners {
+        assert_eq!(
+            owners.len(),
+            1,
+            "physical element {element_id} must have exactly one projection owner"
+        );
+    }
     let source_root = fs::canonicalize(env!("CARGO_MANIFEST_DIR"))
         .expect("project root should be canonicalizable");
     let mut route_ids = BTreeSet::new();
@@ -168,42 +192,37 @@ fn should_contract_routes_resolve_to_declared_projected_components() {
     for route in routes {
         let route_id = string(route, "route_id");
         assert!(route_ids.insert(route_id), "duplicate route id: {route_id}");
-        let contract_id = string(&route["contract_ref"], "contract_id");
+        let contract_id = string(route, "contract_id");
         assert!(
             contract_ids.contains(contract_id),
             "route {route_id} references unknown contract {contract_id}"
         );
         let mut hop_ids = BTreeSet::new();
         for hop in sequence(route, "hops") {
-            let component_id = string(hop, "component_id");
+            let component_id = scalar(hop, "hop");
             assert!(
                 component_ids.contains(component_id),
                 "route {route_id} references unknown component {component_id}"
             );
-            let node_id = mappings
+            let element_ids = component_elements
                 .get(component_id)
                 .unwrap_or_else(|| panic!("component {component_id} has no projection"));
-            let path = nodes
-                .get(node_id)
-                .unwrap_or_else(|| panic!("projection references unknown node {node_id}"));
-            let projected_path = fs::canonicalize(source_root.join(path))
-                .unwrap_or_else(|error| panic!("cannot resolve projection path {path}: {error}"));
-            assert!(
-                projected_path.starts_with(&source_root),
-                "projection path escapes the project root: {path}"
-            );
+            for element_id in element_ids {
+                let path = element_paths.get(element_id).unwrap_or_else(|| {
+                    panic!("projection references unknown element {element_id}")
+                });
+                let projected_path =
+                    fs::canonicalize(source_root.join(path)).unwrap_or_else(|error| {
+                        panic!("cannot resolve projection path {path}: {error}")
+                    });
+                assert!(
+                    projected_path.starts_with(&source_root),
+                    "projection path escapes the project root: {path}"
+                );
+            }
             assert!(hop_ids.insert(component_id));
         }
         assert!(!hop_ids.is_empty(), "route {route_id} has no hops");
-        for edge in optional_sequence(route, "edge_semantics") {
-            let from = string(edge, "from_component_id");
-            let to = string(edge, "to_component_id");
-            assert!(
-                hop_ids.contains(from),
-                "edge source is not a route hop: {from}"
-            );
-            assert!(hop_ids.contains(to), "edge target is not a route hop: {to}");
-        }
     }
 }
 
@@ -211,9 +230,11 @@ fn assert_cli_help(vocabulary: &YamlValue, command: &YamlValue, output: &Output)
     assert_eq!(output.status.code(), Some(0));
     assert!(output.stderr.is_empty());
     let stdout = String::from_utf8(output.stdout.clone()).expect("help is UTF-8");
+    let usage = sequence(&command["command"], "usage");
+    assert_eq!(usage.len(), 1, "CLI help prints a single Usage line");
     assert_eq!(
         usage_line(&stdout),
-        format!("Usage: {}", string(&command["command"]["help"], "usage"))
+        format!("Usage: {}", scalar(&usage[0], "usage"))
     );
     assert_eq!(
         option_tokens(&stdout),
@@ -276,10 +297,6 @@ fn sequence<'a>(value: &'a YamlValue, key: &str) -> &'a [YamlValue] {
         .as_sequence()
         .map(Vec::as_slice)
         .unwrap_or_else(|| panic!("{key} should be a YAML sequence"))
-}
-
-fn optional_sequence<'a>(value: &'a YamlValue, key: &str) -> &'a [YamlValue] {
-    value[key].as_sequence().map_or(&[], Vec::as_slice)
 }
 
 fn string<'a>(value: &'a YamlValue, key: &str) -> &'a str {

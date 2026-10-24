@@ -2,5 +2,5 @@ version: 1
 name: sdd-owner-skill-discovery
 scan_depth: 2
 scan_roots:
-  - ~/.agents/skills/sdd
+  - ${A3_SDD_OWNER_SKILL_DISCOVERY_ROOT}
 direct_skill_roots: []

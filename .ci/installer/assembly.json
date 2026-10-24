@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "installer.assembly.v1",
+  "useCase": "github-release-native-shared",
+  "verificationProfile": "shared-exact-payload-v1",
+  "platforms": {
+    "linux-x86_64": {
+      "manifest": ".ci/installer/manifests/linux-x86_64.json",
+      "assetName": "install-linux-x86_64.sh"
+    },
+    "macos-arm64": {
+      "manifest": ".ci/installer/manifests/macos-arm64.json",
+      "assetName": "install-macos-arm64.sh"
+    },
+    "windows-x86_64": {
+      "manifest": ".ci/installer/manifests/windows-x86_64.json",
+      "assetName": "install.ps1"
+    }
+  },
+  "sharedWrapper": {
+    "assetName": "install.sh",
+    "deliveryUrls": {
+      "linux-x86_64": "https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install-linux-x86_64.sh",
+      "macos-arm64": "https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install-macos-arm64.sh"
+    }
+  }
+}

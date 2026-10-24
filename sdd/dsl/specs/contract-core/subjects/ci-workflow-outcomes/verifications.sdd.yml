@@ -1,0 +1,15 @@
+version: 1
+name: contract-verifications
+cases:
+  - contract_id: contract.ci.quality-gate.binding
+    id: quality-workflow-provider-is-bound
+    input:
+      workflow_source: quality-gate.yml
+  - contract_id: contract.ci.release-request.binding
+    id: release-tag-provider-is-bound
+    input:
+      workflow_source: release-request-tag.yml
+  - contract_id: contract.ci.release-publication.binding
+    id: approved-publication-provider-is-bound
+    input:
+      workflow_source: release-publication-caller.yml

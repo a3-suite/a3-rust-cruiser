@@ -11,10 +11,7 @@ response_measure:
   - 各違反診断から依存元、依存先、ソース位置を確認できる
   - 循環依存では循環を構成する依存経路を確認できる
 related_requirements:
-  - requirement_ref:
-      requirement_id: validate-rust-logical-module-boundaries
+  - validate-rust-logical-module-boundaries
 related_contracts:
-  - contract_ref:
-      contract_id: contract.logical-module-boundary.policy-evaluation
-  - contract_ref:
-      contract_id: contract.logical-module-boundary.validation-report
+  - contract.logical-module-boundary.policy-evaluation
+  - contract.logical-module-boundary.validation-report

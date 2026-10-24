@@ -42,19 +42,16 @@ fn policy_sensitive_fixture(label: &str) -> TempFixture {
     fixture
 }
 
-fn write_sdd_policy_input(fixture: &TempFixture) {
+fn write_resolved_implementation_attribution(fixture: &TempFixture) {
     fixture.write(
-        "logical-structure.sdd.yml",
-        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: application\n  - component_id: domain\ndependencies:\n  - from_component_id: application\n    to_component_id: domain\n",
+        "resolved-implementation-attribution.sdd.yml",
+        &resolved_implementation_attribution(fixture),
     );
-    fixture.write(
-        "projection.sdd.yml",
-        "version: 1\nname: projection\nprojection_id: fixture-source\nmappings:\n  - component_id: application\n    node_id: src-application\n  - component_id: domain\n    node_id: src-domain\n",
-    );
-    fixture.write(
-        "directory-structure.sdd.yml",
-        "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n  - node_id: src-application\n    path: src/application.rs\n  - node_id: src-domain\n    path: src/domain.rs\n",
-    );
+}
+
+fn resolved_implementation_attribution(_fixture: &TempFixture) -> String {
+    "version: 1\nname: resolved-implementation-attribution\nsource_provenance:\n  producer: owner-resolved-current-family\n  artifacts:\n    - dsl_name: logical-structure\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: fixture\n      sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n    - dsl_name: projection\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: fixture\n      sha256: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n    - dsl_name: physical-structure\n      version: 1\n      artifact_identity:\n        axes: {}\n      sha256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\nfile_attributions:\n  - observed_file_path: src/main.rs\n    canonical_scope: fixture\n    component_id: application\n    element_id: main\ncomponent_dependencies: []\nscope_dependencies: []\n"
+        .to_owned()
 }
 
 fn forbidden_fixture(label: &str, with_issue: bool) -> TempFixture {
@@ -101,36 +98,6 @@ fn ambiguous_candidate_fixture(label: &str) -> TempFixture {
     );
     fixture.write("src/left.rs", "pub fn default_value() -> usize { 1 }\n");
     fixture.write("src/right.rs", "pub fn default_value() -> usize { 1 }\n");
-    fixture
-}
-
-fn many_to_one_sdd_fixture() -> TempFixture {
-    let fixture = TempFixture::new("many-to-one-sdd-policy-input");
-    fixture.write(
-        "src/main.rs",
-        "mod infrastructure;\nmod reporting;\nmod shared;\nfn main() {}\n",
-    );
-    fixture.write("src/infrastructure.rs", "pub struct Thing;\n");
-    fixture.write(
-        "src/reporting.rs",
-        "use crate::infrastructure::Thing;\npub fn report() -> Thing { Thing }\n",
-    );
-    fixture.write(
-        "src/shared.rs",
-        "use crate::infrastructure::Thing;\npub fn run() -> Thing { Thing }\n",
-    );
-    fixture.write(
-        "logical-structure.sdd.yml",
-        "version: 1\nname: logical-structure\nstructure_id: fixture\ncomponents:\n  - component_id: domain\n  - component_id: application\n  - component_id: infrastructure\n  - component_id: reporting\n  - component_id: ci-publish-script-adapter\ndependencies:\n  - from_component_id: application\n    to_component_id: infrastructure\n",
-    );
-    fixture.write(
-        "projection.sdd.yml",
-        "version: 1\nname: projection\nprojection_id: fixture-source\nmappings:\n  - component_id: domain\n    node_id: src-shared\n  - component_id: application\n    node_id: src-shared\n  - component_id: infrastructure\n    node_id: src-infrastructure\n  - component_id: reporting\n    node_id: src-reporting\n  - component_id: ci-publish-script-adapter\n    node_id: ci-scripts\n",
-    );
-    fixture.write(
-        "directory-structure.sdd.yml",
-        "version: 1\nname: directory-structure\nstructure_id: fixture-source\nnodes:\n  - node_id: src-infrastructure\n    path: src/infrastructure.rs\n  - node_id: src-reporting\n    path: src/reporting.rs\n  - node_id: src-shared\n    path: src/shared.rs\n  - node_id: ci-scripts\n    path: .ci/scripts\n",
-    );
     fixture
 }
 
@@ -238,21 +205,13 @@ fn runtime_item_macro_fixture(name: &str, definitions: &str) -> TempFixture {
     fixture
 }
 
-fn run_sdd_check(fixture: &TempFixture, include_directory_structure: bool) -> Output {
+fn run_resolved_attribution_check(fixture: &TempFixture, extra_args: &[&str]) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"));
     command
         .arg("check")
         .arg(fixture.path())
-        .arg("--logical-structure")
-        .arg(fixture.join("logical-structure.sdd.yml"))
-        .arg("--projection")
-        .arg(fixture.join("projection.sdd.yml"));
-    if include_directory_structure {
-        command
-            .arg("--directory-structure")
-            .arg(fixture.join("directory-structure.sdd.yml"));
-    }
-    command
+        .arg("--resolved-implementation-attribution")
+        .arg(fixture.join("resolved-implementation-attribution.sdd.yml"))
         .arg("--package")
         .arg(fixture.package())
         .arg("--target")
@@ -263,6 +222,7 @@ fn run_sdd_check(fixture: &TempFixture, include_directory_structure: bool) -> Ou
             "--format",
             "json",
         ])
+        .args(extra_args)
         .output()
         .expect("binary should run")
 }
@@ -337,32 +297,6 @@ fn run_check_without_policy(
     command.output().expect("binary should run")
 }
 
-fn run_policy_and_sdd_check(fixture: &TempFixture) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"));
-    command
-        .arg("check")
-        .arg(fixture.path())
-        .arg("--policy")
-        .arg(fixture.join("policy.yaml"))
-        .arg("--logical-structure")
-        .arg(fixture.join("logical-structure.sdd.yml"))
-        .arg("--projection")
-        .arg(fixture.join("projection.sdd.yml"))
-        .arg("--directory-structure")
-        .arg(fixture.join("directory-structure.sdd.yml"))
-        .arg("--package")
-        .arg(fixture.package())
-        .arg("--target")
-        .arg(fixture.target())
-        .args([
-            "--target-triple",
-            "x86_64-unknown-linux-gnu",
-            "--format",
-            "json",
-        ]);
-    command.output().expect("binary should run")
-}
-
 fn completed_json(output: &Output, exit_code: i32) -> Value {
     assert_eq!(output.status.code(), Some(exit_code));
     assert!(
@@ -370,17 +304,20 @@ fn completed_json(output: &Output, exit_code: i32) -> Value {
         "unexpected stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    serde_json::from_slice(&output.stdout).expect("valid JSON report")
-}
-
-fn accepted_json(output: &Output) -> Value {
-    assert!(matches!(output.status.code(), Some(0..=2)));
-    assert!(
-        output.stderr.is_empty(),
-        "unexpected stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    serde_json::from_slice(&output.stdout).expect("valid JSON report")
+    let report: Value = serde_json::from_slice(&output.stdout).expect("valid JSON report");
+    // Report-wide guarantees hold for every completed JSON report, so the contract test maps
+    // credit them to each test that reads its report through this helper.
+    assert_eq!(report["serialization"], "json");
+    assert_eq!(report["ordering"], "canonical");
+    assert_eq!(report["decision"], completed_decision(exit_code));
+    assert!(matches!(
+        report["analysis_context"]["analysis_profile"].as_str(),
+        Some("compilation" | "source-union")
+    ));
+    assert!(report["dependencies"].is_array());
+    assert!(report["violations"].is_array());
+    assert!(report["analysis_issues"].is_array());
+    report
 }
 
 fn completed_text(output: &Output, exit_code: i32) -> String {
@@ -390,7 +327,22 @@ fn completed_text(output: &Output, exit_code: i32) -> String {
         "unexpected stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    String::from_utf8(output.stdout.clone()).expect("text report is UTF-8")
+    let payload = String::from_utf8(output.stdout.clone()).expect("text report is UTF-8");
+    assert!(payload.contains("serialization: text\n"));
+    assert!(payload.contains("ordering: canonical\n"));
+    assert!(payload.contains(&format!("decision: {}\n", completed_decision(exit_code))));
+    payload
+}
+
+// The CLI exit code of a completed check is defined by its decision, so asserting the exit code
+// and the reported decision together keeps both sides of that contract observable.
+fn completed_decision(exit_code: i32) -> &'static str {
+    match exit_code {
+        0 => "conformant",
+        1 => "non-conformant",
+        2 => "indeterminate",
+        _ => panic!("exit code {exit_code} is not a completed check"),
+    }
 }
 
 fn assert_completed_output(output: &Output, exit_code: i32, decision: &str) {
@@ -434,7 +386,6 @@ fn assert_issue(report: &Value, code: &str) {
         )
     ));
     assert!(issue["observation"]["candidate_targets"].is_array());
-    assert!(issue["observation"]["candidate_components"].is_array());
     assert!(issue["observation"]["dependency_kinds"].is_array());
     assert!(matches!(
         issue["policy_impact"]["outcome"].as_str(),

@@ -11,10 +11,7 @@ response_measure:
   - 未判定となった理由と対象範囲を確認できる
   - 継続的インテグレーションが解析未完了を成功として扱わない
 related_requirements:
-  - requirement_ref:
-      requirement_id: validate-rust-logical-module-boundaries
+  - validate-rust-logical-module-boundaries
 related_contracts:
-  - contract_ref:
-      contract_id: contract.logical-module-boundary.validation-report
-  - contract_ref:
-      contract_id: contract.logical-module-boundary.cli-outcome
+  - contract.logical-module-boundary.validation-report
+  - contract.logical-module-boundary.cli-outcome

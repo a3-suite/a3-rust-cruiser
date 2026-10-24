@@ -1,23 +1,5 @@
 version: 1
 name: contract-core-validator-profile
 profile_id: logical-module-boundary-validator-profile
-claim_profile:
-  - kind: observable-result
-    allowed_ops:
-      - present
-    target_compatibility:
-      - target_kind: observation_field
-        allowed_ops:
-          - present
-  - kind: value-relation
-    allowed_ops:
-      - in
-    relation_compatibility:
-      - left_kind: observation_field
-        right_kind: value_set
-        allowed_ops:
-          - in
-predicate_profile:
-  - kind: input
-    allowed_ops:
-      - present
+claims: [present, in, equals_input]
+conditions: [input]

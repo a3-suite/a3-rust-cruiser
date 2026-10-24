@@ -1,0 +1,77 @@
+name: release-publication-request
+on:
+  workflow_dispatch:
+    inputs:
+      request_run_id:
+        description: Successful release-request workflow run ID
+        required: true
+        type: string
+      release_identity:
+        description: Release tag approved for publication
+        required: true
+        type: string
+      release_version:
+        description: Owner-selected stable Release version
+        required: true
+        type: string
+      target_identity:
+        description: Owner-selected publication target identity
+        required: true
+        type: string
+      release_notes:
+        description: Approved release body
+        required: true
+        type: string
+      approval_id:
+        description: Unique publication authorization identifier assigned by the dispatcher
+        required: true
+        type: string
+      approval_body_sha256:
+        description: SHA-256 digest of the git.release-flow approved body
+        required: true
+        type: string
+      approval_expires_at:
+        description: Approval expiry in RFC 3339 format
+        required: true
+        type: string
+permissions: {}
+jobs:
+  request:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Validate and write publication request
+        uses: a3-suite/a3-ci-github/actions/ci-release-publication-control@77b1afe50b994c4b8ac54bfe5ba3ea849ed4d633
+        with:
+          operation: create-request
+          release-request-run-id: ${{ inputs.request_run_id }}
+          request-workflow-run-id: ${{ github.run_id }}
+          request-head-sha: ${{ github.sha }}
+          release-identity: ${{ inputs.release_identity }}
+          release-version: ${{ inputs.release_version }}
+          target-identity: ${{ inputs.target_identity }}
+          release-notes: ${{ inputs.release_notes }}
+          approval-id: ${{ inputs.approval_id }}
+          approval-expires-at: ${{ inputs.approval_expires_at }}
+          approval-body-sha256: ${{ inputs.approval_body_sha256 }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-publication-request
+          path: release-publication-request
+          if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-notes-handoff
+          path: release-notes-handoff
+          if-no-files-found: error
+          retention-days: 1
+      - name: Write workflow summary
+        if: always()
+        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@77b1afe50b994c4b8ac54bfe5ba3ea849ed4d633
+        with:
+          summary-json: '{"jobs":[{"unit":"request","execution":"publication request
+            handoff","rawResult":"${{ job.status
+            }}","applicable":true,"reason":"request job result: ${{ job.status
+            }}"}]}'

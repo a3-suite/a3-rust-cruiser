@@ -1,0 +1,220 @@
+version: 1
+name: contract-subject-regression-execution
+contract_subject_source:
+  package_path: sdd/dsl/specs/contract-core/contract-package.sdd.yml
+  subject_path: sdd/dsl/specs/contract-core/subjects/logical-module-boundary-validation/subject.sdd.yml
+  test_map_filename: test-maps.sdd.yml
+test_levels:
+  unit:
+    path_prefix: src/
+    selection: contract-test-map-by-path-prefix
+    evidence_role: supplemental
+  integration:
+    path_prefix: tests/contracts/
+    selection: contract-test-map
+    evidence_role: contract
+  e2e:
+    path_prefix: tests/e2e/
+    selection: none
+    empty_reason: This repository does not define or execute E2E tests.
+execution_segments:
+  cargo-unit:
+    runner: cargo
+    coverage_toolchain: nightly-2026-05-12
+    test_selection:
+      source: subject.test_map
+      path_prefix: src/
+      selector_field: symbol
+      runner_argument: positional-test-filter
+    test_command: cargo test --locked --all-features --bin a3-rust-cruiser should_keep_dependency_neutral_issues_conformant
+    coverage_command: cargo +nightly-2026-05-12 llvm-cov --locked --all-features --bin a3-rust-cruiser --branch --json -- should_keep_dependency_neutral_issues_conformant
+    coverage_exclusion_scope:
+      - tests/**
+      - examples/**
+      - sdd/**
+      - docs/**
+    coverage_metrics:
+      C0:
+        meaning: statement coverage
+        acquisition: unavailable
+        unavailable_reason: cargo-llvm-cov does not expose a distinct statement metric; line coverage is not reinterpreted as C0.
+      C1:
+        meaning: branch coverage
+        acquisition: cargo-llvm-cov-json
+      line:
+        meaning: line coverage
+        acquisition: cargo-llvm-cov-json
+  cargo-integration:
+    runner: cargo
+    coverage_toolchain: nightly-2026-05-12
+    test_command: cargo test --locked --all-features --test logical_module_boundary_validation
+    coverage_command: cargo +nightly-2026-05-12 llvm-cov --locked --all-features --test logical_module_boundary_validation --branch --json
+    coverage_exclusion_scope:
+      - tests/**
+      - examples/**
+      - sdd/**
+      - docs/**
+    coverage_metrics:
+      C0:
+        meaning: statement coverage
+        acquisition: unavailable
+        unavailable_reason: cargo-llvm-cov does not expose a distinct statement metric; line coverage is not reinterpreted as C0.
+      C1:
+        meaning: branch coverage
+        acquisition: cargo-llvm-cov-json
+      line:
+        meaning: line coverage
+        acquisition: cargo-llvm-cov-json
+  ci-workflow-contract:
+    runner: bash
+    test_selection:
+      source: subject.test_map
+      path_prefix: tests/ci/
+      selector_field: symbol
+      runner_argument: bash-function
+    test_command: bash tests/ci/ci-workflow-contract-test.sh
+    coverage_metrics:
+      C0:
+        meaning: statement coverage
+        acquisition: unavailable
+        unavailable_reason: Shell contract tests exercise workflow definitions and assembly fixtures; they do not measure source statement coverage.
+      C1:
+        meaning: branch coverage
+        acquisition: unavailable
+        unavailable_reason: Shell contract tests do not measure source branch coverage.
+      line:
+        meaning: line coverage
+        acquisition: unavailable
+        unavailable_reason: Shell contract tests do not measure source line coverage.
+  installer-contract:
+    runner: bash
+    test_selection:
+      source: subject.test_map
+      path_prefix: tests/ci/
+      selector_field: symbol
+      runner_argument: bash-function
+    test_command: bash tests/ci/installer-standard-contract-test.sh
+    coverage_metrics:
+      C0:
+        meaning: statement coverage
+        acquisition: unavailable
+        unavailable_reason: Shell contract tests exercise workflow definitions and assembly fixtures; they do not measure source statement coverage.
+      C1:
+        meaning: branch coverage
+        acquisition: unavailable
+        unavailable_reason: Shell contract tests do not measure source branch coverage.
+      line:
+        meaning: line coverage
+        acquisition: unavailable
+        unavailable_reason: Shell contract tests do not measure source line coverage.
+subjects:
+  - subject_id: subject.logical-module-boundary.validation
+    subject: sdd/dsl/specs/contract-core/subjects/logical-module-boundary-validation/subject.sdd.yml
+    test_map: sdd/dsl/specs/contract-core/subjects/logical-module-boundary-validation/test-maps.sdd.yml
+    unit:
+      selection: contract-test-map-by-path-prefix
+      evidence_role: supplemental
+    integration:
+      selection: contract-test-map
+      evidence_role: contract
+    e2e:
+      selection: none
+      excluded_reason: The project has no E2E test asset or E2E execution surface.
+  - subject_id: subject.ci.workflow-configuration
+    subject: sdd/dsl/specs/contract-core/subjects/ci-workflow-outcomes/subject.sdd.yml
+    test_map: sdd/dsl/specs/contract-core/subjects/ci-workflow-outcomes/test-maps.sdd.yml
+    unit:
+      selection: none
+      excluded_reason: CI workflow source configuration is not exercised by cargo unit tests; structural contract checks use the CI contract segment.
+    integration:
+      selection: contract-test-map
+      evidence_role: contract
+      execution_segment: ci-workflow-contract
+    e2e:
+      selection: none
+      excluded_reason: This subject verifies repository workflow declarations; hosted run results and Release readback are outside this local source-configuration contract.
+  - subject_id: subject.installer.product-setup
+    subject: sdd/dsl/specs/contract-core/subjects/installer-product-setup/subject.sdd.yml
+    test_map: sdd/dsl/specs/contract-core/subjects/installer-product-setup/test-maps.sdd.yml
+    unit:
+      selection: none
+      excluded_reason: Installer setup configuration is verified by the CI contract segment, not Cargo unit tests.
+    integration:
+      selection: contract-test-map
+      evidence_role: contract
+      execution_segment: installer-contract
+    e2e:
+      selection: none
+      excluded_reason: This subject covers repository setup declarations; executing an installer and reading a published Release are outside this local contract.
+coverage_bindings:
+  subject.logical-module-boundary.validation:
+    cargo-unit:
+      applicability: measurable
+      source_scope:
+        - src/**
+      exclusion_scope:
+        - tests/**
+        - examples/**
+        - sdd/**
+        - docs/**
+    cargo-integration:
+      applicability: measurable
+      source_scope:
+        - src/**
+      exclusion_scope:
+        - tests/**
+        - examples/**
+        - sdd/**
+        - docs/**
+  subject.ci.workflow-configuration:
+    ci-workflow-contract:
+      applicability: not-applicable
+      reason: Shell contract tests verify CI workflow definitions and asset assembly fixtures; they do not produce source-level coverage metrics.
+  subject.installer.product-setup:
+    installer-contract:
+      applicability: not-applicable
+      reason: Shell contract tests verify installer configuration and setup documentation; they do not produce source-level coverage metrics.
+result_contract:
+  output_root: tests/tmp/coverage/contract-subjects
+  dimensions:
+    - contract-subject
+    - execution-segment
+  coverage_dimensions:
+    - contract-subject
+    - execution-segment
+    - metric
+  artifact_path_template: "{output_root}/{contract_subject}/{execution_segment}/{artifact}"
+  coverage_record_source: coverage
+  coverage_record_key_template: "{contract_subject}/{execution_segment}/{metric}"
+  files:
+    result: result.json
+    stdout: stdout.log
+    stderr: stderr.log
+    test_results: test-results.json
+    coverage: coverage.json
+  result_fields:
+    - selector
+    - selected_tests
+    - passed
+    - failed
+    - ignored
+    - successful
+    - duration_ms
+  coverage_fields:
+    - covered
+    - total
+    - percentage
+    - threshold
+    - passed
+    - acquisition_status
+    - unavailable_reason
+full_regression:
+  separate: true
+  reference: .github/workflows/quality-gate.yml
+cost_policy:
+  reuse_current_worktree: true
+  reuse_dependencies: true
+  reuse_build_artifacts: true
+  mandatory_isolation: false
+  build_per_contract_subject: false
+  dependency_install_per_contract_subject: false

@@ -1,0 +1,8 @@
+version: 1
+name: contract-verifications
+cases:
+  - contract_id: contract.installer.product-setup.consistency
+    id: product-installer-setup-is-consistent
+    input:
+      product_source:
+        release_version: 0.1.0

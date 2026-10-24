@@ -5,8 +5,7 @@ requirements:
     type: functional
     summary: 利用者がRustの論理モジュール境界を検証できる
     description: Rustプロジェクトの論理モジュール間依存を解析し、設計上許可されていない依存を検出できるようにする
-    rationale:
-      why: モジュール境界の劣化を実装変更の時点で検出し、依存方向を継続的に維持するため
+    rationale: モジュール境界の劣化を実装変更の時点で検出し、依存方向を継続的に維持するため
     subject:
       namespace: a3-rust-cruiser
       key: logical-module-boundary-validation
@@ -25,7 +24,7 @@ requirements:
       - 選択したcompilation target内のRust論理モジュールと宣言包含を識別し、宣言包含を利用依存と区別できる
       - useによるimport、pub useによるre-export、解決済みpath参照から論理モジュール間の依存を観測できる
       - rule IDと重大度を持つ禁止依存、許可リスト外依存、循環依存の検証条件を適用できる
-      - YAML BoundaryPolicyまたはlogical-structure、projection、directory-structureの組から検証条件を一意に取得でき、SDD入力では未宣言のcomponent間依存とcomponent循環を禁止できる
+      - YAML BoundaryPolicyまたはowner生成済みresolved-implementation-attributionから検証条件を一意に取得でき、解決済みcomponent・scope帰属に基づく未宣言依存と循環依存を禁止できる
       - 解析対象の包含条件と明示的な除外条件を指定でき、除外した範囲を結果から確認できる
       - 外部crate参照を内部論理モジュール境界の評価対象と区別できる
       - compilation profileではmacro展開、cfg評価または名前解決の限界により境界判定へ影響する依存を観測できない場合は解析未完了として扱う
@@ -33,19 +32,3 @@ requirements:
       - 検出結果から依存元、依存先、依存種別、根拠となるソース位置、違反したrule IDを確認できる
       - 人間向けtext出力と機械処理向けJSON出力の双方で依存グラフ、違反、解析上の問題、適合性判断を確認できる
       - 境界違反または解析未完了を継続的インテグレーションが成功として扱わない
-    derived_artifacts:
-      use_cases:
-        - use_case_ref:
-            use_case_id: check-logical-module-boundaries
-      quality_scenarios:
-        - quality_scenario_ref:
-            quality_scenario_id: deterministic-boundary-analysis
-        - quality_scenario_ref:
-            quality_scenario_id: traceable-boundary-diagnostics
-        - quality_scenario_ref:
-            quality_scenario_id: transparent-incomplete-analysis
-      constraints:
-        - constraint_ref:
-            constraint_id: logical-module-analysis-boundary
-        - constraint_ref:
-            constraint_id: mvp-feature-scope

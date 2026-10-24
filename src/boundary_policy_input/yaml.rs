@@ -7,9 +7,14 @@ use crate::boundary_validation::{
 };
 
 pub(super) fn load(path: &Path) -> Result<BoundaryPolicy> {
-    let content = std::fs::read_to_string(path)?;
-    let dto: BoundaryPolicyDto = serde_yaml::from_str(&content)
-        .map_err(|error| CruiserError::Parse(format!("invalid boundary policy YAML: {error}")))?;
+    let content = std::fs::read_to_string(path)
+        .map_err(|error| CruiserError::io(format!("boundary policy {}", path.display()), error))?;
+    let dto: BoundaryPolicyDto = serde_yaml::from_str(&content).map_err(|error| {
+        CruiserError::parse(
+            format!("invalid boundary policy YAML {}", path.display()),
+            error,
+        )
+    })?;
     Ok(dto.into_domain())
 }
 

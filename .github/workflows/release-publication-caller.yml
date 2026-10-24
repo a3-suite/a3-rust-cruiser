@@ -1,0 +1,88 @@
+name: release-publication-caller
+on:
+  workflow_run:
+    workflows:
+      - release-publication-request
+    types:
+      - completed
+permissions: {}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository }}-${{
+    github.event.workflow_run.id }}
+  cancel-in-progress: false
+jobs:
+  validate-request:
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      request_run_id: ${{ steps.request.outputs['request-run-id'] }}
+    steps:
+      - name: Validate triggering workflow run
+        uses: a3-suite/a3-ci-github/actions/ci-release-publication-control@77b1afe50b994c4b8ac54bfe5ba3ea849ed4d633
+        with:
+          operation: verify-trigger
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: release-publication-request
+          path: release-publication-request
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - id: request
+        name: Validate publication request identity
+        uses: a3-suite/a3-ci-github/actions/ci-release-publication-control@77b1afe50b994c4b8ac54bfe5ba3ea849ed4d633
+        with:
+          operation: verify-publication-request
+          request-workflow-run-id: ${{ github.event.workflow_run.id }}
+          request-head-sha: ${{ github.event.workflow_run.head_sha }}
+  publish:
+    needs: validate-request
+    permissions:
+      actions: read
+      contents: write
+    uses: a3-suite/a3-ci-github/.github/workflows/ci-release-publication.yml@9d735ed49889f77c288ed69f661dfe663c3f363d
+    with:
+      runner: ubuntu-24.04
+      language-profile: rust
+      platform-manifest: .ci/platform-manifest.yml
+      toolchain-version: 1.98.0
+      cargo-audit-version: 0.22.1
+      jq-version: 1.7.1
+      release-implementation: rust-cli-release
+      standard-bundle-id: rust-cargo-quality
+      adapter-descriptor: ""
+      cargo-manifest-path: Cargo.toml
+      cargo-lock-path: Cargo.lock
+      cargo-deny-version: ""
+      cargo-deny-config-path: ""
+      release-binary-name: a3-rust-cruiser
+      release-asset-prefix: a3-rust-cruiser
+      request_run_id: ${{ needs.validate-request.outputs.request_run_id }}
+      publication_request_run_id: ${{ github.event.workflow_run.id }}
+      supplemental_release_asset_enabled: true
+      supplemental_release_asset_owner_contract: installer.asset-assembly-evidence-contract
+      supplemental_release_asset_implementation: standard-installer
+      supplemental_release_asset_config_path: .ci/installer/assembly.json
+      release_skills_config_path: .ci/release-skills.json
+  summary:
+    needs:
+      - validate-request
+      - publish
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Write workflow summary
+        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@77b1afe50b994c4b8ac54bfe5ba3ea849ed4d633
+        with:
+          summary-json: '{"jobs":[{"unit":"validate-request","execution":"trusted
+            publication request validation","rawResult":"${{
+            needs.validate-request.result
+            }}","applicable":true,"reason":"validate-request result: ${{
+            needs.validate-request.result
+            }}"},{"unit":"publish","execution":"trusted release
+            publication","rawResult":"${{ needs.publish.result
+            }}","applicable":true,"reason":"publish result: ${{
+            needs.publish.result }}"}]}'

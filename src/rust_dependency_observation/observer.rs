@@ -18,11 +18,12 @@ use super::{
     cargo_project,
     cfg_context::{CfgContext, CfgDecision},
     rust_syntax::{
-        PathVisitor, UseAlias, UseBinding, declared_external_crate_aliases, declared_item_names,
-        declared_macro_bindings, declared_self_crate_aliases, flatten_use_tree, glob_imports,
-        has_no_implicit_prelude, has_path_attribute, is_crate_visible, item_attributes,
-        local_macro_bindings, local_macro_safety_bindings, path_to_string, public_glob_imports,
-        public_item_names, public_use_bindings, syn_path_segments, use_aliases,
+        ObservedPath, PathVisitor, ScopedUse, UseAlias, UseBinding,
+        declared_external_crate_aliases, declared_item_names, declared_macro_bindings,
+        declared_self_crate_aliases, flatten_use_tree, glob_imports, has_no_implicit_prelude,
+        has_path_attribute, is_crate_visible, item_attributes, local_macro_bindings,
+        local_macro_safety_bindings, path_to_string, public_glob_imports, public_item_names,
+        public_use_bindings, syn_path_segments, use_aliases,
     },
 };
 
@@ -35,11 +36,6 @@ use crate::boundary_validation::{
 pub struct RustDependencyObserver;
 
 impl DependencyObserver for RustDependencyObserver {
-    fn target_source(&self, project_root: &Path, context: &AnalysisContext) -> Result<PathBuf> {
-        let manifest = cargo_project::load_manifest(project_root)?;
-        cargo_project::target_entry(project_root, &manifest, context).map(|(path, _)| path)
-    }
-
     fn observe(
         &self,
         project_root: &Path,
@@ -73,6 +69,7 @@ struct ModuleVariant {
 struct Observer {
     project_root: PathBuf,
     cfg_context: CfgContext,
+    source_lines: BTreeMap<PathBuf, Vec<String>>,
     external_crates: BTreeSet<String>,
     context_dependent_crates: BTreeSet<String>,
     self_crate_aliases: BTreeSet<String>,
@@ -86,20 +83,23 @@ fn observe(
     project_root: &Path,
     mut context: AnalysisContext,
 ) -> Result<(ObservedDependencyGraph, Vec<AnalysisIssue>)> {
+    let project_root = &project_root
+        .canonicalize()
+        .map_err(|error| CruiserError::io("Cargo project root", error))?;
     context.features.sort();
     context.features.dedup();
     context.cfg.sort();
     context.cfg.dedup();
-    let manifest = cargo_project::load_manifest(project_root)?;
+    let (package_root, manifest) = cargo_project::selected_manifest(project_root, &context)?;
     let cfg_context = CfgContext::resolve(project_root, &context);
-    let (entry, target_issues) = cargo_project::target_entry(project_root, &manifest, &context)?;
+    let (entry, target_issues) = cargo_project::target_entry(&package_root, &manifest, &context)?;
     let (mut external_crates, context_dependent_crates) =
         cargo_project::declared_external_crates(&manifest, &context, &cfg_context)?;
     let target_kind = context
         .compilation_target
         .split_once(':')
         .map_or(context.compilation_target.as_str(), |(kind, _)| kind);
-    if target_kind != "lib" && cargo_project::has_library_target(project_root, &manifest)? {
+    if target_kind != "lib" && cargo_project::has_library_target(&package_root, &manifest)? {
         // A binary/example/test target in the same package links the package
         // library under its crate name. The selected target remains the
         // observation boundary, so treat that library crate as external to
@@ -109,6 +109,7 @@ fn observe(
     let mut observer = Observer {
         project_root: project_root.to_path_buf(),
         cfg_context,
+        source_lines: BTreeMap::new(),
         external_crates,
         context_dependent_crates,
         self_crate_aliases: BTreeSet::new(),
@@ -206,8 +207,21 @@ fn observe(
 
     let modules = selected
         .iter()
-        .cloned()
-        .map(|id| LogicalModule { id })
+        .map(|id| {
+            let mut source_paths = observer
+                .records
+                .get(id)
+                .into_iter()
+                .flat_map(|record| record.variants.iter())
+                .map(|variant| observer.relative_path(&variant.path))
+                .collect::<Vec<_>>();
+            source_paths.sort();
+            source_paths.dedup();
+            LogicalModule {
+                id: id.clone(),
+                source_paths,
+            }
+        })
         .collect();
     observer.declarations.sort_by(|left, right| {
         (left.parent.as_str(), left.child.as_str())
@@ -234,12 +248,12 @@ impl Observer {
         if self.records.contains_key(id) {
             return Ok(());
         }
-        let source = fs::read_to_string(path).map_err(|error| {
-            CruiserError::Io(std::io::Error::new(
-                error.kind(),
-                format!("{}: {error}", path.display()),
-            ))
-        })?;
+        let source = fs::read_to_string(path)
+            .map_err(|error| CruiserError::io(path.display().to_string(), error))?;
+        self.source_lines.insert(
+            path.to_path_buf(),
+            source.lines().map(str::to_owned).collect(),
+        );
         let ast = match syn::parse_file(&source) {
             Ok(ast) => ast,
             Err(error) => {
@@ -392,12 +406,19 @@ impl Observer {
                     child_items,
                 )?;
             } else {
+                let (flat_path, nested_path) =
+                    module_file_candidates(parent_module_directory, &module.ident.to_string());
                 let child_path =
                     resolve_module_file(parent_module_directory, &module.ident.to_string())
                         .ok_or_else(|| {
-                            CruiserError::Io(std::io::Error::new(
-                                std::io::ErrorKind::NotFound,
-                                format!("module file not found for {child_id}"),
+                            let evidence = self.evidence(parent_path, module.ident.span().start());
+                            CruiserError::InvalidInput(format!(
+                                "module file not found for {child_id}; tried {} or {}; declared at {}:{}:{}",
+                                flat_path.display(),
+                                nested_path.display(),
+                                evidence.path,
+                                evidence.line,
+                                evidence.column,
                             ))
                         })?;
                 self.discover_module(&child_id, &child_path)?;
@@ -443,6 +464,57 @@ impl Observer {
         dependencies: &mut Vec<Dependency>,
         issues: &mut Vec<AnalysisIssue>,
     ) {
+        self.collect_top_level_use_dependencies(
+            source_id,
+            variant,
+            selected,
+            all_modules,
+            dependencies,
+            issues,
+        );
+        let visitor = self.observe_variant(variant, analysis_profile);
+        let PathVisitor {
+            paths,
+            scoped_uses,
+            strict_path_spans,
+            macro_spans,
+            cfg_spans,
+            ..
+        } = visitor;
+        self.collect_scoped_use_dependencies(
+            source_id,
+            variant,
+            &scoped_uses,
+            selected,
+            all_modules,
+            dependencies,
+            issues,
+        );
+        if analysis_profile == AnalysisProfile::Compilation {
+            self.append_visitor_issues(source_id, &variant.path, macro_spans, cfg_spans, issues);
+        }
+        self.collect_observed_path_dependencies(
+            source_id,
+            variant,
+            paths,
+            strict_path_spans,
+            selected,
+            all_modules,
+            analysis_profile,
+            dependencies,
+            issues,
+        );
+    }
+
+    fn collect_top_level_use_dependencies(
+        &self,
+        source_id: &str,
+        variant: &ModuleVariant,
+        selected: &BTreeSet<String>,
+        all_modules: &BTreeSet<String>,
+        dependencies: &mut Vec<Dependency>,
+        issues: &mut Vec<AnalysisIssue>,
+    ) {
         let top_level_scope = ResolutionScope {
             aliases: &variant.use_aliases,
             glob_imports: &variant.glob_imports,
@@ -463,6 +535,13 @@ impl Observer {
                 issues.extend(use_issues);
             }
         }
+    }
+
+    fn observe_variant<'a>(
+        &'a self,
+        variant: &'a ModuleVariant,
+        analysis_profile: AnalysisProfile,
+    ) -> PathVisitor<'a> {
         let macro_bindings = declared_macro_bindings(&variant.ast, &self.cfg_context);
         let (safe_local_macro_bindings, observing_local_macro_bindings) =
             local_macro_safety_bindings(
@@ -494,10 +573,23 @@ impl Observer {
             macro_spans: Vec::new(),
             cfg_spans: Vec::new(),
             strict_path_spans: Vec::new(),
-            use_spans: Vec::new(),
         };
         visitor.visit_file(&variant.ast);
-        for scoped_use in &visitor.scoped_uses {
+        visitor
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn collect_scoped_use_dependencies(
+        &self,
+        source_id: &str,
+        variant: &ModuleVariant,
+        scoped_uses: &[ScopedUse],
+        selected: &BTreeSet<String>,
+        all_modules: &BTreeSet<String>,
+        dependencies: &mut Vec<Dependency>,
+        issues: &mut Vec<AnalysisIssue>,
+    ) {
+        for scoped_use in scoped_uses {
             let scoped_scope = ResolutionScope {
                 aliases: &scoped_use.aliases,
                 glob_imports: &scoped_use.glob_imports,
@@ -513,45 +605,53 @@ impl Observer {
             dependencies.extend(use_dependencies);
             issues.extend(use_issues);
         }
-        let strict_path_spans = visitor.strict_path_spans.clone();
-        let top_level_use_spans: Vec<LineColumn> = variant
-            .ast
-            .items
-            .iter()
-            .filter_map(|item| match item {
-                Item::Use(use_item) => Some(use_item.span().start()),
-                _ => None,
-            })
-            .collect();
-        let _block_scoped_use_spans = visitor
-            .use_spans
-            .iter()
-            .filter(|span| !top_level_use_spans.contains(span))
-            .collect::<Vec<_>>();
-        if analysis_profile == AnalysisProfile::Compilation {
-            for macro_span in visitor.macro_spans {
-                issues.push(AnalysisIssue::unresolved_dependency_candidate(
-                    "analysis.unsupported-macro-expansion",
-                    "macro expansion is outside the MVP observer boundary",
-                    format!("{source_id}:{}", macro_span.line),
-                    source_id.to_owned(),
-                    self.evidence(&variant.path, macro_span),
-                    Vec::new(),
-                    all_dependency_kinds(),
-                ));
-            }
-            for cfg_span in visitor.cfg_spans {
-                issues.push(AnalysisIssue::analysis_context_unresolved(
-                    "analysis.unsupported-analysis-context",
-                    "cfg and feature conditions are not evaluated by the MVP observer",
-                    format!("{source_id}:{}", cfg_span.line),
-                    Some(source_id.to_owned()),
-                    Some(self.evidence(&variant.path, cfg_span)),
-                    all_dependency_kinds(),
-                ));
-            }
+    }
+
+    fn append_visitor_issues(
+        &self,
+        source_id: &str,
+        path: &Path,
+        macro_spans: Vec<LineColumn>,
+        cfg_spans: Vec<LineColumn>,
+        issues: &mut Vec<AnalysisIssue>,
+    ) {
+        for macro_span in macro_spans {
+            issues.push(AnalysisIssue::unresolved_dependency_candidate(
+                "analysis.unsupported-macro-expansion",
+                "macro expansion is outside the MVP observer boundary",
+                format!("{source_id}:{}", macro_span.line),
+                source_id.to_owned(),
+                self.evidence(path, macro_span),
+                Vec::new(),
+                all_dependency_kinds(),
+            ));
         }
-        for observed_path in visitor.paths {
+        for cfg_span in cfg_spans {
+            issues.push(AnalysisIssue::analysis_context_unresolved(
+                "analysis.unsupported-analysis-context",
+                "cfg and feature conditions are not evaluated by the MVP observer",
+                format!("{source_id}:{}", cfg_span.line),
+                Some(source_id.to_owned()),
+                Some(self.evidence(path, cfg_span)),
+                all_dependency_kinds(),
+            ));
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn collect_observed_path_dependencies(
+        &self,
+        source_id: &str,
+        variant: &ModuleVariant,
+        paths: Vec<ObservedPath>,
+        strict_path_spans: Vec<LineColumn>,
+        selected: &BTreeSet<String>,
+        all_modules: &BTreeSet<String>,
+        analysis_profile: AnalysisProfile,
+        dependencies: &mut Vec<Dependency>,
+        issues: &mut Vec<AnalysisIssue>,
+    ) {
+        for observed_path in paths {
             let evidence_span = observed_path.evidence_span;
             let requires_complete_resolution = observed_path.requires_complete_resolution;
             let path = observed_path.path;
@@ -848,19 +948,11 @@ impl Observer {
     }
 
     fn evidence(&self, path: &Path, start: LineColumn) -> SourceEvidence {
-        let relative = path
-            .strip_prefix(&self.project_root)
-            .unwrap_or(path)
-            .to_string_lossy()
-            .replace(std::path::MAIN_SEPARATOR, "/");
-        let column = fs::read_to_string(path)
-            .ok()
-            .and_then(|source| {
-                source
-                    .lines()
-                    .nth(start.line.saturating_sub(1))
-                    .map(str::to_owned)
-            })
+        let relative = self.relative_path(path);
+        let column = self
+            .source_lines
+            .get(path)
+            .and_then(|lines| lines.get(start.line.saturating_sub(1)))
             .map(|line| {
                 line.char_indices()
                     .take_while(|(offset, _)| *offset < start.column)
@@ -873,6 +965,13 @@ impl Observer {
             line: start.line,
             column,
         }
+    }
+
+    fn relative_path(&self, path: &Path) -> String {
+        path.strip_prefix(&self.project_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace(std::path::MAIN_SEPARATOR, "/")
     }
 }
 
@@ -968,12 +1067,18 @@ fn candidate_id(
 }
 
 fn resolve_module_file(directory: &Path, name: &str) -> Option<PathBuf> {
-    let flat = directory.join(format!("{name}.rs"));
+    let (flat, nested) = module_file_candidates(directory, name);
     if flat.is_file() {
         return Some(flat);
     }
-    let nested = directory.join(name).join("mod.rs");
     nested.is_file().then_some(nested)
+}
+
+fn module_file_candidates(directory: &Path, name: &str) -> (PathBuf, PathBuf) {
+    (
+        directory.join(format!("{name}.rs")),
+        directory.join(name).join("mod.rs"),
+    )
 }
 
 fn module_directory(file: &Path) -> PathBuf {

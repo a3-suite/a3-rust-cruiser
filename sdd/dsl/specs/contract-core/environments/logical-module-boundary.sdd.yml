@@ -1,9 +1,0 @@
-version: 1
-name: contract-environment
-environment_id: logical-module-boundary-contract-environment
-boundaries:
-  - id: boundary.cli-result
-    summary: CLIから利用者と継続的インテグレーションへ返す検証結果
-    kind: cli-output
-    direction: outbound
-    externality: system-owned
