@@ -15,7 +15,7 @@
   },
   "placement": {
     "managedRoot": "%LOCALAPPDATA%\\a3-suite\\a3-rust-cruiser\\standalone",
-    "releasePath": "%LOCALAPPDATA%\\a3-suite\\a3-rust-cruiser\\standalone\\releases\\0.1.0",
+    "releasePath": "%LOCALAPPDATA%\\a3-suite\\a3-rust-cruiser\\standalone\\releases\\0.2.0",
     "currentLink": "%LOCALAPPDATA%\\a3-suite\\a3-rust-cruiser\\standalone\\current",
     "profile": "per-user-cli",
     "channel": "standalone"

@@ -19,8 +19,8 @@
   "sharedWrapper": {
     "assetName": "install.sh",
     "deliveryUrls": {
-      "linux-x86_64": "https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install-linux-x86_64.sh",
-      "macos-arm64": "https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install-macos-arm64.sh"
+      "linux-x86_64": "https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.2.0/install-linux-x86_64.sh",
+      "macos-arm64": "https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.2.0/install-macos-arm64.sh"
     }
   }
 }
