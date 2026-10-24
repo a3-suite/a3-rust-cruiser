@@ -20,7 +20,7 @@ jobs:
       language-profile: rust
       toolchain-version: 1.98.0
       uv-version: ""
-      cargo-audit-version: 0.22.1
+      cargo-audit-version: 0.22.2
       cargo-manifest-path: Cargo.toml
       cargo-lock-path: Cargo.lock
       cargo-deny-version: ""

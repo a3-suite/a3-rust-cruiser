@@ -3,7 +3,7 @@
   "kind": "ci-github-asset-lock",
   "sourceRevision": "9d735ed49889f77c288ed69f661dfe663c3f363d",
   "releaseTag": "v0.9.0",
-  "generatedAt": "2026-10-24T05:40Z",
+  "generatedAt": "2026-10-24T09:36Z",
   "assets": [
     {
       "path": ".ci/provider-action-pins.yml",
@@ -13,12 +13,12 @@
     {
       "path": ".github/workflows/quality-gate.yml",
       "canonicalSha256": "11dbbea3f53af7d9f2d13b2c79ffc6d727477eb93544814f63e20c67ba8a39ed",
-      "appliedSha256": "400a83b2028378a7a135bfd78e718939793d577eaedc054e498a50e4e8d3a052"
+      "appliedSha256": "3f3469e0b94ba326fbc29e548a8504450a6637cf51c99402d32ce9f0970338eb"
     },
     {
       "path": ".github/workflows/release-publication-caller.yml",
       "canonicalSha256": "40461308dadd93344bf1ee3cdd191befd4fd5ca452cd4df2d3743d2bbcda2e10",
-      "appliedSha256": "f26235ec26d60c4810a40dba87f51259f13c426d1cbfbb9c9e75924896632c26"
+      "appliedSha256": "7d6d7193dd66160e396d113721af6f4937baaafc128ce17407dcfcb4e709619a"
     },
     {
       "path": ".github/workflows/release-publication-request.yml",

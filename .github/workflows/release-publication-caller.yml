@@ -47,7 +47,7 @@ jobs:
       language-profile: rust
       platform-manifest: .ci/platform-manifest.yml
       toolchain-version: 1.98.0
-      cargo-audit-version: 0.22.1
+      cargo-audit-version: 0.22.2
       jq-version: 1.7.1
       release-implementation: rust-cli-release
       standard-bundle-id: rust-cargo-quality
