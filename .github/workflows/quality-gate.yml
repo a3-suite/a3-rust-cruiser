@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   quality:
-    uses: a3-suite/a3-ci-github/.github/workflows/ci-quality.yml@708fe45368ff54488a5fc260d7e9f6dd89b6de2a
+    uses: a3-suite/a3-ci-github/.github/workflows/ci-quality.yml@9d735ed49889f77c288ed69f661dfe663c3f363d
     permissions:
       contents: read
     with:
@@ -37,7 +37,7 @@ jobs:
       contents: read
     steps:
       - name: Write workflow summary
-        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@1c7f2d610441d952004b6d96c7c8aad2d2242920
+        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@77b1afe50b994c4b8ac54bfe5ba3ea849ed4d633
         with:
           summary-json: '{"jobs":[{"unit":"quality","execution":"fixed reusable quality
             workflow","rawResult":"${{ needs.quality.result

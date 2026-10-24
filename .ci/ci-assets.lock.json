@@ -1,33 +1,34 @@
 {
   "schemaVersion": "1",
   "kind": "ci-github-asset-lock",
-  "sourceRevision": "708fe45368ff54488a5fc260d7e9f6dd89b6de2a",
-  "generatedAt": "2026-10-23T15:53Z",
+  "sourceRevision": "9d735ed49889f77c288ed69f661dfe663c3f363d",
+  "releaseTag": "v0.9.0",
+  "generatedAt": "2026-10-24T05:40Z",
   "assets": [
     {
       "path": ".ci/provider-action-pins.yml",
-      "canonicalSha256": "a4f84162c6d495dc2222f6b763940e3ba15c7ce4095522a5dc72a018598aa699",
+      "canonicalSha256": "fadb6f88bde382a63b62abfc9e564d6091531b1e2fa96c9e9eeb93079bce8621",
       "appliedSha256": "1d0fcbbf2154aadb3c4f4053b877f48359c25456ae42eb2ee6ea255f8bdd48f0"
     },
     {
       "path": ".github/workflows/quality-gate.yml",
-      "canonicalSha256": "96d5b211b33d40f59babe5f80faa1766b5068813b8733c7a56c06528dec993f5",
-      "appliedSha256": "28aa202a5c64a9402fca71a9a8eebaa3ce78f696d2736009fdc1542996919223"
+      "canonicalSha256": "11dbbea3f53af7d9f2d13b2c79ffc6d727477eb93544814f63e20c67ba8a39ed",
+      "appliedSha256": "400a83b2028378a7a135bfd78e718939793d577eaedc054e498a50e4e8d3a052"
     },
     {
       "path": ".github/workflows/release-publication-caller.yml",
-      "canonicalSha256": "6c3347a7f49f169d839d1086652820c6608443561c5d7e39a3345d6c535718ab",
-      "appliedSha256": "0a908d90cd50637bc62620d47317705b48e7930cd824838865c0f145f6b84cd7"
+      "canonicalSha256": "40461308dadd93344bf1ee3cdd191befd4fd5ca452cd4df2d3743d2bbcda2e10",
+      "appliedSha256": "f26235ec26d60c4810a40dba87f51259f13c426d1cbfbb9c9e75924896632c26"
     },
     {
       "path": ".github/workflows/release-publication-request.yml",
-      "canonicalSha256": "64905e734f02a539f17ff535d83fcfdb67a84d6f3fee01ec898a7011c8eeb1f4",
-      "appliedSha256": "fc933ade400a8e8b465fb87f6404acec523815e00a8d9d019fb9b2e849c95340"
+      "canonicalSha256": "5635249a29a15fa4b9451d469cca7a352bcbd7478e807805ae0505a34ba6a735",
+      "appliedSha256": "e4f0daae4c31115e45b0d20ef1fb519087c7919fc1ed5895ebd5c2b5f98540da"
     },
     {
       "path": ".github/workflows/release-request-tag.yml",
-      "canonicalSha256": "f298c5ef60f7fbb61f8cefcc25478f1db664d9ddb47bedffc7f32ebd794b75f0",
-      "appliedSha256": "6ae46872d5d1c8203b97fb9d77709933c8d75d08216fb6dac7af11b4a73bdaa9"
+      "canonicalSha256": "a2b754b4cd8a348e76716b713630a237c44ba425706ccef9df8701cd407f6518",
+      "appliedSha256": "d78106eb8d1512d98af2bfeda08779ce48ea9ec6939ca26fdba98bc52a0377d6"
     }
   ]
 }
