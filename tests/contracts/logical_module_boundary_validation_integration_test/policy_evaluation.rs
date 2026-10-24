@@ -39,10 +39,7 @@ fn should_forbidden_rule_overrides_matching_allowed_rule() {
         report["policy_evaluation"]["dependency_outcome"],
         "forbidden"
     );
-    assert_eq!(
-        report["policy_evaluation"]["forbidden_match_handling"],
-        "all-matches"
-    );
+    assert_policy_evaluation_handling(&report);
 }
 
 #[test]
@@ -60,10 +57,7 @@ fn should_applicable_allowed_rules_use_target_union() {
     // Assert
     assert_eq!(report["violations"], serde_json::json!([]));
     assert_eq!(report["policy_evaluation"]["dependency_outcome"], "allowed");
-    assert_eq!(
-        report["policy_evaluation"]["allowed_match_handling"],
-        "union"
-    );
+    assert_policy_evaluation_handling(&report);
 }
 
 #[test]
@@ -87,10 +81,21 @@ fn should_unmatched_applicable_allowed_rules_produce_violation() {
     assert_eq!(violation["target"], "crate::infrastructure");
     assert_eq!(violation["dependency_kind"], "import");
     assert_eq!(violation["evidence"]["path"], "src/application.rs");
-    assert_eq!(
-        report["policy_evaluation"]["allowed_match_handling"],
-        "union"
+    assert!(
+        violation["evidence"]["line"]
+            .as_u64()
+            .is_some_and(|line| line > 0)
     );
+    assert!(
+        violation["evidence"]["column"]
+            .as_u64()
+            .is_some_and(|column| column > 0)
+    );
+    assert_eq!(
+        report["policy_evaluation"]["dependency_outcome"],
+        "not-allowed"
+    );
+    assert_policy_evaluation_handling(&report);
 }
 
 #[test]
@@ -107,11 +112,38 @@ fn should_circular_rule_is_independent_from_allowed_rules() {
     assert_eq!(violations[0]["kind"], "circular");
     assert_eq!(violations[0]["rule_id"], "no-cycle");
     assert_eq!(violations[0]["severity"], "error");
+    assert_eq!(violations[0]["source"], "crate::application");
+    assert_eq!(violations[0]["target"], "crate::domain");
+    assert_eq!(violations[0]["dependency_kind"], "import");
+    assert_eq!(violations[0]["evidence"]["path"], "src/application.rs");
+    assert!(
+        violations[0]["evidence"]["line"]
+            .as_u64()
+            .is_some_and(|line| line > 0)
+    );
+    assert!(
+        violations[0]["evidence"]["column"]
+            .as_u64()
+            .is_some_and(|column| column > 0)
+    );
+    assert_eq!(report["policy_evaluation"]["dependency_outcome"], "allowed");
     assert!(
         violations[0]["cycle_path"]
             .as_array()
             .is_some_and(|path| path.len() >= 3)
     );
     assert_eq!(report["policy_evaluation"]["cycle_outcome"], "circular");
+    assert_policy_evaluation_handling(&report);
+}
+
+fn assert_policy_evaluation_handling(report: &Value) {
+    assert_eq!(
+        report["policy_evaluation"]["forbidden_match_handling"],
+        "all-matches"
+    );
+    assert_eq!(
+        report["policy_evaluation"]["allowed_match_handling"],
+        "union"
+    );
     assert_eq!(report["policy_evaluation"]["cycle_handling"], "independent");
 }

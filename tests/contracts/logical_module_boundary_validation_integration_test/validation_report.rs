@@ -50,9 +50,12 @@ fn should_confirmed_violations_are_non_conformant_even_with_possible_issues() {
             .is_empty()
     );
     assert!(report["analysis_issues"].as_array().is_some_and(|issues| {
-        issues
-            .iter()
-            .any(|issue| issue["policy_impact"]["outcome"] == "possible")
+        issues.iter().any(|issue| {
+            issue["policy_impact"]["outcome"] == "possible"
+                && issue["policy_impact"]["rule_ids"]
+                    .as_array()
+                    .is_some_and(|rule_ids| !rule_ids.is_empty())
+        })
     }));
 }
 
@@ -80,11 +83,7 @@ fn should_json_report_projects_common_validation_result() {
             .is_empty()
     );
     let issue = &report["analysis_issues"][0];
-    assert!(
-        issue["code"]
-            .as_str()
-            .is_some_and(|code| code.starts_with("analysis."))
-    );
+    assert_eq!(issue["code"], "analysis.unsupported-macro-expansion");
     assert!(
         issue["reason"]
             .as_str()
@@ -118,7 +117,9 @@ fn should_text_report_projects_common_validation_result() {
     assert!(payload.contains("analysis_profile: compilation"));
     assert!(payload.contains("decision: non-conformant"));
     assert!(payload.contains("violations:\n  - forbidden-application forbidden"));
-    assert!(payload.contains("analysis_issues:\n  - analysis."));
+    assert!(payload.contains(
+        "analysis_issues:\n  - analysis.unsupported-macro-expansion [crate:3] macro expansion"
+    ));
     assert!(payload.contains("observation: unresolved-dependency-candidate"));
     assert!(payload.contains("policy_impact: possible [possible-crate-cycle]"));
 }
@@ -218,6 +219,10 @@ fn should_unresolved_candidate_with_allowed_target_union_is_conformant() {
     assert_issue(&report, "analysis.unsupported-name-resolution");
     let issue = &report["analysis_issues"][0];
     assert_eq!(
+        issue["observation"]["outcome"],
+        "unresolved-dependency-candidate"
+    );
+    assert_eq!(
         issue["observation"]["candidate_targets"],
         serde_json::json!(["crate::left", "crate::right"])
     );
@@ -241,6 +246,10 @@ fn should_unresolved_candidate_outside_allowed_target_union_is_indeterminate() {
     assert_eq!(report["decision"], "indeterminate");
     assert_issue(&report, "analysis.unsupported-name-resolution");
     let issue = &report["analysis_issues"][0];
+    assert_eq!(
+        issue["observation"]["outcome"],
+        "unresolved-dependency-candidate"
+    );
     assert_eq!(
         issue["observation"]["candidate_targets"],
         serde_json::json!(["crate::left", "crate::right"])
@@ -272,6 +281,10 @@ fn should_unresolved_candidate_without_targets_is_indeterminate_for_allowed_rule
     assert_eq!(report["decision"], "indeterminate");
     assert_issue(&report, "analysis.unresolved-reference");
     let issue = &report["analysis_issues"][0];
+    assert_eq!(
+        issue["observation"]["outcome"],
+        "unresolved-dependency-candidate"
+    );
     assert_eq!(
         issue["observation"]["candidate_targets"],
         serde_json::json!([])
@@ -684,6 +697,9 @@ fn should_repeated_json_report_is_byte_stable() {
     assert_eq!(first.stdout, second.stdout);
     assert!(first.stderr.is_empty());
     assert!(second.stderr.is_empty());
+    let report = completed_json(&first, 1);
+    assert_eq!(report["schema_version"], "2");
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
 }
 
 #[test]

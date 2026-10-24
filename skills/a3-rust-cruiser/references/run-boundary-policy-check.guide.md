@@ -7,14 +7,13 @@
 
 ## 前提条件
 
-- `a3-rust-cruiser` コマンドが利用できること。利用できない場合はセットアップを自動実行せず、不足を報告する。
+- 共通判定ガイドの前提条件を満たすこと。
 - 対象プロジェクトが所有するBoundaryPolicyのパスを確認できること。ない場合、作成の依頼も受けていればreferences/create-boundary-policy.guide.mdへ進む。検証だけの依頼では入力不足として停止する。
 - project root、Cargo package、compilation target、target tripleを対象プロジェクトとRust toolchainから確認できること。
 
 ## 入力選択
 
 - `--policy <boundary-policy-path>`を境界入力として選択する。
-- `--resolved-implementation-attribution`とは相互排他であり、同じ実行で併用しない。
 - この経路の適用対象は、スキルの原則に従う非SDDプロジェクトとする。ownerのDSLを解釈したり、別の入力へ変換したりしない。
 
 ## 検証フロー
@@ -38,13 +37,6 @@
 
 ## 判定と完了
 
-- 実行後の`decision`、`violations`、`analysis_issues`、解析コンテキストの判定は、共通判定ガイドに従う。
-- 対象としたすべての解析コンテキストが`conformant`の場合だけ、検証完了とする。
-- `--exclude`で消えた依存は、依存が存在しない証拠として扱わない。
+- 実行後の`decision`、`violations`、`analysis_issues`、解析コンテキストの判定と完了条件は、共通判定ガイドに従う。
 
 参照: references/run-logical-module-boundary-check.guide.md
-
-## 注意
-
-- BoundaryPolicyの作成・修正はreferences/create-boundary-policy.guide.mdへ委譲する。
-- `source-union` profileを使う場合も、対象プロジェクトが非コンパイル経路の解析を明示しているときだけ指定する。

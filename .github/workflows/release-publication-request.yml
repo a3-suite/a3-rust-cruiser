@@ -42,7 +42,7 @@ jobs:
       contents: read
     steps:
       - name: Validate and write publication request
-        uses: a3-suite/a3-ci-github/actions/ci-release-publication-control@4683eface1915b15f4c822b00c604a216a78867c
+        uses: a3-suite/a3-ci-github/actions/ci-release-publication-control@77b1afe50b994c4b8ac54bfe5ba3ea849ed4d633
         with:
           operation: create-request
           release-request-run-id: ${{ inputs.request_run_id }}
@@ -55,32 +55,23 @@ jobs:
           approval-id: ${{ inputs.approval_id }}
           approval-expires-at: ${{ inputs.approval_expires_at }}
           approval-body-sha256: ${{ inputs.approval_body_sha256 }}
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: release-publication-request
           path: release-publication-request
           if-no-files-found: error
           retention-days: 1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: release-notes-handoff
           path: release-notes-handoff
           if-no-files-found: error
           retention-days: 1
-  summary:
-    needs: request
-    if: always()
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    env:
-      WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository
-        }}/actions/runs/${{ github.run_id }}
-    steps:
       - name: Write workflow summary
-        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@4683eface1915b15f4c822b00c604a216a78867c
+        if: always()
+        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@77b1afe50b994c4b8ac54bfe5ba3ea849ed4d633
         with:
           summary-json: '{"jobs":[{"unit":"request","execution":"publication request
-            handoff","rawResult":"${{ needs.request.result
-            }}","applicable":true,"evidence":"${{ env.WORKFLOW_RUN_URL
-            }}","reason":"request job result: ${{ needs.request.result }}"}]}'
+            handoff","rawResult":"${{ job.status
+            }}","applicable":true,"reason":"request job result: ${{ job.status
+            }}"}]}'

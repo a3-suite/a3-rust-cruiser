@@ -5,25 +5,7 @@ extensions:
     base_kind: application-service
     summary: crate の entrypoint から内部 component を接続する project local kind
     responsibility_principle: crate の起動入口と component の composition 配線に責務を限定し、transport protocol、use case decision、domain logic、adapter implementationを持たない。
-    field_spaces:
-      - coarse/current
-    allowed_exposes:
-      - use-case-entrypoint
-    required_role_fields:
-      - behavior_profile
-      - dependency_profile
-    optional_role_fields:
-      - semantic_guidance
   - roleKind: project-input-adapter
     base_kind: repository-adapter
     summary: 解析対象 project に永続化された入力を内部契約へ変換する adapter
     responsibility_principle: project の source、manifest、policy の読み取りと内部契約への変換に責務を限定し、更新、検証手順、境界判断を持たない。
-    field_spaces:
-      - coarse/current
-    allowed_exposes:
-      - adapter-implementation
-    required_role_fields:
-      - behavior_profile
-      - dependency_profile
-    optional_role_fields:
-      - semantic_guidance

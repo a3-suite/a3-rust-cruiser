@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   quality:
-    uses: a3-suite/a3-ci-github/.github/workflows/ci-quality.yml@6cc7f86e2599c3a4aeff36093d8daa041108712b
+    uses: a3-suite/a3-ci-github/.github/workflows/ci-quality.yml@9d735ed49889f77c288ed69f661dfe663c3f363d
     permissions:
       contents: read
     with:
@@ -23,6 +23,8 @@ jobs:
       cargo-audit-version: 0.22.1
       cargo-manifest-path: Cargo.toml
       cargo-lock-path: Cargo.lock
+      cargo-deny-version: ""
+      cargo-deny-config-path: ""
       jq-version: ""
       standard-bundle-id: rust-cargo-quality
       adapter-descriptor: ""
@@ -33,15 +35,11 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-    env:
-      WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository
-        }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Write workflow summary
-        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@4683eface1915b15f4c822b00c604a216a78867c
+        uses: a3-suite/a3-ci-github/actions/ci-quality-summary@77b1afe50b994c4b8ac54bfe5ba3ea849ed4d633
         with:
           summary-json: '{"jobs":[{"unit":"quality","execution":"fixed reusable quality
             workflow","rawResult":"${{ needs.quality.result
-            }}","applicable":true,"evidence":"${{ env.WORKFLOW_RUN_URL
-            }}","reason":"reusable quality workflow result: ${{
-            needs.quality.result }}"}]}'
+            }}","applicable":true,"reason":"reusable quality workflow result:
+            ${{ needs.quality.result }}"}]}'

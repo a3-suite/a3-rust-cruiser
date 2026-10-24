@@ -83,20 +83,23 @@ fn observe(
     project_root: &Path,
     mut context: AnalysisContext,
 ) -> Result<(ObservedDependencyGraph, Vec<AnalysisIssue>)> {
+    let project_root = &project_root
+        .canonicalize()
+        .map_err(|error| CruiserError::io("Cargo project root", error))?;
     context.features.sort();
     context.features.dedup();
     context.cfg.sort();
     context.cfg.dedup();
-    let manifest = cargo_project::load_manifest(project_root)?;
+    let (package_root, manifest) = cargo_project::selected_manifest(project_root, &context)?;
     let cfg_context = CfgContext::resolve(project_root, &context);
-    let (entry, target_issues) = cargo_project::target_entry(project_root, &manifest, &context)?;
+    let (entry, target_issues) = cargo_project::target_entry(&package_root, &manifest, &context)?;
     let (mut external_crates, context_dependent_crates) =
         cargo_project::declared_external_crates(&manifest, &context, &cfg_context)?;
     let target_kind = context
         .compilation_target
         .split_once(':')
         .map_or(context.compilation_target.as_str(), |(kind, _)| kind);
-    if target_kind != "lib" && cargo_project::has_library_target(project_root, &manifest)? {
+    if target_kind != "lib" && cargo_project::has_library_target(&package_root, &manifest)? {
         // A binary/example/test target in the same package links the package
         // library under its crate name. The selected target remains the
         // observation boundary, so treat that library crate as external to

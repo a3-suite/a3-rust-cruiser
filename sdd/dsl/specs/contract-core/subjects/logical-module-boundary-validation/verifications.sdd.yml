@@ -1,924 +1,607 @@
 version: 1
 name: contract-verifications
-subject_ref: subject.logical-module-boundary.validation
-verifications:
-  - id: verification.logical-module-boundary.dependency-graph
-    contract_id: contract.logical-module-boundary.dependency-graph
-    cases:
-      - id: typed-dependencies-and-declarations
-        intent_id: graph-observation
-        input:
-          analysis_request:
-            package: a3-rust-cruiser
-            target: bin:a3-rust-cruiser
-            features: []
-            cfg: []
-            target_triple: x86_64-unknown-linux-gnu
-            analysis_profile: compilation
-            include:
-              - crate
-            exclude: []
-        checks:
-          - id: check-analysis-context
-            guarantee_ref: analysis-context-present
-          - id: check-analysis-profile
-            guarantee_ref: analysis-profile-supported
-          - id: check-logical-modules
-            guarantee_ref: logical-modules-present
-          - id: check-module-declarations
-            guarantee_ref: module-declarations-separated
-          - id: check-dependency-edges
-            guarantee_ref: dependency-edges-present
-          - id: check-dependency-kind
-            guarantee_ref: dependency-kind-supported
-          - id: check-dependency-target-scope
-            guarantee_ref: dependency-target-scope-supported
-          - id: check-excluded-scopes
-            guarantee_ref: excluded-scopes-present
-      - id: source-union-source-authored-dependencies
-        intent_id: source-union-observation
-        input:
-          analysis_request:
-            source_union: true
-            analysis_profile: source-union
-            cfg_branches: union
-            same_module_cfg_variants: union
-            same_alias_cfg_variants: candidate-union
-            conditional_runtime_dependencies: union
-            development_dependencies: dev-target-only
-            build_dependencies: out-of-scope
-            macro_generated_dependencies: out-of-scope
-            attribute_generated_dependencies: out-of-scope
-        checks:
-          - id: check-analysis-context
-            guarantee_ref: analysis-context-present
-          - id: check-analysis-profile
-            guarantee_ref: analysis-profile-supported
-          - id: check-source-union-profile
-            guarantee_ref: source-union-profile-selected
-          - id: check-dependency-edges
-            guarantee_ref: dependency-edges-present
-      - id: exact-runtime-item-macro-generated-dependencies
-        intent_id: graph-observation
-        input:
-          analysis_request:
-            analysis_profile: compilation
-            exact_item_macro_definition: true
-            unique_macro_namespace_resolution: true
-            generated_items_and_paths: observed
-        checks:
-          - id: check-analysis-context
-            guarantee_ref: analysis-context-present
-          - id: check-analysis-profile
-            guarantee_ref: analysis-profile-supported
-          - id: check-dependency-edges
-            guarantee_ref: dependency-edges-present
-          - id: check-dependency-kind
-            guarantee_ref: dependency-kind-supported
-          - id: check-dependency-target-scope
-            guarantee_ref: dependency-target-scope-supported
-      - id: serde-function-path-generated-dependencies
-        intent_id: graph-observation
-        input:
-          analysis_request:
-            analysis_profile: compilation
-            known_serde_function_path_attribute: true
-            generated_path_dependency: observed
-        checks:
-          - id: check-analysis-context
-            guarantee_ref: analysis-context-present
-          - id: check-analysis-profile
-            guarantee_ref: analysis-profile-supported
-          - id: check-dependency-edges
-            guarantee_ref: dependency-edges-present
-          - id: check-dependency-kind
-            guarantee_ref: dependency-kind-supported
-          - id: check-dependency-target-scope
-            guarantee_ref: dependency-target-scope-supported
-
-  - id: verification.logical-module-boundary.boundary-policy-input
-    contract_id: contract.logical-module-boundary.boundary-policy-input
-    cases:
-      - id: documented-policy-shape-is-accepted
-        intent_id: boundary-policy-input-acceptance
-        input:
-          valid_boundary_policy:
-            rules:
-              - id: forbid-application-to-infrastructure
-                kind: forbidden
-                severity: error
-                from:
-                  - crate::application
-                to:
-                  - crate::infrastructure
-                modules: []
-                dependency_kinds:
-                  - import
-        checks:
-          - id: check-valid-policy-accepted
-            guarantee_ref: valid-boundary-policy-input-accepted
-      - id: omitted-optional-policy-collections-default-empty
-        intent_id: boundary-policy-input-acceptance
-        input:
-          valid_boundary_policy:
-            rules:
-              - id: forbid-application-to-infrastructure
-                kind: forbidden
-                severity: error
-                from:
-                  - crate::application
-                to:
-                  - crate::infrastructure
-        checks:
-          - id: check-valid-policy-accepted
-            guarantee_ref: valid-boundary-policy-input-accepted
-      - id: unknown-policy-field-is-rejected
-        intent_id: boundary-policy-input-rejection
-        input:
-          invalid_boundary_policy:
-            unknown_field: true
-        checks:
-          - id: check-invalid-policy-exit-code
-            guarantee_ref: invalid-boundary-policy-input-exits-with-three
-          - id: check-invalid-policy-stdout
-            guarantee_ref: invalid-boundary-policy-input-keeps-stdout-empty
-          - id: check-invalid-policy-stderr
-            guarantee_ref: invalid-boundary-policy-input-writes-stderr-diagnostic
-      - id: unsupported-policy-enum-is-rejected
-        intent_id: boundary-policy-input-rejection
-        input:
-          invalid_boundary_policy:
-            rule_kind: required
-        checks:
-          - id: check-invalid-policy-exit-code
-            guarantee_ref: invalid-boundary-policy-input-exits-with-three
-          - id: check-invalid-policy-stdout
-            guarantee_ref: invalid-boundary-policy-input-keeps-stdout-empty
-          - id: check-invalid-policy-stderr
-            guarantee_ref: invalid-boundary-policy-input-writes-stderr-diagnostic
-      - id: invalid-policy-rules-are-rejected
-        intent_id: boundary-policy-input-rejection
-        input:
-          invalid_boundary_policy:
-            constraints:
-              - kebab-case-rule-id
-              - unique-rule-id
-              - forbidden-and-allowed-require-from-and-to
-              - forbidden-and-allowed-forbid-modules
-              - circular-requires-modules
-              - circular-forbids-from-and-to
-              - logical-module-pattern-grammar
-        checks:
-          - id: check-invalid-policy-exit-code
-            guarantee_ref: invalid-boundary-policy-input-exits-with-three
-          - id: check-invalid-policy-stdout
-            guarantee_ref: invalid-boundary-policy-input-keeps-stdout-empty
-          - id: check-invalid-policy-stderr
-            guarantee_ref: invalid-boundary-policy-input-writes-stderr-diagnostic
-      - id: resolved-implementation-attribution-is-consumed-directly
-        intent_id: resolved-implementation-attribution-public-cli-semantics
-        input:
-          valid_resolved_implementation_attribution:
-            public_cli_input: true
-            provenance_present: true
-            owner_selected_file_attribution: true
-            consumer_derived_selected_module_coverage: true
-            consumer_owned_analysis_context: true
-        checks:
-          - id: check-resolved-attribution-public-cli-acceptance
-            guarantee_ref: valid-resolved-implementation-attribution-input-accepted
-          - id: check-resolved-attribution-coverage
-            guarantee_ref: resolved-attribution-coverage-is-reported
-      - id: invalid-resolved-implementation-attribution-is-rejected
-        intent_id: resolved-implementation-attribution-public-cli-semantics
-        input:
-          invalid_resolved_implementation_attribution:
-            malformed: true
-            unknown_version: true
-            unknown_name: true
-            invalid_provenance: true
-            legacy_consumer_envelope_field: true
-            missing_required_dependency_collection: true
-          dependency_observation_would_fail:
-            invalid_cargo_manifest: true
-        checks:
-          - id: check-invalid-resolved-attribution-exit-code
-            guarantee_ref: invalid-resolved-implementation-attribution-input-exits-with-three
-          - id: check-invalid-resolved-attribution-diagnostic-precedes-analysis-failure
-            guarantee_ref: invalid-resolved-implementation-attribution-input-reports-its-diagnostic-before-observation
-      - id: resolved-attribution-and-other-policy-sources-are-rejected
-        intent_id: resolved-implementation-attribution-public-cli-semantics
-        input:
-          invalid_resolved_implementation_attribution:
-            simultaneous_policy_sources: true
-        checks:
-          - id: check-exclusive-resolved-attribution-exit-code
-            guarantee_ref: invalid-resolved-implementation-attribution-input-exits-with-three
-      - id: unresolved-implementation-attribution-is-indeterminate
-        intent_id: resolved-implementation-attribution-public-cli-semantics
-        input:
-          unresolved_implementation_attribution:
-            missing_observed_file: true
-        checks:
-          - id: check-resolved-attribution-indeterminate
-            guarantee_ref: unresolved-implementation-attribution-is-indeterminate
-      - id: resolved-attribution-forbidden-edge-is-non-conformant
-        intent_id: resolved-implementation-attribution-public-cli-semantics
-        input:
-          forbidden_resolved_attribution_edge: true
-        checks:
-          - id: check-resolved-attribution-non-conformant
-            guarantee_ref: forbidden-resolved-attribution-edge-is-non-conformant
-
-  - id: verification.logical-module-boundary.policy-evaluation
-    contract_id: contract.logical-module-boundary.policy-evaluation
-    cases:
-      - id: forbidden-overrides-matching-allowed-rule
-        intent_id: forbidden-precedence
-        input:
-          forbidden_and_allowed_match: true
-          graph_and_boundary_policy:
-            dependencies:
-              - source: crate::application
-                target: crate::infrastructure
-                kind: import
-            boundary_policy:
-              rules:
-                - id: forbidden-application-to-infrastructure
-                  kind: forbidden
-                  severity: error
-                  from:
-                    - crate::application
-                  to:
-                    - crate::infrastructure
-                - id: allowed-application-targets
-                  kind: allowed
-                  severity: warning
-                  from:
-                    - crate::application
-                  to:
-                    - crate::infrastructure
-        checks:
-          - id: check-policy-violations
-            guarantee_ref: violations-present
-          - id: check-policy-violation-kind
-            guarantee_ref: violation-kind-supported
-          - id: check-policy-rule-id
-            guarantee_ref: violation-rule-id-present
-          - id: check-policy-severity
-            guarantee_ref: violation-severity-supported
-          - id: check-policy-source
-            guarantee_ref: violation-source-present
-          - id: check-policy-target
-            guarantee_ref: violation-target-present
-          - id: check-policy-dependency-kind
-            guarantee_ref: violation-dependency-kind-present
-          - id: check-policy-source-evidence
-            guarantee_ref: violation-source-evidence-present
-          - id: check-policy-source-line
-            guarantee_ref: violation-source-line-present
-          - id: check-policy-source-column
-            guarantee_ref: violation-source-column-present
-          - id: check-all-forbidden-matches
-            guarantee_ref: all-forbidden-matches-evaluated
-          - id: check-forbidden-precedence
-            guarantee_ref: forbidden-overrides-allowed
-      - id: applicable-allowed-rules-use-target-union
-        intent_id: allowed-union-acceptance
-        input:
-          allowed_union_matches: true
-          graph_and_boundary_policy:
-            dependencies:
-              - source: crate::application
-                target: crate::domain
-                kind: path-reference
-            boundary_policy:
-              rules:
-                - id: allowed-application-shared
-                  kind: allowed
-                  severity: warning
-                  from:
-                    - crate::application
-                  to:
-                    - crate::shared
-                - id: allowed-application-domain
-                  kind: allowed
-                  severity: warning
-                  from:
-                    - crate::application
-                  to:
-                    - crate::domain
-        checks:
-          - id: check-policy-violations
-            guarantee_ref: violations-present
-          - id: check-allowed-target-union
-            guarantee_ref: allowed-targets-unioned
-          - id: check-allowed-union-acceptance
-            guarantee_ref: allowed-union-allows-dependency
-      - id: unmatched-applicable-allowed-rules-produce-violation
-        intent_id: allowed-union-rejection
-        input:
-          allowed_union_misses: true
-          graph_and_boundary_policy:
-            dependencies:
-              - source: crate::application
-                target: crate::infrastructure
-                kind: import
-            boundary_policy:
-              rules:
-                - id: allowed-application-domain
-                  kind: allowed
-                  severity: error
-                  from:
-                    - crate::application
-                  to:
-                    - crate::domain
-        checks:
-          - id: check-policy-violations
-            guarantee_ref: violations-present
-          - id: check-policy-violation-kind
-            guarantee_ref: violation-kind-supported
-          - id: check-policy-rule-id
-            guarantee_ref: violation-rule-id-present
-          - id: check-policy-severity
-            guarantee_ref: violation-severity-supported
-          - id: check-policy-source
-            guarantee_ref: violation-source-present
-          - id: check-policy-target
-            guarantee_ref: violation-target-present
-          - id: check-policy-dependency-kind
-            guarantee_ref: violation-dependency-kind-present
-          - id: check-policy-source-evidence
-            guarantee_ref: violation-source-evidence-present
-          - id: check-policy-source-line
-            guarantee_ref: violation-source-line-present
-          - id: check-policy-source-column
-            guarantee_ref: violation-source-column-present
-          - id: check-allowed-target-union
-            guarantee_ref: allowed-targets-unioned
-          - id: check-allowed-union-rejection
-            guarantee_ref: allowed-union-rejects-dependency
-      - id: circular-rule-is-independent-from-allowed-rules
-        intent_id: circular-independent-evaluation
-        input:
-          allowed_cycle_present: true
-          graph_and_boundary_policy:
-            dependencies:
-              - source: crate::application
-                target: crate::domain
-                kind: import
-              - source: crate::domain
-                target: crate::application
-                kind: re-export
-            boundary_policy:
-              rules:
-                - id: allowed-application-domain
-                  kind: allowed
-                  severity: warning
-                  from:
-                    - crate::application
-                  to:
-                    - crate::domain
-                - id: allowed-domain-application
-                  kind: allowed
-                  severity: warning
-                  from:
-                    - crate::domain
-                  to:
-                    - crate::application
-                - id: circular-core-modules
-                  kind: circular
-                  severity: error
-                  modules:
-                    - crate::application
-                    - crate::domain
-        checks:
-          - id: check-policy-violations
-            guarantee_ref: violations-present
-          - id: check-policy-violation-kind
-            guarantee_ref: violation-kind-supported
-          - id: check-policy-rule-id
-            guarantee_ref: violation-rule-id-present
-          - id: check-policy-severity
-            guarantee_ref: violation-severity-supported
-          - id: check-policy-source
-            guarantee_ref: violation-source-present
-          - id: check-policy-target
-            guarantee_ref: violation-target-present
-          - id: check-policy-dependency-kind
-            guarantee_ref: violation-dependency-kind-present
-          - id: check-policy-source-evidence
-            guarantee_ref: violation-source-evidence-present
-          - id: check-policy-source-line
-            guarantee_ref: violation-source-line-present
-          - id: check-policy-source-column
-            guarantee_ref: violation-source-column-present
-          - id: check-cycle-independent
-            guarantee_ref: cycle-evaluated-independently
-          - id: check-cycle-dependencies-allowed
-            guarantee_ref: allowed-cycle-dependencies-remain-allowed
-          - id: check-cycle-not-suppressed
-            guarantee_ref: allowed-rules-do-not-suppress-cycle
-          - id: check-cycle-path
-            guarantee_ref: circular-violation-cycle-path-present
-
-  - id: verification.logical-module-boundary.validation-report
-    contract_id: contract.logical-module-boundary.validation-report
-    cases:
-      - id: complete-without-violation
-        intent_id: decision-precedence
-        input:
-          complete_without_violation: true
-        checks:
-          - id: check-conformant-decision
-            guarantee_ref: conformant-decision
-      - id: complete-with-violation
-        intent_id: decision-precedence
-        input:
-          complete_with_violation: true
-        checks:
-          - id: check-non-conformant-decision
-            guarantee_ref: non-conformant-decision
-      - id: incomplete-with-observed-violation
-        intent_id: decision-precedence
-        input:
-          complete_with_violation: true
-          analysis_issue_policy_impact_possible: true
-          observed_violation: true
-        checks:
-          - id: check-non-conformant-decision
-            guarantee_ref: non-conformant-decision
-      - id: possible-policy-impact-without-violation-is-indeterminate
-        intent_id: decision-precedence
-        input:
-          complete_without_violation: true
-          analysis_issue_policy_impact_possible: true
-          report_request: true
-        checks:
-          - id: check-indeterminate-decision
-            guarantee_ref: indeterminate-decision
-      - id: unresolved-candidate-without-policy-impact
-        intent_id: analysis-issue-classification
-        input:
-          complete_without_violation: true
-          unresolved_dependency_analysis_issue: true
-          analysis_issue_policy_impact_none: true
-          report_request: true
-        checks:
-          - id: check-conformant-decision
-            guarantee_ref: conformant-decision
-          - id: check-analysis-observation-outcome
-            guarantee_ref: analysis-observation-outcome-supported
-          - id: check-analysis-policy-impact-outcome
-            guarantee_ref: analysis-policy-impact-outcome-supported
-          - id: check-unresolved-observation
-            guarantee_ref: unresolved-dependency-observation
-          - id: check-no-policy-impact
-            guarantee_ref: analysis-issue-has-no-policy-impact
-      - id: unresolved-candidate-allowed-union-matches
-        intent_id: analysis-issue-classification
-        input:
-          complete_without_violation: true
-          unresolved_dependency_analysis_issue: true
-          unresolved_candidate_allowed_union_matches: true
-          analysis_issue_policy_impact_none: true
-          unresolved_candidate_policy_shape:
-            candidate_targets:
-              - crate::left
-              - crate::right
-            allowed_target_union:
-              - crate::left
-              - crate::right
-            applicable_allowed_rule_ids:
-              - allowed-left
-              - allowed-right
+cases:
+  - contract_id: contract.logical-module-boundary.dependency-graph
+    id: typed-dependencies-and-declarations
+    partition: compilation-profile-request
+    input:
+      analysis_context:
+        package: a3-rust-cruiser
+        target: bin:a3-rust-cruiser
+        features: []
+        cfg: []
+        target_triple: x86_64-unknown-linux-gnu
+        analysis_profile: compilation
+        include:
+          - crate
+        exclude: []
+  - contract_id: contract.logical-module-boundary.dependency-graph
+    id: source-union-source-authored-dependencies
+    partition: source-union-request-present
+    input:
+      analysis_context:
+        analysis_profile: source-union
+      rust_project:
+        source_constructs:
+          - cfg-branches
+          - same-module-cfg-variants
+          - same-alias-cfg-variants
+          - conditional-runtime-dependencies
+          - development-dependencies
+          - build-dependencies
+          - macro-generated-dependencies
+          - attribute-generated-dependencies
+  - contract_id: contract.logical-module-boundary.dependency-graph
+    id: exact-runtime-item-macro-generated-dependencies
+    partition: compilation-profile-request
+    input:
+      analysis_context:
+        analysis_profile: compilation
+      rust_project:
+        source_constructs:
+          - exact-local-item-macro-definition
+          - unique-macro-namespace-resolution
+          - item-macro-generated-paths
+    verifies:
+      - analysis-context-present
+      - analysis-profile-supported
+      - dependency-edges-present
+      - dependency-kind-supported
+      - dependency-target-scope-supported
+  - contract_id: contract.logical-module-boundary.dependency-graph
+    id: serde-function-path-generated-dependencies
+    partition: compilation-profile-request
+    input:
+      analysis_context:
+        analysis_profile: compilation
+      rust_project:
+        source_constructs:
+          - known-serde-function-path-attribute
+    verifies:
+      - analysis-context-present
+      - analysis-profile-supported
+      - dependency-edges-present
+      - dependency-kind-supported
+      - dependency-target-scope-supported
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
+    id: documented-policy-shape-is-accepted
+    partition: valid-boundary-policy-input
+    input:
+      boundary_policy:
+        rules:
+          - id: forbid-application-to-infrastructure
+            kind: forbidden
+            severity: error
+            from:
+              - crate::application
+            to:
+              - crate::infrastructure
+            modules: []
             dependency_kinds:
-              - path-reference
-          report_request: true
-        checks:
-          - id: check-conformant-decision
-            guarantee_ref: conformant-decision
-          - id: check-unresolved-observation
-            guarantee_ref: unresolved-dependency-observation
-          - id: check-allowed-union-match-no-impact
-            guarantee_ref: unresolved-candidate-allowed-union-match-has-no-policy-impact
-      - id: unresolved-candidate-allowed-union-misses
-        intent_id: analysis-issue-classification
-        input:
-          complete_without_violation: true
-          unresolved_dependency_analysis_issue: true
-          unresolved_candidate_allowed_union_misses: true
-          analysis_issue_policy_impact_possible: true
-          unresolved_candidate_policy_shape:
-            candidate_targets:
-              - crate::left
-              - crate::right
-            allowed_target_union:
-              - crate::left
+              - import
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
+    id: omitted-optional-policy-collections-default-empty
+    partition: valid-boundary-policy-input
+    input:
+      boundary_policy:
+        rules:
+          - id: forbid-application-to-infrastructure
+            kind: forbidden
+            severity: error
+            from:
+              - crate::application
+            to:
+              - crate::infrastructure
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
+    id: unknown-policy-field-is-rejected
+    partition: invalid-boundary-policy-input
+    input:
+      boundary_policy:
+        defects:
+          - unknown-field
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
+    id: unsupported-policy-enum-is-rejected
+    partition: invalid-boundary-policy-input
+    input:
+      boundary_policy:
+        rule_kind: required
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
+    id: invalid-policy-rules-are-rejected
+    partition: invalid-boundary-policy-input
+    input:
+      boundary_policy:
+        violated_constraints:
+          - kebab-case-rule-id
+          - unique-rule-id
+          - forbidden-and-allowed-require-from-and-to
+          - forbidden-and-allowed-forbid-modules
+          - circular-requires-modules
+          - circular-forbids-from-and-to
+          - logical-module-pattern-grammar
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
+    id: resolved-implementation-attribution-is-consumed-directly
+    partition: valid-resolved-implementation-attribution-input
+    input:
+      resolved_implementation_attribution:
+        version: 1
+        provenance_present: true
+        file_attribution_covers_selected_modules: true
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
+    id: invalid-resolved-implementation-attribution-is-rejected
+    partition: invalid-resolved-implementation-attribution-input
+    input:
+      resolved_implementation_attribution:
+        defects:
+          - malformed
+          - unknown-version
+          - unknown-name
+          - invalid-provenance
+          - legacy-consumer-envelope-field
+          - missing-required-dependency-collection
+      rust_project:
+        cargo_manifest: invalid
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
+    id: resolved-attribution-and-other-policy-sources-are-rejected
+    partition: invalid-resolved-implementation-attribution-input
+    input:
+      policy_source_options:
+        - --policy
+        - --resolved-implementation-attribution
+    verifies:
+      - invalid-policy-source-exits-with-three
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
+    id: unresolved-implementation-attribution-is-indeterminate
+    partition: unresolved-implementation-attribution
+    input:
+      resolved_implementation_attribution:
+        defects:
+          - missing-observed-file-attribution
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
+    id: resolved-attribution-forbidden-edge-is-non-conformant
+    partition: forbidden-resolved-attribution-edge
+    input:
+      resolved_implementation_attribution:
+        source_and_target_scopes: different
+        scope_dependency_for_observed_edge: absent
+      rust_project:
+        observed_dependency: cross-scope
+  - contract_id: contract.logical-module-boundary.policy-evaluation
+    id: forbidden-overrides-matching-allowed-rule
+    partition: forbidden-and-allowed-match
+    input:
+      rust_project:
+        dependencies:
+          - source: crate::application
+            target: crate::infrastructure
+            kind: import
+      boundary_policy:
+        rules:
+          - id: forbidden-application-to-infrastructure
+            kind: forbidden
+            severity: error
+            from:
+              - crate::application
+            to:
+              - crate::infrastructure
+          - id: allowed-application-targets
+            kind: allowed
+            severity: warning
+            from:
+              - crate::application
+            to:
+              - crate::infrastructure
+  - contract_id: contract.logical-module-boundary.policy-evaluation
+    id: applicable-allowed-rules-use-target-union
+    partition: allowed-union-matches
+    input:
+      rust_project:
+        dependencies:
+          - source: crate::application
+            target: crate::domain
+            kind: path-reference
+      boundary_policy:
+        rules:
+          - id: allowed-application-shared
+            kind: allowed
+            severity: warning
+            from:
+              - crate::application
+            to:
+              - crate::shared
+          - id: allowed-application-domain
+            kind: allowed
+            severity: warning
+            from:
+              - crate::application
+            to:
               - crate::domain
-            applicable_allowed_rule_ids:
-              - allowed-domain
-              - allowed-left
-            dependency_kinds:
-              - path-reference
-          report_request: true
-        checks:
-          - id: check-indeterminate-decision
-            guarantee_ref: indeterminate-decision
-          - id: check-unresolved-observation
-            guarantee_ref: unresolved-dependency-observation
-          - id: check-allowed-union-miss-possible
-            guarantee_ref: unresolved-candidate-allowed-union-miss-has-possible-policy-impact
-          - id: check-possible-policy-rule-ids
-            guarantee_ref: possible-policy-impact-rule-ids-present
-      - id: unresolved-candidate-with-empty-targets
-        intent_id: analysis-issue-classification
-        input:
-          complete_without_violation: true
-          unresolved_dependency_analysis_issue: true
-          unresolved_candidate_targets_empty: true
-          analysis_issue_policy_impact_possible: true
-          unresolved_candidate_policy_shape:
-            candidate_targets: []
-            allowed_target_union:
+  - contract_id: contract.logical-module-boundary.policy-evaluation
+    id: unmatched-applicable-allowed-rules-produce-violation
+    partition: allowed-union-misses
+    input:
+      rust_project:
+        dependencies:
+          - source: crate::application
+            target: crate::infrastructure
+            kind: import
+      boundary_policy:
+        rules:
+          - id: allowed-application-domain
+            kind: allowed
+            severity: error
+            from:
+              - crate::application
+            to:
               - crate::domain
-            applicable_allowed_rule_ids:
-              - allowed-domain
-          report_request: true
-        checks:
-          - id: check-indeterminate-decision
-            guarantee_ref: indeterminate-decision
-          - id: check-unresolved-observation
-            guarantee_ref: unresolved-dependency-observation
-          - id: check-empty-targets-possible
-            guarantee_ref: unresolved-candidate-with-empty-targets-has-possible-policy-impact
-          - id: check-possible-policy-rule-ids
-            guarantee_ref: possible-policy-impact-rule-ids-present
-      - id: dependency-neutral-without-policy-impact
-        intent_id: analysis-issue-classification
-        input:
-          complete_without_violation: true
-          dependency_neutral_analysis_issue: true
-          analysis_issue_policy_impact_none: true
-          report_request: true
-        checks:
-          - id: check-conformant-decision
-            guarantee_ref: conformant-decision
-          - id: check-neutral-policy-impact
-            guarantee_ref: dependency-neutral-has-no-policy-impact
-      - id: known-compilation-context-is-resolved
-        intent_id: analysis-issue-classification
-        input:
-          complete_without_violation: true
-          resolved_context:
-            - rustc-target-cfg
-            - cargo-optional-dependency-feature
-            - inactive-cfg-item
-            - lexical-use-and-local-binding
-            - dependency-neutral-standard-macro-and-derive
-            - dependency-neutral-external-macro-with-proven-identity
-            - standard-macro-arguments
-            - exact-safe-local-macro
-            - known-serde-function-path-attribute
-          report_request: true
-        checks:
-          - id: check-conformant-decision
-            guarantee_ref: conformant-decision
-      - id: inactive-cfg-attr-path-module-is-ignored
-        intent_id: analysis-issue-classification
-        input:
-          complete_without_violation: true
-          resolved_context:
-            - inactive-cfg-attr-path-module
-          report_request: true
-        checks:
-          - id: check-conformant-decision
-            guarantee_ref: conformant-decision
-      - id: path-module-unsupported-syntax-is-indeterminate
-        intent_id: analysis-issue-classification
-        input:
-          analysis_issue_policy_impact_possible: true
-          path_module_analysis_issue: true
-          report_request:
-            format: json
-          analysis_issue:
-            code: analysis.unsupported-syntax
-        checks:
-          - id: check-indeterminate
-            guarantee_ref: indeterminate-decision
-          - id: check-analysis-issue-code
-            guarantee_ref: analysis-issue-code-supported
-          - id: check-analysis-issue-affected-scope
-            guarantee_ref: analysis-issue-affected-scope-present
-          - id: check-path-module-source-module
-            guarantee_ref: path-module-source-module-present
-          - id: check-analysis-observation-outcome
-            guarantee_ref: analysis-observation-outcome-supported
-          - id: check-analysis-policy-impact-outcome
-            guarantee_ref: analysis-policy-impact-outcome-supported
-          - id: check-path-module-policy-impact
-            guarantee_ref: analysis-issue-has-possible-policy-impact
-          - id: check-path-module-policy-rule-ids
-            guarantee_ref: path-module-policy-rule-ids-present
-      - id: json-report
-        intent_id: json-report-projection
-        input:
-          report_request:
-            format: json
-          legacy_json_report_request: true
-        checks:
-          - id: check-json-schema-version
-            guarantee_ref: json-schema-version-present
-          - id: check-analysis-issues
-            guarantee_ref: analysis-issues-present
-          - id: check-analysis-issue-code
-            guarantee_ref: analysis-issue-code-supported
-          - id: check-analysis-issue-reason
-            guarantee_ref: analysis-issue-reason-present
-          - id: check-analysis-issue-affected-scope
-            guarantee_ref: analysis-issue-affected-scope-present
-          - id: check-analysis-observation-outcome
-            guarantee_ref: analysis-observation-outcome-supported
-          - id: check-analysis-policy-impact-outcome
-            guarantee_ref: analysis-policy-impact-outcome-supported
-          - id: check-report-serialization
-            guarantee_ref: report-serialization-supported
-          - id: check-report-ordering
-            guarantee_ref: report-ordering-canonical
-          - id: check-report-decision
-            guarantee_ref: report-decision-supported
-          - id: check-report-violations
-            guarantee_ref: report-violations-present
-      - id: resolved-attribution-json-report
-        intent_id: json-report-projection
-        input:
-          report_request:
-            format: json
-          resolved_implementation_attribution_json_report_request: true
-        checks:
-          - id: check-resolved-attribution-json-schema-version
-            guarantee_ref: resolved-attribution-json-schema-version-is-three
-          - id: check-resolved-attribution-report-serialization
-            guarantee_ref: report-serialization-supported
-          - id: check-resolved-attribution-report-ordering
-            guarantee_ref: report-ordering-canonical
-          - id: check-resolved-attribution-report-decision
-            guarantee_ref: report-decision-supported
-      - id: text-report
-        intent_id: text-report-projection
-        input:
-          report_request:
-            format: text
-        checks:
-          - id: check-analysis-issues
-            guarantee_ref: analysis-issues-present
-          - id: check-analysis-issue-code
-            guarantee_ref: analysis-issue-code-supported
-          - id: check-analysis-issue-reason
-            guarantee_ref: analysis-issue-reason-present
-          - id: check-analysis-issue-affected-scope
-            guarantee_ref: analysis-issue-affected-scope-present
-          - id: check-analysis-observation-outcome
-            guarantee_ref: analysis-observation-outcome-supported
-          - id: check-analysis-policy-impact-outcome
-            guarantee_ref: analysis-policy-impact-outcome-supported
-          - id: check-report-serialization
-            guarantee_ref: report-serialization-supported
-          - id: check-report-ordering
-            guarantee_ref: report-ordering-canonical
-          - id: check-report-decision
-            guarantee_ref: report-decision-supported
-          - id: check-report-violations
-            guarantee_ref: report-violations-present
-      - id: repeated-json-report
-        intent_id: json-report-projection
-        input:
-          report_request:
-            format: json
-            repeat_count: 2
-            same_analysis_input: true
-          legacy_json_report_request: true
-        checks:
-          - id: check-json-schema-version
-            guarantee_ref: json-schema-version-present
-          - id: check-analysis-issues
-            guarantee_ref: analysis-issues-present
-          - id: check-analysis-issue-code
-            guarantee_ref: analysis-issue-code-supported
-          - id: check-analysis-issue-reason
-            guarantee_ref: analysis-issue-reason-present
-          - id: check-analysis-issue-affected-scope
-            guarantee_ref: analysis-issue-affected-scope-present
-          - id: check-report-serialization
-            guarantee_ref: report-serialization-supported
-          - id: check-report-ordering
-            guarantee_ref: report-ordering-canonical
-          - id: check-report-decision
-            guarantee_ref: report-decision-supported
-          - id: check-report-violations
-            guarantee_ref: report-violations-present
-      - id: unresolved-reference-is-indeterminate
-        intent_id: analysis-issue-classification
-        input:
-          analysis_issue_policy_impact_possible: true
-          report_request:
-            format: json
-          analysis_issue:
-            code: analysis.unresolved-reference
-        checks:
-          - id: check-indeterminate
-            guarantee_ref: indeterminate-decision
-          - id: check-analysis-issues
-            guarantee_ref: analysis-issues-present
-          - id: check-analysis-issue-code
-            guarantee_ref: analysis-issue-code-supported
-          - id: check-analysis-issue-reason
-            guarantee_ref: analysis-issue-reason-present
-          - id: check-analysis-issue-affected-scope
-            guarantee_ref: analysis-issue-affected-scope-present
-      - id: source-union-unresolved-reference-is-indeterminate
-        intent_id: analysis-issue-classification
-        input:
-          analysis_profile: source-union
-          analysis_issue_policy_impact_possible: true
-          report_request:
-            format: json
-          analysis_issue:
-            code: analysis.unresolved-reference
-        checks:
-          - id: check-indeterminate
-            guarantee_ref: indeterminate-decision
-          - id: check-analysis-issues
-            guarantee_ref: analysis-issues-present
-          - id: check-analysis-issue-code
-            guarantee_ref: analysis-issue-code-supported
-          - id: check-analysis-issue-reason
-            guarantee_ref: analysis-issue-reason-present
-          - id: check-analysis-issue-affected-scope
-            guarantee_ref: analysis-issue-affected-scope-present
-      - id: unsupported-macro-expansion-is-indeterminate
-        intent_id: analysis-issue-classification
-        input:
-          analysis_issue_policy_impact_possible: true
-          report_request:
-            format: json
-          analysis_issue:
-            code: analysis.unsupported-macro-expansion
-        checks:
-          - id: check-indeterminate
-            guarantee_ref: indeterminate-decision
-          - id: check-analysis-issues
-            guarantee_ref: analysis-issues-present
-          - id: check-analysis-issue-code
-            guarantee_ref: analysis-issue-code-supported
-          - id: check-analysis-issue-reason
-            guarantee_ref: analysis-issue-reason-present
-          - id: check-analysis-issue-affected-scope
-            guarantee_ref: analysis-issue-affected-scope-present
-      - id: unsupported-name-resolution-is-indeterminate
-        intent_id: analysis-issue-classification
-        input:
-          analysis_issue_policy_impact_possible: true
-          report_request:
-            format: json
-          analysis_issue:
-            code: analysis.unsupported-name-resolution
-        checks:
-          - id: check-indeterminate
-            guarantee_ref: indeterminate-decision
-          - id: check-analysis-issues
-            guarantee_ref: analysis-issues-present
-          - id: check-analysis-issue-code
-            guarantee_ref: analysis-issue-code-supported
-          - id: check-analysis-issue-reason
-            guarantee_ref: analysis-issue-reason-present
-          - id: check-analysis-issue-affected-scope
-            guarantee_ref: analysis-issue-affected-scope-present
-      - id: unsupported-syntax-is-indeterminate
-        intent_id: analysis-issue-classification
-        input:
-          analysis_issue_policy_impact_possible: true
-          report_request:
-            format: json
-          analysis_issue:
-            code: analysis.unsupported-syntax
-        checks:
-          - id: check-indeterminate
-            guarantee_ref: indeterminate-decision
-          - id: check-analysis-issues
-            guarantee_ref: analysis-issues-present
-          - id: check-analysis-issue-code
-            guarantee_ref: analysis-issue-code-supported
-          - id: check-analysis-issue-reason
-            guarantee_ref: analysis-issue-reason-present
-          - id: check-analysis-issue-affected-scope
-            guarantee_ref: analysis-issue-affected-scope-present
-      - id: unsupported-analysis-context-is-indeterminate
-        intent_id: analysis-issue-classification
-        input:
-          analysis_issue_policy_impact_possible: true
-          report_request:
-            format: json
-          analysis_issue:
-            code: analysis.unsupported-analysis-context
-        checks:
-          - id: check-indeterminate
-            guarantee_ref: indeterminate-decision
-          - id: check-analysis-issues
-            guarantee_ref: analysis-issues-present
-          - id: check-analysis-issue-code
-            guarantee_ref: analysis-issue-code-supported
-          - id: check-analysis-issue-reason
-            guarantee_ref: analysis-issue-reason-present
-          - id: check-analysis-issue-affected-scope
-            guarantee_ref: analysis-issue-affected-scope-present
-
-  - id: verification.logical-module-boundary.cli-outcome
-    contract_id: contract.logical-module-boundary.cli-outcome
-    cases:
-      - id: root-help
-        intent_id: cli-information-output
-        input:
-          cli_information_request:
-            kind: root-help
-        checks:
-          - id: check-information-exit-code
-            guarantee_ref: cli-information-exit-code
-          - id: check-information-stdout
-            guarantee_ref: cli-information-written-to-stdout
-          - id: check-information-stderr
-            guarantee_ref: cli-information-keeps-stderr-empty
-      - id: check-help
-        intent_id: cli-information-output
-        input:
-          cli_information_request:
-            kind: check-help
-        checks:
-          - id: check-information-exit-code
-            guarantee_ref: cli-information-exit-code
-          - id: check-information-stdout
-            guarantee_ref: cli-information-written-to-stdout
-          - id: check-information-stderr
-            guarantee_ref: cli-information-keeps-stderr-empty
-      - id: version
-        intent_id: cli-information-output
-        input:
-          cli_information_request:
-            kind: version
-        checks:
-          - id: check-information-exit-code
-            guarantee_ref: cli-information-exit-code
-          - id: check-information-stdout
-            guarantee_ref: cli-information-written-to-stdout
-          - id: check-information-stderr
-            guarantee_ref: cli-information-keeps-stderr-empty
-      - id: conformant-exit
-        intent_id: cli-exit-code-mapping
-        input:
-          completed_validation_result: true
-          validation_decision:
-            conformant: true
-        checks:
-          - id: check-conformant-exit-code
-            guarantee_ref: conformant-exit-code
-          - id: check-completed-stdout
-            guarantee_ref: completed-result-written-to-stdout
-          - id: check-completed-stderr
-            guarantee_ref: completed-result-keeps-stderr-empty
-      - id: non-conformant-exit
-        intent_id: cli-exit-code-mapping
-        input:
-          completed_validation_result: true
-          validation_decision:
-            non_conformant: true
-        checks:
-          - id: check-non-conformant-exit-code
-            guarantee_ref: non-conformant-exit-code
-          - id: check-completed-stdout
-            guarantee_ref: completed-result-written-to-stdout
-          - id: check-completed-stderr
-            guarantee_ref: completed-result-keeps-stderr-empty
-      - id: indeterminate-exit
-        intent_id: cli-exit-code-mapping
-        input:
-          completed_validation_result: true
-          validation_decision:
-            indeterminate: true
-        checks:
-          - id: check-indeterminate-exit-code
-            guarantee_ref: indeterminate-exit-code
-          - id: check-completed-stdout
-            guarantee_ref: completed-result-written-to-stdout
-          - id: check-completed-stderr
-            guarantee_ref: completed-result-keeps-stderr-empty
-      - id: execution-failure-exit
-        intent_id: cli-exit-code-mapping
-        input:
-          cli_execution_failure: true
-        checks:
-          - id: check-execution-failure-exit-code
-            guarantee_ref: execution-failure-exit-code
-          - id: check-execution-failure-stdout
-            guarantee_ref: execution-failure-keeps-stdout-empty
-          - id: check-execution-failure-stderr
-            guarantee_ref: execution-failure-writes-stderr-diagnostic
+  - contract_id: contract.logical-module-boundary.policy-evaluation
+    id: circular-rule-is-independent-from-allowed-rules
+    partition: allowed-cycle-present
+    input:
+      rust_project:
+        dependencies:
+          - source: crate::application
+            target: crate::domain
+            kind: import
+          - source: crate::domain
+            target: crate::application
+            kind: re-export
+      boundary_policy:
+        rules:
+          - id: allowed-application-domain
+            kind: allowed
+            severity: warning
+            from:
+              - crate::application
+            to:
+              - crate::domain
+          - id: allowed-domain-application
+            kind: allowed
+            severity: warning
+            from:
+              - crate::domain
+            to:
+              - crate::application
+          - id: circular-core-modules
+            kind: circular
+            severity: error
+            modules:
+              - crate::application
+              - crate::domain
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: complete-without-violation
+    partition: complete-without-violation
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        unanalyzable_construct: absent
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: complete-with-violation
+    partition: complete-with-violation
+    input:
+      project_and_policy:
+        violating_dependency: present
+        unanalyzable_construct: absent
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: incomplete-with-observed-violation
+    partition: observed-violation-with-possible-policy-impact
+    input:
+      project_and_policy:
+        violating_dependency: present
+        unanalyzable_construct: present
+        construct_affects_applicable_rule: true
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: possible-policy-impact-without-violation-is-indeterminate
+    partition: possible-policy-impact-without-violation
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        unanalyzable_construct: present
+        construct_affects_applicable_rule: true
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: unresolved-candidate-without-policy-impact
+    partition: unresolved-dependency-without-policy-impact
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        unanalyzable_construct: unresolved-dependency
+        construct_affects_applicable_rule: false
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: unresolved-candidate-allowed-union-matches
+    partition: unresolved-candidate-allowed-union-matches
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        unanalyzable_construct: unresolved-dependency
+        unresolved_candidate_targets:
+          - crate::left
+          - crate::right
+        allowed_target_union:
+          - crate::left
+          - crate::right
+        applicable_allowed_rule_ids:
+          - allowed-left
+          - allowed-right
+        dependency_kinds:
+          - path-reference
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: unresolved-candidate-allowed-union-misses
+    partition: unresolved-candidate-allowed-union-misses
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        unanalyzable_construct: unresolved-dependency
+        unresolved_candidate_targets:
+          - crate::left
+          - crate::right
+        allowed_target_union:
+          - crate::left
+          - crate::domain
+        applicable_allowed_rule_ids:
+          - allowed-domain
+          - allowed-left
+        dependency_kinds:
+          - path-reference
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: unresolved-candidate-with-empty-targets
+    partition: unresolved-candidate-targets-empty
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        unanalyzable_construct: unresolved-dependency
+        unresolved_candidate_targets: []
+        allowed_target_union:
+          - crate::domain
+        applicable_allowed_rule_ids:
+          - allowed-domain
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: dependency-neutral-without-policy-impact
+    partition: dependency-neutral-analysis-issue
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        unanalyzable_construct: dependency-neutral
+        construct_affects_applicable_rule: false
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: known-compilation-context-is-resolved
+    partition: resolved-analysis-context
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        resolved_constructs:
+          - rustc-target-cfg
+          - cargo-optional-dependency-feature
+          - inactive-cfg-item
+          - lexical-use-and-local-binding
+          - dependency-neutral-standard-macro-and-derive
+          - dependency-neutral-external-macro-with-proven-identity
+          - exact-safe-local-macro
+          - known-serde-function-path-attribute
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: inactive-cfg-attr-path-module-is-ignored
+    partition: resolved-analysis-context
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        resolved_constructs:
+          - inactive-cfg-attr-path-module
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: path-module-unsupported-syntax-is-indeterminate
+    partition: path-module-analysis-issue
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        construct_affects_applicable_rule: true
+        unanalyzable_construct: path-module-unsupported-syntax
+      report_options:
+        format: json
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: json-report
+    partition: legacy-json-report-request
+    input:
+      policy_source: boundary-policy
+      report_options:
+        format: json
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: resolved-attribution-json-report
+    partition: resolved-implementation-attribution-json-report-request
+    input:
+      policy_source: resolved-implementation-attribution
+      report_options:
+        format: json
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: text-report
+    partition: text-report-request
+    input:
+      report_options:
+        format: text
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: repeated-json-report
+    partition: legacy-json-report-request
+    input:
+      policy_source: boundary-policy
+      report_options:
+        format: json
+        repeat_count: 2
+    verifies:
+      - json-schema-version-present
+      - analysis-issues-present
+      - analysis-issue-code-supported
+      - analysis-issue-reason-present
+      - analysis-issue-affected-scope-present
+      - report-serialization-supported
+      - report-ordering-canonical
+      - report-decision-supported
+      - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: unresolved-reference-is-indeterminate
+    partition: possible-policy-impact-analysis-issue
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        construct_affects_applicable_rule: true
+        unanalyzable_construct: unresolved-reference
+      report_options:
+        format: json
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: source-union-unresolved-reference-is-indeterminate
+    partition: possible-policy-impact-analysis-issue
+    input:
+      analysis_context:
+        analysis_profile: source-union
+      project_and_policy:
+        violating_dependency: absent
+        construct_affects_applicable_rule: true
+        unanalyzable_construct: unresolved-reference
+      report_options:
+        format: json
+    verifies:
+      - indeterminate-decision
+      - possible-policy-impact-rule-ids-present
+      - analysis-issues-present
+      - analysis-issue-code-supported
+      - analysis-issue-reason-present
+      - analysis-issue-affected-scope-present
+      - analysis-observation-outcome-supported
+      - analysis-policy-impact-outcome-supported
+      - report-serialization-supported
+      - report-ordering-canonical
+      - report-decision-supported
+      - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: unsupported-macro-expansion-is-indeterminate
+    partition: possible-policy-impact-analysis-issue
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        construct_affects_applicable_rule: true
+        unanalyzable_construct: unsupported-macro-expansion
+      report_options:
+        format: json
+    verifies:
+      - indeterminate-decision
+      - possible-policy-impact-rule-ids-present
+      - analysis-issues-present
+      - analysis-issue-code-supported
+      - analysis-issue-reason-present
+      - analysis-issue-affected-scope-present
+      - analysis-observation-outcome-supported
+      - analysis-policy-impact-outcome-supported
+      - report-serialization-supported
+      - report-ordering-canonical
+      - report-decision-supported
+      - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: unsupported-name-resolution-is-indeterminate
+    partition: possible-policy-impact-analysis-issue
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        construct_affects_applicable_rule: true
+        unanalyzable_construct: unsupported-name-resolution
+      report_options:
+        format: json
+    verifies:
+      - indeterminate-decision
+      - possible-policy-impact-rule-ids-present
+      - analysis-issues-present
+      - analysis-issue-code-supported
+      - analysis-issue-reason-present
+      - analysis-issue-affected-scope-present
+      - analysis-observation-outcome-supported
+      - analysis-policy-impact-outcome-supported
+      - report-serialization-supported
+      - report-ordering-canonical
+      - report-decision-supported
+      - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: unsupported-syntax-is-indeterminate
+    partition: possible-policy-impact-analysis-issue
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        construct_affects_applicable_rule: true
+        unanalyzable_construct: unsupported-syntax
+      report_options:
+        format: json
+    verifies:
+      - indeterminate-decision
+      - possible-policy-impact-rule-ids-present
+      - analysis-issues-present
+      - analysis-issue-code-supported
+      - analysis-issue-reason-present
+      - analysis-issue-affected-scope-present
+      - analysis-observation-outcome-supported
+      - analysis-policy-impact-outcome-supported
+      - report-serialization-supported
+      - report-ordering-canonical
+      - report-decision-supported
+      - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: unsupported-analysis-context-is-indeterminate
+    partition: possible-policy-impact-analysis-issue
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        construct_affects_applicable_rule: true
+        unanalyzable_construct: unsupported-analysis-context
+      report_options:
+        format: json
+    verifies:
+      - indeterminate-decision
+      - possible-policy-impact-rule-ids-present
+      - analysis-issues-present
+      - analysis-issue-code-supported
+      - analysis-issue-reason-present
+      - analysis-issue-affected-scope-present
+      - analysis-observation-outcome-supported
+      - analysis-policy-impact-outcome-supported
+      - report-serialization-supported
+      - report-ordering-canonical
+      - report-decision-supported
+      - report-violations-present
+  - contract_id: contract.logical-module-boundary.cli-outcome
+    id: root-help
+    partition: cli-information-request
+    input:
+      cli_arguments:
+        kind: root-help
+  - contract_id: contract.logical-module-boundary.cli-outcome
+    id: check-help
+    partition: cli-information-request
+    input:
+      cli_arguments:
+        kind: check-help
+  - contract_id: contract.logical-module-boundary.cli-outcome
+    id: version
+    partition: cli-information-request
+    input:
+      cli_arguments:
+        kind: version
+  - contract_id: contract.logical-module-boundary.cli-outcome
+    id: conformant-exit
+    partition: conformant-result
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        unanalyzable_construct: absent
+  - contract_id: contract.logical-module-boundary.cli-outcome
+    id: non-conformant-exit
+    partition: non-conformant-result
+    input:
+      project_and_policy:
+        violating_dependency: present
+        unanalyzable_construct: absent
+  - contract_id: contract.logical-module-boundary.cli-outcome
+    id: indeterminate-exit
+    partition: indeterminate-result
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        unanalyzable_construct: unsupported-macro-expansion
+        construct_affects_applicable_rule: true
+  - contract_id: contract.logical-module-boundary.cli-outcome
+    id: execution-failure-exit
+    partition: cli-execution-failure
+    input:
+      cli_arguments:
+        kind: unknown-subcommand

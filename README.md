@@ -40,7 +40,7 @@ export PATH="$HOME/.local/bin:$PATH"
 Windows PowerShell 5.1 以降で実行してください。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm 'https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install.ps1' | iex"
+powershell -ExecutionPolicy Bypass -NoProfile -Command "irm 'https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install.ps1' | iex"
 ```
 
 managed root は `%LOCALAPPDATA%\a3-suite\a3-rust-cruiser\standalone`、launcher は `%LOCALAPPDATA%\Programs\a3-suite\a3-rust-cruiser\bin\a3-rust-cruiser.exe` に配置されます。コマンド名で実行するには、現在の PowerShell セッションで PATH に追加して導入を確認します。
@@ -56,6 +56,10 @@ a3-rust-cruiser --version
 ```
 
 オフライン導入は[セットアップ手順](docs/operations/setup-release.md)を参照してください。
+
+### Agent Skillのインストール
+
+本製品は対応スキルとセットで使用します。同じ版の[対応スキルZIP](https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/a3-rust-cruiser-skills.zip)と同じReleaseの`.sha256`をダウンロードし、SHA-256を照合してから展開して、利用者環境の適切なスキルフォルダに配置してください。削除する場合は、配備した`<skill-root>/a3-rust-cruiser/`だけを削除します。
 
 ### アンインストール
 
@@ -110,14 +114,11 @@ a3-rust-cruiser check --help
 
 通常のRustプロジェクト向けの作成手順・YAML記述例は、公開スキルの[BoundaryPolicy作成ガイド](skills/a3-rust-cruiser/references/create-boundary-policy.guide.md)を参照してください。実行用の最小例は[examples/minimal-project/boundary-policy.yaml](examples/minimal-project/boundary-policy.yaml)にあります。
 
-SDDを正本として運用するプロジェクトでは、`boundary-policy.yaml`を作成・使用せず、SDD ownerが生成した`resolved-implementation-attribution` version 1を唯一の境界入力として使用します。`--policy`は、SDDを使用しない通常のRustプロジェクト向けです。
-
-境界入力は、通常のプロジェクトではYAML boundary policyを`--policy`で指定し、SDD対応プロジェクトではownerが生成した`resolved-implementation-attribution` version 1を`--resolved-implementation-attribution`で指定します。2つの入力は相互排他です。解決済み実装帰属は中間変換せず、ownerが確定したfile attributionと依存関係を使用します。
+SDDを正本として運用するプロジェクトでは`boundary-policy.yaml`を作成せず、SDD ownerが生成した`resolved-implementation-attribution` version 1を`--resolved-implementation-attribution`で指定します。`--policy`とは相互排他です。
 
 ## 関連情報
 
 - [成果物の運用（導入・利用の詳細）](docs/operations/README.md)
 - [ドキュメント一覧](docs/README.md)
-- [BoundaryPolicy作成ガイド](skills/a3-rust-cruiser/references/create-boundary-policy.guide.md)
 - [実行ガイド（BoundaryPolicy入力）](skills/a3-rust-cruiser/references/run-boundary-policy-check.guide.md)
 - [実行ガイド（resolved-implementation-attribution入力）](skills/a3-rust-cruiser/references/run-resolved-implementation-attribution-check.guide.md)

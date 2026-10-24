@@ -473,11 +473,11 @@ fn severity_name(severity: crate::boundary_validation::Severity) -> &'static str
 mod tests {
     use std::collections::BTreeMap;
 
-    use super::{ValidationReport, to_json, to_text};
+    use super::{ValidationReport, build, to_json, to_text};
     use crate::boundary_validation::{
-        AnalysisContext, AnalysisProfile, NormalizedSddCoverage, NormalizedSddProvenance,
-        NormalizedSddSourceArtifact, PolicyEvaluation, UnresolvedModuleAttribution,
-        ValidationDecision,
+        AnalysisContext, AnalysisIssue, AnalysisProfile, NormalizedSddCoverage,
+        NormalizedSddProvenance, NormalizedSddSourceArtifact, ObservedDependencyGraph,
+        PolicyEvaluation, UnresolvedModuleAttribution, ValidationDecision, ValidationResult,
     };
 
     #[test]
@@ -565,6 +565,49 @@ mod tests {
         assert!(normalized_json.contains("observed_file_paths"));
         assert!(normalized_text.contains("normalized_sdd_coverage:"));
         assert!(normalized_text.contains("crate::provider [src/provider.rs]"));
+    }
+
+    #[test]
+    fn should_project_a_dependency_neutral_issue_into_a_json_report() {
+        // Arrange
+        let empty = empty_report();
+        let result = ValidationResult {
+            graph: ObservedDependencyGraph {
+                analysis_context: empty.analysis_context,
+                modules: Vec::new(),
+                module_declarations: Vec::new(),
+                dependencies: Vec::new(),
+                excluded_scopes: Vec::new(),
+            },
+            violations: Vec::new(),
+            policy_evaluation: empty.policy_evaluation,
+            analysis_issues: vec![AnalysisIssue::dependency_neutral(
+                "analysis.unsupported-syntax",
+                "syntax was proven dependency-neutral",
+                "crate",
+                Some("crate".to_owned()),
+                None,
+            )],
+            decision: ValidationDecision::Conformant,
+            normalized_sdd_coverage: None,
+        };
+
+        // Act
+        let json = to_json(&build(result, "json")).expect("JSON report");
+        let report: serde_json::Value = serde_json::from_str(&json).expect("valid JSON report");
+
+        // Assert
+        assert_eq!(report["serialization"], "json");
+        assert_eq!(report["ordering"], "canonical");
+        assert_eq!(report["decision"], "conformant");
+        assert_eq!(report["violations"], serde_json::json!([]));
+        let issue = &report["analysis_issues"][0];
+        assert_eq!(issue["code"], "analysis.unsupported-syntax");
+        assert_eq!(issue["reason"], "syntax was proven dependency-neutral");
+        assert_eq!(issue["affected_scope"], "crate");
+        assert_eq!(issue["observation"]["outcome"], "dependency-neutral");
+        assert_eq!(issue["policy_impact"]["outcome"], "none");
+        assert_eq!(issue["policy_impact"]["rule_ids"], serde_json::json!([]));
     }
 
     fn empty_report() -> ValidationReport {

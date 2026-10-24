@@ -1,33 +1,34 @@
 {
   "schemaVersion": "1",
   "kind": "ci-github-asset-lock",
-  "sourceRevision": "6cc7f86e2599c3a4aeff36093d8daa041108712b",
-  "generatedAt": "2026-10-10T01:45Z",
+  "sourceRevision": "9d735ed49889f77c288ed69f661dfe663c3f363d",
+  "releaseTag": "v0.9.0",
+  "generatedAt": "2026-10-24T05:40Z",
   "assets": [
     {
       "path": ".ci/provider-action-pins.yml",
-      "canonicalSha256": "e15ab570c220a3a1be3a984c113509d688954930e3f6fb1b8a3db5f490409030",
-      "appliedSha256": "8dbf072f632f12a3f42dc748dd456284a6f624975092dcebb5b5e784c68da5c6"
+      "canonicalSha256": "fadb6f88bde382a63b62abfc9e564d6091531b1e2fa96c9e9eeb93079bce8621",
+      "appliedSha256": "1d0fcbbf2154aadb3c4f4053b877f48359c25456ae42eb2ee6ea255f8bdd48f0"
     },
     {
       "path": ".github/workflows/quality-gate.yml",
-      "canonicalSha256": "5c54488d74e1946f60f082eb881dbb371bf1af25af9fadf64d75ba4c375b90b3",
-      "appliedSha256": "697c97af07fd4eafa7e7e31336d94963552a4f346b27299618a28d0c37d04681"
+      "canonicalSha256": "11dbbea3f53af7d9f2d13b2c79ffc6d727477eb93544814f63e20c67ba8a39ed",
+      "appliedSha256": "400a83b2028378a7a135bfd78e718939793d577eaedc054e498a50e4e8d3a052"
     },
     {
       "path": ".github/workflows/release-publication-caller.yml",
-      "canonicalSha256": "eda2520d9cbc4f0a75135bbf860a95cf7d16a1e60164a1c9539f20967760b0c5",
-      "appliedSha256": "02d88e889ebbe662a0191d35de8ecd731f51f476ee2b5ff97807ed8b2477f181"
+      "canonicalSha256": "40461308dadd93344bf1ee3cdd191befd4fd5ca452cd4df2d3743d2bbcda2e10",
+      "appliedSha256": "f26235ec26d60c4810a40dba87f51259f13c426d1cbfbb9c9e75924896632c26"
     },
     {
       "path": ".github/workflows/release-publication-request.yml",
-      "canonicalSha256": "44c2c1c4b7726b25168e75f20b1da7569d3755bcad99e312810d15927f21cc2a",
-      "appliedSha256": "d6acc58eb6ca07a0d9933ef5ee99b95722eaea7f7f1d1549b7360e951f3a9993"
+      "canonicalSha256": "5635249a29a15fa4b9451d469cca7a352bcbd7478e807805ae0505a34ba6a735",
+      "appliedSha256": "e4f0daae4c31115e45b0d20ef1fb519087c7919fc1ed5895ebd5c2b5f98540da"
     },
     {
       "path": ".github/workflows/release-request-tag.yml",
-      "canonicalSha256": "5496e7902aca102d5d96012f732798e29dcf390cd20289dfe652d1404b7c2c1e",
-      "appliedSha256": "b743283ec368a562f312a186f13d5d3930f073055700a6a09b8bec16fc5e0469"
+      "canonicalSha256": "a2b754b4cd8a348e76716b713630a237c44ba425706ccef9df8701cd407f6518",
+      "appliedSha256": "d78106eb8d1512d98af2bfeda08779ce48ea9ec6939ca26fdba98bc52a0377d6"
     }
   ]
 }

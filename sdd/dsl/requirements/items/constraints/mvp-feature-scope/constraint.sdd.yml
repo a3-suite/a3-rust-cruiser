@@ -12,9 +12,7 @@ rule: >-
   複数packageを横断する依存グラフ、required dependency、orphan・reachability・依存数・安定度などのmetrics、
   focus・reaches・collapse、DOT・Mermaid・HTML・CSVなどの可視化、baseline、cache、埋め込みAPIはMVP後へ延期する。
   JavaScript module system、npm dependency type、license、dynamic import、exotic requireの検証はRust内部依存解決ツールの対象外とする。
-rationale:
-  why: dependency-cruiserの有用な境界検証を取り込みつつ、Rustの論理モジュール意味解決とfail-closedな判定を先に完成させ、MVPへ可視化や言語固有でない分析機能を混在させないため
+rationale: dependency-cruiserの有用な境界検証を取り込みつつ、Rustの論理モジュール意味解決とfail-closedな判定を先に完成させ、MVPへ可視化や言語固有でない分析機能を混在させないため
 violation_impact: MVPの解析責務が拡散し、Rust論理モジュールの正確な依存観測と境界判定を完成させる前に実装・検証対象が増大する
 related_requirements:
-  - requirement_ref:
-      requirement_id: validate-rust-logical-module-boundaries
+  - validate-rust-logical-module-boundaries

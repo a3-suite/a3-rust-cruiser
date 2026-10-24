@@ -13,7 +13,7 @@
 
 ## 前提条件
 
-- `a3-rust-cruiser` コマンドが利用できること。利用できない場合はセットアップを自動実行せず、不足を報告する。
+- 共通判定ガイドの前提条件を満たすこと。
 - 対象のSDDプロジェクトにcurrent SDD design familyがあること。不足している場合は入力不足として停止する。
 - `a3-sdd`の正規導線で生成されたresolved-implementation-attributionを利用できること。利用できない場合は、生成手順をこのガイドで補完せず停止する。
 - project root、Cargo package、compilation target、target tripleを対象プロジェクトとRust toolchainから確認できること。
@@ -21,9 +21,7 @@
 ## 入力契約
 
 - 入力物は、`a3-sdd`の正規導線が出力する`name: resolved-implementation-attribution`、`version: 1`の成果物に限定する。
-- 入力物の必須トップレベルフィールドは`version`、`name`、`source_provenance`、`file_attributions`、`component_dependencies`、`scope_dependencies`とする。
-- 入力物のネストしたshape、provenance、帰属、依存関係の意味と検証規則は、契約ID `contract.logical-module-boundary.boundary-policy-input` と `a3-sdd`／`sdd-designs` の正本に従う。このガイドでは再定義しない。
-- a3-rust-cruiserは受け取った入力物を一つのパスとしてそのまま読み込み、`--policy`と結合しない。
+- 入力物のshape、provenance、帰属、依存関係の意味と検証規則は、`a3-sdd`／`sdd-designs`の正本に従う。
 
 ## 入力物の受け渡し
 
@@ -34,8 +32,6 @@
 ## 入力選択
 
 - `--resolved-implementation-attribution <resolved-implementation-attribution-path>`を境界入力として選択する。
-- `--policy`とは相互排他であり、同じ実行で併用しない。
-- ownerのraw DSLを解釈せず、ownerが確定したfile attributionと依存関係を中間変換なしで使用する。
 
 ## 検証フロー
 
@@ -66,14 +62,7 @@
 
 ## 判定と完了
 
-- 実行後の`decision`、`violations`、`analysis_issues`、解析コンテキストの判定は、共通判定ガイドに従う。
+- 実行後の`decision`、`violations`、`analysis_issues`、解析コンテキストの判定と完了条件は、共通判定ガイドに従う。
 - coverageが全て解決していることだけで境界適合とは判定せず、`violations`と`decision`を確認する。
-- 対象としたすべての解析コンテキストが`conformant`の場合だけ、検証完了とする。
 
 参照: references/run-logical-module-boundary-check.guide.md
-
-## 注意
-
-- resolved-implementation-attributionの導出規則、current artifact locator／familyの定義・選択規則、owner DSLの意味解釈は`sdd-designs`へ委譲し、このガイドで再定義しない。
-- current artifact instanceの解決、owner family validation、runtime operationのdispatchと一時出力の生成は`a3-sdd`へ委譲し、このガイドで別の生成経路を作らない。
-- `source-union` profileを使う場合も、対象プロジェクトが非コンパイル経路の解析を明示しているときだけ指定する。

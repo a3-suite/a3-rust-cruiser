@@ -5,8 +5,7 @@ requirements:
     type: functional
     summary: 利用者がRustの論理モジュール境界を検証できる
     description: Rustプロジェクトの論理モジュール間依存を解析し、設計上許可されていない依存を検出できるようにする
-    rationale:
-      why: モジュール境界の劣化を実装変更の時点で検出し、依存方向を継続的に維持するため
+    rationale: モジュール境界の劣化を実装変更の時点で検出し、依存方向を継続的に維持するため
     subject:
       namespace: a3-rust-cruiser
       key: logical-module-boundary-validation
@@ -33,19 +32,3 @@ requirements:
       - 検出結果から依存元、依存先、依存種別、根拠となるソース位置、違反したrule IDを確認できる
       - 人間向けtext出力と機械処理向けJSON出力の双方で依存グラフ、違反、解析上の問題、適合性判断を確認できる
       - 境界違反または解析未完了を継続的インテグレーションが成功として扱わない
-    derived_artifacts:
-      use_cases:
-        - use_case_ref:
-            use_case_id: check-logical-module-boundaries
-      quality_scenarios:
-        - quality_scenario_ref:
-            quality_scenario_id: deterministic-boundary-analysis
-        - quality_scenario_ref:
-            quality_scenario_id: traceable-boundary-diagnostics
-        - quality_scenario_ref:
-            quality_scenario_id: transparent-incomplete-analysis
-      constraints:
-        - constraint_ref:
-            constraint_id: logical-module-analysis-boundary
-        - constraint_ref:
-            constraint_id: mvp-feature-scope

@@ -106,12 +106,8 @@ fn finalize_inner(content: &str, project_root: &Path) -> Result<LoadedBoundaryPo
         }
         let mut contract_refs = BTreeSet::new();
         for contract_ref in dependency.contract_refs {
-            validate_non_empty(
-                "scope dependency subject reference",
-                &contract_ref.subject_ref,
-            )?;
             validate_non_empty("scope dependency contract ID", &contract_ref.contract_id)?;
-            if !contract_refs.insert((contract_ref.subject_ref, contract_ref.contract_id)) {
+            if !contract_refs.insert(contract_ref.contract_id) {
                 return Err(invalid_boundary_policy_input(
                     "normalized scope dependency contract references must be unique",
                 ));
@@ -398,7 +394,6 @@ struct ScopeDependencyDto {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ContractRefDto {
-    subject_ref: String,
     contract_id: String,
 }
 
@@ -559,7 +554,7 @@ mod tests {
         fixture.write(
             "normalized.sdd.yml",
             &valid_envelope().replace(
-                "scope_dependencies:\n  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example",
+                "scope_dependencies:\n  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - contract_id: contract.example",
                 "scope_dependencies: []",
             ),
         );
@@ -742,7 +737,7 @@ mod tests {
                 "component_dependencies:\n  - canonical_scope: scope-a\n    from_component_id: application\n    to_component_id: provider\n  - canonical_scope: scope-a\n    from_component_id: application\n    to_component_id: provider",
             ),
         );
-        let scope_dependency = "  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example";
+        let scope_dependency = "  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - contract_id: contract.example";
         scope.write(
             "normalized.sdd.yml",
             &valid_envelope().replace(
@@ -788,7 +783,6 @@ mod tests {
             ),
             envelope.replace("from_scope: scope-a", "from_scope: ''"),
             envelope.replace("to_scope: scope-b", "to_scope: ''"),
-            envelope.replace("subject_ref: provider", "subject_ref: ''"),
             envelope.replace("contract_id: contract.example", "contract_id: ''"),
         ];
         let fixtures = cases.into_iter().enumerate().map(|(index, content)| {
@@ -937,7 +931,7 @@ mod tests {
         fixture.write(
             "normalized.sdd.yml",
             &valid_envelope().replace(
-                "contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example",
+                "contract_refs:\n      - contract_id: contract.example",
                 "contract_refs: [contract.example]",
             ),
         );
@@ -991,7 +985,7 @@ mod tests {
     }
 
     fn valid_envelope() -> String {
-        "version: 1\nname: resolved-implementation-attribution\nsource_provenance:\n  producer: owner-resolved-current-family\n  artifacts:\n    - dsl_name: logical-structure\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: scope-a\n      sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n    - dsl_name: logical-structure\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: scope-b\n      sha256: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n    - dsl_name: physical-structure\n      version: 1\n      artifact_identity:\n        axes: {}\n      sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n    - dsl_name: projection\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: scope-a\n      sha256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n    - dsl_name: projection\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: scope-b\n      sha256: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\nfile_attributions:\n  - observed_file_path: src/application.rs\n    canonical_scope: scope-a\n    component_id: application\n    element_id: application-file\n  - observed_file_path: src/provider.rs\n    canonical_scope: scope-b\n    component_id: provider\n    element_id: provider-file\ncomponent_dependencies: []\nscope_dependencies:\n  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - subject_ref: provider\n        contract_id: contract.example\n"
+        "version: 1\nname: resolved-implementation-attribution\nsource_provenance:\n  producer: owner-resolved-current-family\n  artifacts:\n    - dsl_name: logical-structure\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: scope-a\n      sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n    - dsl_name: logical-structure\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: scope-b\n      sha256: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n    - dsl_name: physical-structure\n      version: 1\n      artifact_identity:\n        axes: {}\n      sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n    - dsl_name: projection\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: scope-a\n      sha256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n    - dsl_name: projection\n      version: 2\n      artifact_identity:\n        axes:\n          scope_path: scope-b\n      sha256: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\nfile_attributions:\n  - observed_file_path: src/application.rs\n    canonical_scope: scope-a\n    component_id: application\n    element_id: application-file\n  - observed_file_path: src/provider.rs\n    canonical_scope: scope-b\n    component_id: provider\n    element_id: provider-file\ncomponent_dependencies: []\nscope_dependencies:\n  - from_scope: scope-a\n    to_scope: scope-b\n    contract_refs:\n      - contract_id: contract.example\n"
             .to_owned()
     }
 
