@@ -15,7 +15,7 @@
   },
   "placement": {
     "managedRoot": "~/Library/Application Support/a3-suite/a3-rust-cruiser/standalone",
-    "releasePath": "~/Library/Application Support/a3-suite/a3-rust-cruiser/standalone/releases/0.1.0",
+    "releasePath": "~/Library/Application Support/a3-suite/a3-rust-cruiser/standalone/releases/0.2.0",
     "currentLink": "~/Library/Application Support/a3-suite/a3-rust-cruiser/standalone/current",
     "profile": "per-user-cli",
     "channel": "standalone"

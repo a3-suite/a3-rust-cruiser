@@ -26,7 +26,7 @@ Linux x86_64、macOS arm64、Windows x86_64 に対応しています。installer
 ### Linux・macOS
 
 ```sh
-curl -fsSL --proto '=https' --proto-redir '=https' "https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install.sh" | sh
+curl -fsSL --proto '=https' --proto-redir '=https' "https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.2.0/install.sh" | sh
 ```
 
 managed root はLinuxが `~/.local/share/a3-suite/a3-rust-cruiser/standalone`、macOSが `~/Library/Application Support/a3-suite/a3-rust-cruiser/standalone` です。launcher はどちらも `~/.local/bin/a3-rust-cruiser` に配置されます。コマンド名で実行するには、現在のシェルで PATH に追加します。
@@ -40,7 +40,7 @@ export PATH="$HOME/.local/bin:$PATH"
 Windows PowerShell 5.1 以降で実行してください。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -NoProfile -Command "irm 'https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/install.ps1' | iex"
+powershell -ExecutionPolicy Bypass -NoProfile -Command "irm 'https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.2.0/install.ps1' | iex"
 ```
 
 managed root は `%LOCALAPPDATA%\a3-suite\a3-rust-cruiser\standalone`、launcher は `%LOCALAPPDATA%\Programs\a3-suite\a3-rust-cruiser\bin\a3-rust-cruiser.exe` に配置されます。コマンド名で実行するには、現在の PowerShell セッションで PATH に追加して導入を確認します。
@@ -49,7 +49,7 @@ managed root は `%LOCALAPPDATA%\a3-suite\a3-rust-cruiser\standalone`、launcher
 $env:Path = "$env:LOCALAPPDATA\Programs\a3-suite\a3-rust-cruiser\bin;$env:Path"
 ```
 
-PATH を設定したシェルで次を実行し、`0.1.0` と表示されることを確認してください。
+PATH を設定したシェルで次を実行し、`0.2.0` と表示されることを確認してください。
 
 ```text
 a3-rust-cruiser --version
@@ -59,7 +59,7 @@ a3-rust-cruiser --version
 
 ### Agent Skillのインストール
 
-本製品は対応スキルとセットで使用します。同じ版の[対応スキルZIP](https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.1.0/a3-rust-cruiser-skills.zip)と同じReleaseの`.sha256`をダウンロードし、SHA-256を照合してから展開して、利用者環境の適切なスキルフォルダに配置してください。削除する場合は、配備した`<skill-root>/a3-rust-cruiser/`だけを削除します。
+本製品は対応スキルとセットで使用します。同じ版の[対応スキルZIP](https://github.com/a3-suite/a3-rust-cruiser/releases/download/v0.2.0/a3-rust-cruiser-skills.zip)と同じReleaseの`.sha256`をダウンロードし、SHA-256を照合してから展開して、利用者環境の適切なスキルフォルダに配置してください。削除する場合は、配備した`<skill-root>/a3-rust-cruiser/`だけを削除します。
 
 ### アンインストール
 
