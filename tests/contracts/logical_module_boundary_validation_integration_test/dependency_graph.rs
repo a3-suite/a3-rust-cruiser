@@ -1158,8 +1158,8 @@ fn should_exact_policy_runtime_item_macro_observes_generated_dependencies() {
                         dependencies.iter().any(|dependency| {
                             dependency["source"] == source
                                 && dependency["target"] == "crate::forbidden"
-                                && dependency["evidence"]["line"] == 1
-                                && dependency["evidence"]["column"] == 1
+                                && dependency["evidence"]["line"] == 7
+                                && dependency["evidence"]["column"] == 28
                         })
                     })
             );
@@ -1169,6 +1169,87 @@ fn should_exact_policy_runtime_item_macro_observes_generated_dependencies() {
             report["violations"][0]["rule_id"],
             "forbid-generated-runtime-dependency"
         );
+    }
+}
+
+#[test]
+fn should_multi_arm_runtime_item_macro_observes_generated_dependencies() {
+    // Arrange
+    let fixture = runtime_item_macro_fixture(
+        "multi-arm-runtime-item-macro",
+        "macro_rules! declare_runtime {\n    (@observer) => { None };\n    (@observer $observer:path) => { Some($observer) };\n    (\n        slot = $slot:ident,\n        language = $language:literal\n        $(, declaration_observer = $declaration_observer:path)?\n    ) => {\n        pub(crate) const LANGUAGE: &str = $language;\n        pub(crate) const $slot: crate::foundation::plugin::provider::LanguagePluginProviderSlot =\n            crate::foundation::plugin::provider::LanguagePluginProviderSlot {\n                declaration_observer: crate::foundation::plugin::policy_only::declare_runtime!(@observer $($declaration_observer)?),\n                language: LANGUAGE,\n            };\n        inventory::submit! {\n            $slot\n        }\n    };\n}\npub(crate) use declare_runtime;\n",
+    );
+    fixture.write(
+        "src/foundation/plugin/runtime.rs",
+        "use crate::foundation::plugin::policy_only::declare_runtime;\n\ndeclare_runtime! {\n    slot = SLOT,\n    language = \"fixture\",\n    declaration_observer = crate::forbidden::resolve\n}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+
+    // Assert
+    let source = "crate::foundation::plugin::runtime";
+    assert!(dependency_exists(
+        &report,
+        source,
+        "crate::forbidden",
+        "path-reference",
+        "internal-module"
+    ));
+    assert!(dependency_exists(
+        &report,
+        source,
+        "crate::foundation::plugin::provider",
+        "path-reference",
+        "internal-module"
+    ));
+    assert_eq!(
+        report["violations"][0]["rule_id"],
+        "forbid-generated-runtime-dependency"
+    );
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn should_expansion_follow_rustc_rule_and_reexport_selection() {
+    // Arrange
+    let sources = [
+        (
+            "forwarded-literal-fragment-is-opaque",
+            "mod forbidden { pub fn hit() -> usize { 1 } }\nmacro_rules! inner {\n    (0) => { 0usize };\n    ($n:literal) => { crate::forbidden::hit() };\n}\nmacro_rules! outer {\n    ($n:literal) => { fn generated() -> usize { inner!($n) } };\n}\nouter!(0);\nfn main() {}\n",
+        ),
+        (
+            "renamed-macro-reexport-in-same-module",
+            "mod forbidden { pub fn hit() {} }\nmacro_rules! actual {\n    () => { fn generated() { crate::forbidden::hit(); } };\n}\nmacro_rules! exposed {\n    () => { fn generated() {} };\n}\npub(crate) use actual as exposed;\nself::exposed!();\nfn main() {}\n",
+        ),
+        (
+            "renamed-macro-reexport",
+            "mod forbidden { pub fn hit() {} }\nmod definitions {\n    macro_rules! actual {\n        () => { fn generated() { crate::forbidden::hit(); } };\n    }\n    macro_rules! exposed {\n        () => { fn generated() {} };\n    }\n    pub(crate) use actual as exposed;\n}\ncrate::definitions::exposed!();\nfn main() {}\n",
+        ),
+    ];
+    let fixtures = sources.map(|(name, source)| {
+        let fixture = TempFixture::new(name);
+        fixture.write("src/main.rs", source);
+        fixture.write(
+            "policy.yaml",
+            "rules:\n  - id: forbid-generated-dependency\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::forbidden]\n",
+        );
+        fixture
+    });
+
+    // Act
+    let reports = fixtures
+        .iter()
+        .map(|fixture| completed_json(&run_check(fixture, "json"), 1))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for report in reports {
+        assert_eq!(
+            report["violations"][0]["rule_id"],
+            "forbid-generated-dependency"
+        );
+        assert_eq!(report["analysis_issues"], serde_json::json!([]));
     }
 }
 
@@ -1204,6 +1285,105 @@ fn should_source_union_does_not_expand_exact_runtime_item_macro() {
         "path-reference",
         "internal-module"
     ));
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn should_module_local_pattern_item_macro_observes_generated_dependencies() {
+    // Arrange
+    let fixture = TempFixture::new("module-local-pattern-item-macro");
+    fixture.write(
+        "src/main.rs",
+        "mod forbidden;\nmacro_rules! catalog {\n    ($($key:ident => $path:literal),+ $(,)?) => {\n        enum Text { $($key),+ }\n        impl Text {\n            fn path(self) -> &'static str { match self { $(Self::$key => $path),+ } }\n            fn decode(self) -> usize { crate::forbidden::decode() }\n        }\n    };\n}\ncatalog! { Hello => \"/hello\", Bye => \"/bye\", }\nfn main() { let _ = (Text::Hello.path(), Text::Bye.decode()); }\n",
+    );
+    fixture.write("src/forbidden.rs", "pub fn decode() -> usize { 1 }\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-generated-dependency\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::forbidden]\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+
+    // Assert
+    let dependency = report["dependencies"]
+        .as_array()
+        .and_then(|dependencies| {
+            dependencies.iter().find(|dependency| {
+                dependency["source"] == "crate"
+                    && dependency["target"] == "crate::forbidden"
+                    && dependency["kind"] == "path-reference"
+                    && dependency["target_scope"] == "internal-module"
+            })
+        })
+        .expect("macro-generated dependency");
+    assert_eq!(dependency["evidence"]["line"], 7);
+    assert_eq!(
+        report["violations"][0]["rule_id"],
+        "forbid-generated-dependency"
+    );
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn should_thread_local_declarations_observe_type_and_initializer_dependencies() {
+    // Arrange
+    let fixture = TempFixture::new("thread-local-declarations");
+    fixture.write(
+        "src/main.rs",
+        "mod forbidden;\nuse std::cell::Cell;\nthread_local! {\n    static COUNT: Cell<usize> = const { Cell::new(0) };\n    static LIMIT: crate::forbidden::Limit = const { crate::forbidden::Limit };\n}\nfn main() { let _ = COUNT.with(Cell::get); LIMIT.with(|_| ()); }\n",
+    );
+    fixture.write("src/forbidden.rs", "pub struct Limit;\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-thread-local-dependency\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::forbidden]\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+
+    // Assert
+    let dependency = report["dependencies"]
+        .as_array()
+        .and_then(|dependencies| {
+            dependencies.iter().find(|dependency| {
+                dependency["source"] == "crate"
+                    && dependency["target"] == "crate::forbidden"
+                    && dependency["kind"] == "path-reference"
+                    && dependency["target_scope"] == "internal-module"
+            })
+        })
+        .expect("thread-local dependency");
+    assert_eq!(dependency["evidence"]["line"], 5);
+    assert_eq!(
+        report["violations"][0]["rule_id"],
+        "forbid-thread-local-dependency"
+    );
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn should_qualified_std_thread_local_observes_declaration_dependencies() {
+    // Arrange
+    let fixture = TempFixture::new("qualified-std-thread-local");
+    fixture.write(
+        "src/main.rs",
+        "mod forbidden;\nstd::thread_local! { static LIMIT: crate::forbidden::Limit = const { crate::forbidden::Limit }; }\n::std::thread_local! { static COUNT: u8 = 0; }\nfn main() { LIMIT.with(|_| ()); COUNT.with(|_| ()); }\n",
+    );
+    fixture.write("src/forbidden.rs", "pub struct Limit;\n");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-thread-local-dependency\n    kind: forbidden\n    severity: error\n    from: [crate]\n    to: [crate::forbidden]\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 1);
+
+    // Assert
+    assert_eq!(
+        report["violations"][0]["rule_id"],
+        "forbid-thread-local-dependency"
+    );
     assert_eq!(report["analysis_issues"], serde_json::json!([]));
 }
 

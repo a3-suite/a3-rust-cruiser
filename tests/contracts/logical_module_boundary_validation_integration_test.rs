@@ -209,7 +209,7 @@ fn macro_expansion_attribution_fixture(label: &str, component_dependencies: &str
     let fixture = TempFixture::new(label);
     fixture.write(
         "src/main.rs",
-        "mod provider;\nmacro_rules! pull { () => { fn pulled() -> crate::provider::Thing { crate::provider::Thing } }; }\npull!();\nfn main() {}\n",
+        "mod provider;\nmacro_rules! pull { ($thing:ty) => { fn pulled() -> $thing { todo!() } }; }\npull!(crate::provider::Thing);\nfn main() {}\n",
     );
     fixture.write("src/provider.rs", "pub struct Thing;\n");
     let content = resolved_implementation_attribution(&fixture).replacen(

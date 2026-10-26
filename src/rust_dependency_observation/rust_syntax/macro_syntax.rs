@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use proc_macro2::{Group, Span, TokenStream, TokenTree};
 
@@ -79,6 +79,56 @@ pub(super) fn is_dependency_neutral_expression_macro(path: &[String]) -> bool {
                 | "writeln"
         )
     })
+}
+
+pub(super) fn is_thread_local_macro(path: &[String]) -> bool {
+    macro_path_is(path, &["thread_local"]) || macro_path_is(path, &["std", "thread_local"])
+}
+
+/// Attributes are rejected because they would add cfg or tool semantics that
+/// the generated `static` declarations do not carry through this parse.
+pub(crate) fn thread_local_declarations(macro_item: &syn::Macro) -> Option<Vec<syn::ItemStatic>> {
+    let path = macro_item
+        .path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>();
+    if !is_thread_local_macro(&path) {
+        return None;
+    }
+    let file = syn::parse2::<syn::File>(macro_item.tokens.clone()).ok()?;
+    if !file.attrs.is_empty() {
+        return None;
+    }
+    file.items
+        .into_iter()
+        .map(|item| match item {
+            syn::Item::Static(item)
+                if item.attrs.is_empty()
+                    && matches!(item.mutability, syn::StaticMutability::None) =>
+            {
+                Some(item)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The prelude `thread_local!` is hidden by glob imports and by a crate-wide
+/// macro_rules of that name, which reaches child modules through textual scope.
+pub(crate) fn resolves_to_standard_thread_local(
+    path: &syn::Path,
+    prelude_visible: bool,
+    crate_macro_rules_names: &BTreeSet<String>,
+    shadowed: impl Fn(&str) -> bool,
+) -> bool {
+    let root = path.segments[0].ident.to_string();
+    if path.segments.len() == 1 {
+        prelude_visible && !shadowed(&root) && !crate_macro_rules_names.contains(&root)
+    } else {
+        path.leading_colon.is_some() || (prelude_visible && !shadowed(&root))
+    }
 }
 
 fn macro_identity(path: &[String]) -> Option<&str> {

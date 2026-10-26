@@ -2,12 +2,15 @@ mod item_macro;
 mod macro_safety;
 mod macro_syntax;
 mod module_index;
+mod pattern_item_macro;
 mod visitor;
 
 pub(super) use item_macro::{
-    SupportedItemMacroDefinition, expand_supported_item_macro, supported_item_macro_definition,
+    SupportedItemMacroDefinition, expand_supported_expression_macro, expand_supported_item_macro,
+    supported_item_macro_definition,
 };
 pub(super) use macro_safety::local_macro_safety_bindings;
+pub(super) use macro_syntax::{resolves_to_standard_thread_local, thread_local_declarations};
 pub(super) use module_index::{
     UseAlias, UseBinding, declared_external_crate_aliases, declared_item_names,
     declared_macro_bindings, declared_self_crate_aliases, flatten_use_tree, glob_imports,

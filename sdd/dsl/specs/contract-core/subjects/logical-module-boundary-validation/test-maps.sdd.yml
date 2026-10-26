@@ -184,6 +184,48 @@ test_maps:
           - dependency-edges-present
           - dependency-kind-supported
           - dependency-target-scope-supported
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
+        symbol: should_multi_arm_runtime_item_macro_observes_generated_dependencies
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
+        symbol: should_expansion_follow_rustc_rule_and_reexport_selection
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - dependency-edges-present
+  - contract_id: contract.logical-module-boundary.dependency-graph
+    case_id: module-local-pattern-item-macro-generated-dependencies
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
+        symbol: should_module_local_pattern_item_macro_observes_generated_dependencies
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
+  - contract_id: contract.logical-module-boundary.dependency-graph
+    case_id: thread-local-declaration-dependencies
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
+        symbol: should_thread_local_declarations_observe_type_and_initializer_dependencies
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
+        symbol: should_qualified_std_thread_local_observes_declaration_dependencies
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - dependency-edges-present
   - contract_id: contract.logical-module-boundary.dependency-graph
     case_id: serde-function-path-generated-dependencies
     tests:
@@ -532,6 +574,15 @@ test_maps:
   - contract_id: contract.logical-module-boundary.validation-report
     case_id: known-compilation-context-is-resolved
     tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_thread_local_and_module_local_pattern_item_macro_are_conformant
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_cfg_selected_dependency_uses_the_rustc_target_context
         guarantees:
@@ -974,6 +1025,13 @@ test_maps:
     case_id: unresolved-reference-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_custom_thread_local_names_are_not_registered
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_unresolved_reference_is_indeterminate
         guarantees:
           - indeterminate-decision
@@ -1132,6 +1190,21 @@ test_maps:
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: should_invalid_runtime_item_macro_arguments_are_indeterminate
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_unsupported_pattern_item_macro_and_thread_local_shapes_are_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present

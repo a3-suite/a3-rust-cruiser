@@ -73,6 +73,7 @@ struct Observer {
     external_crates: BTreeSet<String>,
     context_dependent_crates: BTreeSet<String>,
     self_crate_aliases: BTreeSet<String>,
+    crate_macro_rules_names: BTreeSet<String>,
     records: BTreeMap<String, ModuleRecord>,
     exported_items: BTreeMap<String, BTreeSet<String>>,
     declarations: Vec<ModuleDeclaration>,
@@ -113,6 +114,7 @@ fn observe(
         external_crates,
         context_dependent_crates,
         self_crate_aliases: BTreeSet::new(),
+        crate_macro_rules_names: BTreeSet::new(),
         records: BTreeMap::new(),
         exported_items: BTreeMap::new(),
         declarations: Vec::new(),
@@ -133,6 +135,17 @@ fn observe(
         .flat_map(|record| record.variants.iter())
         .flat_map(|variant| variant.self_crate_aliases.iter().cloned())
         .collect();
+    observer.crate_macro_rules_names = observer
+        .records
+        .values()
+        .flat_map(|record| record.variants.iter())
+        .flat_map(|variant| variant.local_macro_bindings.iter().cloned())
+        .collect();
+    macro_expansion::register_thread_local_names(
+        &mut observer.records,
+        &observer.cfg_context,
+        &observer.crate_macro_rules_names,
+    );
 
     let all_module_ids: BTreeSet<String> = observer.records.keys().cloned().collect();
     let exported_items = path_resolution::build_export_index(
@@ -560,6 +573,7 @@ impl Observer {
             cfg_context: &self.cfg_context,
             external_crates: &self.external_crates,
             declared_items: &variant.declared_items,
+            crate_macro_rules_names: &self.crate_macro_rules_names,
             observe_attribute_paths: analysis_profile == AnalysisProfile::Compilation,
             paths: Vec::new(),
             scoped_uses: Vec::new(),

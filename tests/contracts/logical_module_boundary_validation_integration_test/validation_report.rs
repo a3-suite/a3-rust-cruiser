@@ -1163,6 +1163,182 @@ fn should_multi_arm_local_macro_is_indeterminate() {
 }
 
 #[test]
+fn should_thread_local_and_module_local_pattern_item_macro_are_conformant() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("thread-local-and-pattern-item-macro");
+    fixture.write(
+        "src/main.rs",
+        "mod text;\nuse std::cell::Cell;\nstruct Context {\n    origin: &'static str,\n}\nthread_local! { static CONTEXT: Cell<Option<Context>> = const { Cell::new(None) }; }\nfn main() {\n    CONTEXT.with(|context| context.set(Some(Context { origin: \"ui\" })));\n    let _ = text::pick().translation(0);\n}\n",
+    );
+    fixture.write(
+        "src/text.rs",
+        "static CATALOGS: [&str; 1] = [\"catalog\"];\nCATALOG_MACRO\ncatalog! {\n    Hello => \"/hello\",\n    Bye => \"/bye\",\n}\npub(super) fn pick() -> Text {\n    Text::Hello\n}\n"
+            .replacen("CATALOG_MACRO\n", CATALOG_MACRO, 1)
+            .as_str(),
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
+fn should_unsupported_pattern_item_macro_and_thread_local_shapes_are_indeterminate() {
+    // Arrange
+    let invocation = "catalog! {\n    Hello => \"/hello\",\n}\n";
+    let sources = [
+        (
+            "pattern-item-macro-bound-meta",
+            format!(
+                "static CATALOGS: [&str; 1] = [\"catalog\"];\n{CATALOG_MACRO}catalog! {{\n    #[allow(dead_code)]\n    Hello => \"/hello\",\n}}\nfn main() {{ let _ = Text::Hello; }}\n"
+            ),
+        ),
+        (
+            "pattern-item-macro-before-definition",
+            format!(
+                "static CATALOGS: [&str; 1] = [\"catalog\"];\n{invocation}{CATALOG_MACRO}fn main() {{ let _ = Text::Hello; }}\n"
+            ),
+        ),
+        (
+            "pattern-item-macro-other-module",
+            format!(
+                "static CATALOGS: [&str; 1] = [\"catalog\"];\n{CATALOG_MACRO}mod child {{\n    use super::CATALOGS;\n    catalog! {{\n        Hello => \"/hello\",\n    }}\n}}\nfn main() {{}}\n"
+            ),
+        ),
+        (
+            "pattern-item-macro-uncertain-arm-failure",
+            "macro_rules! make { ($($first:ident)* last) => { enum Text { A } }; ($name:ident) => { enum $name { A } }; }\nmake!(Text);\nfn main() { let _ = Text::A; }\n"
+                .to_owned(),
+        ),
+        (
+            "pattern-item-macro-shadowed-by-unsupported-definition",
+            "macro_rules! make { () => { fn generated() {} }; }\nmacro_rules! make { ($($tokens:tt)*) => { fn generated() {} }; }\nmake!();\nfn main() {}\n"
+                .to_owned(),
+        ),
+        (
+            "pattern-item-macro-import-shadowed-by-ancestor-definition",
+            "macro_rules! make { () => { fn shadow() {} }; }\nmod source {\n    macro_rules! make { () => { fn generated() {} }; }\n    pub(crate) use make;\n}\nmod child {\n    use crate::source::make;\n    make!();\n}\nfn main() {}\n"
+                .to_owned(),
+        ),
+        (
+            "pattern-item-macro-unbounded-item-recursion",
+            "macro_rules! repeat { () => { repeat! {} }; }\nrepeat! {}\nfn main() {}\n".to_owned(),
+        ),
+        (
+            "pattern-item-macro-unbounded-expression-recursion",
+            "macro_rules! value { () => { const VALUE: u8 = value!(@); }; (@) => { value!(@) }; }\nvalue! {}\nfn main() {}\n"
+                .to_owned(),
+        ),
+        (
+            "pattern-item-macro-generated-block-macro-definition",
+            "macro_rules! helper { () => { 0usize }; }\nmacro_rules! make { () => { fn generated() -> usize { macro_rules! helper { () => { 1usize }; } helper!() } }; }\nmake!();\nfn main() {}\n"
+                .to_owned(),
+        ),
+        (
+            "pattern-item-macro-module-from-expression-expansion",
+            "macro_rules! value { () => {{ mod hidden { pub fn run() {} } 0usize }}; }\nmacro_rules! make { () => { fn generated() -> usize { value!() } }; }\nmake!();\nfn main() {}\n"
+                .to_owned(),
+        ),
+        (
+            "pattern-item-macro-bare-expression-call-after-generated-import",
+            "mod other {\n    macro_rules! helper { () => { 1usize }; }\n    pub(crate) use helper;\n}\nmacro_rules! helper { () => { 0usize }; }\nmacro_rules! make { () => { use crate::other::helper; fn generated() -> usize { helper!() } }; }\nmake!();\nfn main() {}\n"
+                .to_owned(),
+        ),
+        (
+            "pattern-item-macro-bare-item-call-after-generated-import",
+            "mod other {\n    macro_rules! generate { () => { fn other_generated() {} }; }\n    pub(crate) use generate;\n}\nmacro_rules! generate { () => { fn local_generated() {} }; }\nmacro_rules! make { () => { use crate::other::generate; generate!(); }; }\nmake!();\nfn main() {}\n"
+                .to_owned(),
+        ),
+        (
+            "pattern-item-macro-bare-call-after-expression-generated-import",
+            "mod safe {\n    macro_rules! helper { () => { 0usize }; }\n    pub(crate) use helper;\n}\nmod other_source {\n    macro_rules! other { () => { 1usize }; }\n    pub(crate) use other;\n}\nuse crate::safe::helper;\nmacro_rules! step { () => {{ use crate::other_source::other as helper; helper!() }}; }\nmacro_rules! make { () => { fn generated() -> usize { step!() } }; }\nmake!();\nfn main() {}\n"
+                .to_owned(),
+        ),
+        (
+            "pattern-item-macro-generated-module",
+            "macro_rules! make { ($name:ident) => { mod $name { pub fn generated() {} } }; }\nmake!(inner);\nfn main() {}\n"
+                .to_owned(),
+        ),
+        (
+            "pattern-item-macro-generated-nested-module",
+            "macro_rules! make { () => { fn generated() { mod hidden { pub fn run() {} } } }; }\nmake!();\nfn main() {}\n"
+                .to_owned(),
+        ),
+        (
+            "thread-local-through-use-alias",
+            "mod replacement {\n    macro_rules! emit { ($($tokens:tt)*) => {}; }\n    pub(crate) use emit;\n}\nuse replacement::emit as thread_local;\nthread_local! { static COUNT: u8 = 0; }\nfn main() {}\n"
+                .to_owned(),
+        ),
+        (
+            "thread-local-through-std-alias",
+            "mod replacement {\n    macro_rules! emit { ($($tokens:tt)*) => {}; }\n    pub(crate) use emit as thread_local;\n}\nuse replacement as std;\nstd::thread_local! { static COUNT: u8 = 0; }\nfn main() {}\n"
+                .to_owned(),
+        ),
+        (
+            "thread-local-shadowed-by-ancestor-macro",
+            "macro_rules! thread_local { ($($tokens:tt)*) => {}; }\nmod child {\n    thread_local! { static COUNT: u8 = 0; }\n}\nfn main() {}\n"
+                .to_owned(),
+        ),
+        (
+            "thread-local-with-attribute",
+            "thread_local! { #[allow(unused)] static COUNT: u8 = 0; }\nfn main() { COUNT.with(|_| ()); }\n"
+                .to_owned(),
+        ),
+    ];
+    let fixtures = sources.map(|(name, source)| {
+        let fixture = policy_sensitive_fixture(name);
+        fixture.write("src/main.rs", &source);
+        fixture
+    });
+
+    // Act
+    let reports = fixtures
+        .iter()
+        .map(|fixture| completed_json(&run_check(fixture, "json"), 2))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for report in reports {
+        assert_issue(&report, "analysis.unsupported-macro-expansion");
+    }
+}
+
+#[test]
+fn should_custom_thread_local_names_are_not_registered() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("custom-thread-local-names");
+    fixture.write(
+        "src/main.rs",
+        "mod forbidden {\n    pub static VALUE: u8 = 0;\n}\nmod replacement {\n    macro_rules! emit { ($($tokens:tt)*) => { pub use crate::forbidden::VALUE; }; }\n    pub(crate) use emit;\n}\nmod generated {\n    use crate::replacement::emit as thread_local;\n    thread_local! { pub static VALUE: u8 = 0; }\n}\nfn main() {\n    let _ = crate::generated::VALUE;\n}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    let issues = report["analysis_issues"]
+        .as_array()
+        .expect("analysis issues")
+        .iter()
+        .map(|issue| {
+            (
+                issue["code"].as_str().expect("issue code"),
+                issue["reason"].as_str().expect("issue reason"),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(issues.contains(&(
+        "analysis.unresolved-reference",
+        "unable to resolve path crate::generated::VALUE"
+    )));
+}
+
+const CATALOG_MACRO: &str = "macro_rules! catalog {\n    ($($(#[$attr:meta])* $key:ident => $path:literal),+ $(,)?) => {\n        #[derive(Clone, Copy, Debug)]\n        pub(super) enum Text { $($(#[$attr])* $key),+ }\n        impl Text {\n            #[cfg(test)]\n            const RESOURCE_PATHS: &'static [&'static str] = &[$($path),+];\n            fn resource_path(self) -> &'static str {\n                match self { $($(#[$attr])* Self::$key => $path),+ }\n            }\n            pub(super) fn translation(self, index: usize) -> (&'static str, &'static str) {\n                (CATALOGS[index], self.resource_path())\n            }\n        }\n    };\n}\n";
+
+#[test]
 fn should_unsupported_local_macro_shapes_are_indeterminate() {
     // Arrange
     let sources = [
@@ -1328,11 +1504,6 @@ fn should_unsupported_derive_macro_is_indeterminate() {
 fn should_altered_runtime_item_macro_definition_is_indeterminate() {
     // Arrange
     let alterations = [
-        (
-            "altered-runtime-item-macro-transcriber",
-            "source_view_resolver: $source_view_resolver,",
-            "source_view_resolver: $source_view_resolver, unexpected: LANGUAGE,",
-        ),
         (
             "altered-runtime-item-macro-missing-comma",
             "slot = $slot:ident,\n        agnostic_fn",

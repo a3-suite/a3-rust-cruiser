@@ -49,6 +49,37 @@ cases:
       - dependency-kind-supported
       - dependency-target-scope-supported
   - contract_id: contract.logical-module-boundary.dependency-graph
+    id: module-local-pattern-item-macro-generated-dependencies
+    partition: compilation-profile-request
+    input:
+      analysis_context:
+        analysis_profile: compilation
+      rust_project:
+        source_constructs:
+          - module-local-pattern-item-macro-definition
+          - item-macro-generated-paths
+    verifies:
+      - analysis-context-present
+      - analysis-profile-supported
+      - dependency-edges-present
+      - dependency-kind-supported
+      - dependency-target-scope-supported
+  - contract_id: contract.logical-module-boundary.dependency-graph
+    id: thread-local-declaration-dependencies
+    partition: compilation-profile-request
+    input:
+      analysis_context:
+        analysis_profile: compilation
+      rust_project:
+        source_constructs:
+          - std-thread-local-declaration
+    verifies:
+      - analysis-context-present
+      - analysis-profile-supported
+      - dependency-edges-present
+      - dependency-kind-supported
+      - dependency-target-scope-supported
+  - contract_id: contract.logical-module-boundary.dependency-graph
     id: serde-function-path-generated-dependencies
     partition: compilation-profile-request
     input:
@@ -382,6 +413,8 @@ cases:
           - dependency-neutral-standard-macro-and-derive
           - dependency-neutral-external-macro-with-proven-identity
           - exact-safe-local-macro
+          - std-thread-local-declaration
+          - module-local-pattern-item-macro
           - known-serde-function-path-attribute
   - contract_id: contract.logical-module-boundary.validation-report
     id: inactive-cfg-attr-path-module-is-ignored

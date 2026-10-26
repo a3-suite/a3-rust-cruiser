@@ -12,6 +12,7 @@ use super::{
     macro_syntax::{
         is_dependency_neutral_expression_macro, is_dependency_neutral_token_macro,
         is_dependency_observing_macro, is_json_macro, is_matches_macro,
+        resolves_to_standard_thread_local, thread_local_declarations,
     },
     module_index::{
         UseAlias, collect_generic_bindings, collect_item_generic_bindings, collect_use_aliases,
@@ -79,6 +80,9 @@ pub(crate) struct PathVisitor<'a> {
     pub(crate) cfg_context: &'a CfgContext,
     pub(crate) external_crates: &'a BTreeSet<String>,
     pub(crate) declared_items: &'a BTreeSet<String>,
+    /// macro_rules names reach child modules through textual scope, so any
+    /// crate-wide definition may shadow a prelude macro of the same name.
+    pub(crate) crate_macro_rules_names: &'a BTreeSet<String>,
     pub(crate) observe_attribute_paths: bool,
     pub(crate) paths: Vec<ObservedPath>,
     pub(crate) scoped_uses: Vec<ScopedUse>,
@@ -440,6 +444,24 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
             }
             return;
         }
+        if let Some(declarations) = thread_local_declarations(macro_item)
+            && resolves_to_standard_thread_local(
+                &macro_item.path,
+                self.glob_imports.is_empty() && !self.no_implicit_prelude,
+                self.crate_macro_rules_names,
+                |name| {
+                    self.aliases.contains_key(name)
+                        || self.macro_bindings.contains(name)
+                        || self.declared_items.contains(name)
+                        || self.local_item_bindings.contains(name)
+                },
+            )
+        {
+            for declaration in &declarations {
+                visit_thread_local_declaration(self, declaration);
+            }
+            return;
+        }
         if is_dependency_observing_macro(&identity) {
             let observed = if is_matches_macro(&identity) {
                 visit_matches_macro(self, macro_item.tokens.clone())
@@ -766,6 +788,12 @@ fn known_external_derive_alias(
 }
 
 const KNOWN_EXTERNAL_DERIVE_CRATES: &[&str] = &["serde"];
+
+/// Declarations parsed from macro tokens do not live for the visited `'ast`
+/// borrow, so they are visited through a lifetime-independent receiver.
+fn visit_thread_local_declaration(visitor: &mut PathVisitor<'_>, declaration: &syn::ItemStatic) {
+    visitor.visit_item_static(declaration);
+}
 
 fn visit_macro_expressions(visitor: &mut PathVisitor<'_>, tokens: TokenStream) -> bool {
     let parser = Punctuated::<syn::Expr, Token![,]>::parse_terminated;
