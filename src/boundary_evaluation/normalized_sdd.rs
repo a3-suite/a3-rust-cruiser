@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::model::{
-    AnalysisIssue, BoundaryRule, LogicalModule, NormalizedSddCoverage, NormalizedSddPolicy,
-    ObservedDependencyGraph, RuleKind, ScopedComponentAttribution, Severity, TargetScope,
-    UnresolvedModuleAttribution,
+    AnalysisContext, AnalysisIssue, AnalysisObservationOutcome, BoundaryRule, LogicalModule,
+    NormalizedSddCoverage, NormalizedSddPolicy, ObservedDependencyGraph, RuleKind,
+    ScopedComponentAttribution, Severity, TargetScope, UnresolvedModuleAttribution,
 };
+use super::pattern::matches_pattern;
 
 pub fn assess_normalized_sdd(
     issues: &mut Vec<AnalysisIssue>,
@@ -42,74 +43,123 @@ pub fn assess_normalized_sdd(
         ));
     }
 
-    let mut forbidden = BTreeSet::new();
     for dependency in graph
         .dependencies
         .iter()
         .filter(|dependency| dependency.target_scope == TargetScope::InternalModule)
     {
-        let source = module_attributions.get(&dependency.source);
-        let target = module_attributions.get(&dependency.target);
-        let (Some(source), Some(target)) = (source, target) else {
-            let missing = if source.is_none() {
-                dependency.source.as_str()
-            } else {
-                dependency.target.as_str()
-            };
-            if !unresolved_module_ids.contains(missing) {
-                issues.push(AnalysisIssue::component_attribution_unresolved(
-                    "analysis.normalized-attribution-missing",
-                    format!("Observed Rust module has no normalized attribution: {missing}"),
-                    missing.to_owned(),
-                ));
-            }
+        let missing = if !module_attributions.contains_key(&dependency.source) {
+            dependency.source.as_str()
+        } else if !module_attributions.contains_key(&dependency.target) {
+            dependency.target.as_str()
+        } else {
             continue;
         };
-
-        let allowed = if source.canonical_scope == target.canonical_scope
-            && source.component_id == target.component_id
-        {
-            true
-        } else if source.canonical_scope == target.canonical_scope {
-            model.declared_component_dependencies.contains(&(
-                source.canonical_scope.clone(),
-                source.component_id.clone(),
-                target.component_id.clone(),
-            ))
-        } else {
-            model.declared_scope_dependencies.contains(&(
-                source.canonical_scope.clone(),
-                target.canonical_scope.clone(),
-            ))
-        };
-        if !allowed {
-            forbidden.insert((
-                dependency.source.clone(),
-                dependency.target.clone(),
-                dependency.kind,
+        if !unresolved_module_ids.contains(missing) {
+            issues.push(AnalysisIssue::component_attribution_unresolved(
+                "analysis.normalized-attribution-missing",
+                format!("Observed Rust module has no normalized attribution: {missing}"),
+                missing.to_owned(),
             ));
         }
     }
 
-    let rules = forbidden
-        .into_iter()
-        .enumerate()
-        .map(|(index, (source, target, kind))| BoundaryRule {
-            id: format!("sdd-v2-forbidden-{:04}", index + 1),
-            kind: RuleKind::Forbidden,
-            severity: Severity::Error,
-            from: vec![source],
-            to: vec![target],
-            modules: Vec::new(),
-            dependency_kinds: vec![kind],
+    // Unobserved dependencies are judged against the same component model as observed ones,
+    // so rules are derived per component pair instead of per observed edge.
+    let mut component_modules: BTreeMap<(&str, &str), Vec<String>> = BTreeMap::new();
+    for (module_id, attribution) in &module_attributions {
+        component_modules
+            .entry((
+                attribution.canonical_scope.as_str(),
+                attribution.component_id.as_str(),
+            ))
+            .or_default()
+            .push(module_id.clone());
+    }
+    let mut rules = Vec::new();
+    for ((source_scope, source_component), source_modules) in &component_modules {
+        for ((target_scope, target_component), target_modules) in &component_modules {
+            let allowed = if source_scope == target_scope && source_component == target_component {
+                true
+            } else if source_scope == target_scope {
+                model.declared_component_dependencies.contains(&(
+                    (*source_scope).to_owned(),
+                    (*source_component).to_owned(),
+                    (*target_component).to_owned(),
+                ))
+            } else {
+                model
+                    .declared_scope_dependencies
+                    .contains(&((*source_scope).to_owned(), (*target_scope).to_owned()))
+            };
+            if !allowed {
+                rules.push(BoundaryRule {
+                    id: format!("sdd-v2-forbidden-{:04}", rules.len() + 1),
+                    kind: RuleKind::Forbidden,
+                    severity: Severity::Error,
+                    from: source_modules.clone(),
+                    to: target_modules.clone(),
+                    modules: Vec::new(),
+                    dependency_kinds: Vec::new(),
+                });
+            }
+        }
+    }
+
+    let observed_module_ids = graph
+        .modules
+        .iter()
+        .map(|module| module.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let unobserved_sources = issues
+        .iter()
+        .filter(|issue| {
+            matches!(
+                issue.observation.outcome,
+                AnalysisObservationOutcome::UnresolvedDependencyCandidate
+                    | AnalysisObservationOutcome::AnalysisContextUnresolved
+            )
         })
-        .collect();
+        .filter_map(|issue| issue.observation.source_module.clone())
+        .filter(|module_id| !observed_module_ids.contains(module_id.as_str()))
+        .filter(|module_id| is_selected(&graph.analysis_context, module_id))
+        .collect::<BTreeSet<_>>();
+    for module_id in unobserved_sources {
+        let unresolved = UnresolvedModuleAttribution {
+            module_id,
+            observed_file_paths: Vec::new(),
+            reason: "observer did not read the module source".to_owned(),
+        };
+        issues.push(AnalysisIssue::component_attribution_unresolved(
+            "analysis.normalized-attribution-unresolved",
+            format!(
+                "Rust module {} has unresolved normalized attribution: {}",
+                unresolved.module_id, unresolved.reason
+            ),
+            unresolved.module_id.clone(),
+        ));
+        unresolved_modules.push(unresolved);
+    }
+    unresolved_modules.sort();
+
     let coverage = NormalizedSddCoverage {
         source_provenance: model.provenance.clone(),
         covered_modules,
         unresolved_modules,
     };
     (rules, coverage)
+}
+
+fn is_selected(context: &AnalysisContext, module_id: &str) -> bool {
+    (context.include.is_empty()
+        || context
+            .include
+            .iter()
+            .any(|pattern| matches_pattern(pattern, module_id)))
+        && !context
+            .exclude
+            .iter()
+            .any(|pattern| matches_pattern(pattern, module_id))
 }
 
 fn resolve_module_attribution(
@@ -174,9 +224,10 @@ mod tests {
 
     use super::super::evaluation::{decide, evaluate};
     use super::super::model::{
-        AnalysisContext, AnalysisProfile, BoundaryPolicy, Dependency, DependencyKind,
-        LogicalModule, NormalizedSddPolicy, NormalizedSddProvenance, ObservedDependencyGraph,
-        ScopedComponentAttribution, SourceEvidence, TargetScope, ValidationDecision,
+        AnalysisContext, AnalysisIssue, AnalysisProfile, BoundaryPolicy, Dependency,
+        DependencyKind, LogicalModule, NormalizedSddPolicy, NormalizedSddProvenance,
+        ObservedDependencyGraph, ScopedComponentAttribution, SourceEvidence, TargetScope,
+        ValidationDecision,
     };
     use super::assess_normalized_sdd;
 
@@ -206,19 +257,16 @@ mod tests {
             assess_normalized_sdd(&mut Vec::new(), &graph, &declared_cross_scope);
 
         // Assert
-        assert_eq!(missing_same_scope.len(), 1);
-        assert!(allowed_same_scope.is_empty());
-        assert_eq!(missing_cross_scope.len(), 1);
-        let policy = BoundaryPolicy {
-            rules: missing_cross_scope,
-        };
-        let (violations, _) = evaluate(&graph, &policy);
-        assert_eq!(violations.len(), 1);
+        let violation_count = |rules| evaluate(&graph, &BoundaryPolicy { rules }).0.len();
+        assert_eq!(violation_count(missing_same_scope), 1);
+        assert_eq!(violation_count(allowed_same_scope), 0);
+        let cross_scope_violations = violation_count(missing_cross_scope);
+        assert_eq!(cross_scope_violations, 1);
         assert_eq!(
-            decide(0, violations.len()),
+            decide(0, cross_scope_violations),
             ValidationDecision::NonConformant
         );
-        assert!(allowed_cross_scope.is_empty());
+        assert_eq!(violation_count(allowed_cross_scope), 0);
     }
 
     #[test]
@@ -321,6 +369,36 @@ mod tests {
             coverage.unresolved_modules[0].observed_file_paths,
             vec!["src/provider.rs", "src/provider_alternative.rs"]
         );
+    }
+
+    #[test]
+    fn should_mark_only_selected_unobserved_sources_as_unresolved() {
+        // Arrange
+        let mut graph = graph_with_dependency("crate::application", "crate::provider");
+        graph.analysis_context.exclude = vec!["crate::excluded".to_owned()];
+        let policy = normalized_policy("scope-a", "application", "scope-a", "provider");
+        let unobserved = |module: &str| {
+            AnalysisIssue::analysis_context_unresolved(
+                "analysis.unsupported-syntax",
+                "#[path] module declarations are not supported in the MVP",
+                module,
+                Some(module.to_owned()),
+                None,
+                Vec::new(),
+            )
+        };
+        let mut issues = vec![unobserved("crate::selected"), unobserved("crate::excluded")];
+
+        // Act
+        let (_, coverage) = assess_normalized_sdd(&mut issues, &graph, &policy);
+
+        // Assert
+        let unresolved = coverage
+            .unresolved_modules
+            .iter()
+            .map(|module| module.module_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(unresolved, vec!["crate::selected"]);
     }
 
     fn graph_with_dependency(source: &str, target: &str) -> ObservedDependencyGraph {

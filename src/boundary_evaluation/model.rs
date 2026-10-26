@@ -255,6 +255,7 @@ impl AnalysisIssue {
                 evidence: Some(evidence),
                 candidate_targets,
                 dependency_kinds,
+                includes_descendant_modules: false,
             },
             policy_impact: PolicyImpact::possible(Vec::new()),
         }
@@ -278,6 +279,7 @@ impl AnalysisIssue {
                 evidence,
                 candidate_targets: Vec::new(),
                 dependency_kinds,
+                includes_descendant_modules: false,
             },
             policy_impact: PolicyImpact::possible(Vec::new()),
         }
@@ -298,6 +300,7 @@ impl AnalysisIssue {
                 evidence: None,
                 candidate_targets: Vec::new(),
                 dependency_kinds: Vec::new(),
+                includes_descendant_modules: false,
             },
             policy_impact: PolicyImpact::possible(Vec::new()),
         }
@@ -322,9 +325,15 @@ impl AnalysisIssue {
                 evidence,
                 candidate_targets: Vec::new(),
                 dependency_kinds: Vec::new(),
+                includes_descendant_modules: false,
             },
             policy_impact: PolicyImpact::none(),
         }
+    }
+
+    pub fn with_descendant_modules(mut self) -> Self {
+        self.observation.includes_descendant_modules = true;
+        self
     }
 
     pub(crate) fn canonical_cmp(&self, other: &Self) -> Ordering {
@@ -362,6 +371,8 @@ pub struct AnalysisObservation {
     pub evidence: Option<SourceEvidence>,
     pub candidate_targets: Vec<String>,
     pub dependency_kinds: Vec<DependencyKind>,
+    // An unobserved module file may declare further modules, so policy impact must cover them too.
+    pub includes_descendant_modules: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

@@ -157,6 +157,13 @@ cases:
         defects:
           - missing-observed-file-attribution
   - contract_id: contract.logical-module-boundary.boundary-policy-input
+    id: resolved-attribution-path-module-is-indeterminate
+    partition: unresolved-implementation-attribution
+    input:
+      resolved_implementation_attribution:
+        defects:
+          - unobserved-path-module-source
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
     id: resolved-attribution-forbidden-edge-is-non-conformant
     partition: forbidden-resolved-attribution-edge
     input:
@@ -392,6 +399,50 @@ cases:
         violating_dependency: absent
         construct_affects_applicable_rule: true
         unanalyzable_construct: path-module-unsupported-syntax
+      report_options:
+        format: json
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: path-module-descendant-policy-is-indeterminate
+    partition: path-module-analysis-issue
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        construct_affects_applicable_rule: true
+        unanalyzable_construct: path-module-unsupported-syntax
+        applicable_rule_source: descendant-of-path-module
+      report_options:
+        format: json
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: unparsable-module-descendant-policy-is-indeterminate
+    partition: possible-policy-impact-analysis-issue
+    input:
+      project_and_policy:
+        violating_dependency: absent
+        construct_affects_applicable_rule: true
+        unanalyzable_construct: unparsable-module-file
+        applicable_rule_source: descendant-of-unparsable-module
+      report_options:
+        format: json
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: resolved-attribution-macro-expansion-is-indeterminate
+    partition: possible-policy-impact-analysis-issue
+    input:
+      policy_source: resolved-implementation-attribution
+      project_and_policy:
+        violating_dependency: absent
+        construct_affects_applicable_rule: true
+        unanalyzable_construct: unsupported-macro-expansion
+      report_options:
+        format: json
+  - contract_id: contract.logical-module-boundary.validation-report
+    id: resolved-attribution-macro-expansion-without-policy-impact
+    partition: unresolved-dependency-without-policy-impact
+    input:
+      policy_source: resolved-implementation-attribution
+      project_and_policy:
+        violating_dependency: absent
+        unanalyzable_construct: unsupported-macro-expansion
+        construct_affects_applicable_rule: false
       report_options:
         format: json
   - contract_id: contract.logical-module-boundary.validation-report

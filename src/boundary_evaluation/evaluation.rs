@@ -5,7 +5,7 @@ use super::model::{
     Dependency, DependencyKind, ObservedDependencyGraph, PolicyEvaluation, PolicyImpact, RuleKind,
     ValidationDecision, ViolationKind,
 };
-use super::pattern::matches_pattern;
+use super::pattern::{matches_pattern, matches_pattern_or_descendant};
 
 pub fn evaluate(
     graph: &ObservedDependencyGraph,
@@ -148,6 +148,15 @@ fn policy_impact_rule_ids(
     source: &str,
     policy: &BoundaryPolicy,
 ) -> Vec<String> {
+    let source_can_match = |patterns: &[String]| {
+        patterns.iter().any(|pattern| {
+            if issue.observation.includes_descendant_modules {
+                matches_pattern_or_descendant(pattern, source)
+            } else {
+                matches_pattern(pattern, source)
+            }
+        })
+    };
     let target_can_match = |patterns: &[String]| {
         issue.observation.candidate_targets.is_empty()
             || issue.observation.candidate_targets.iter().any(|target| {
@@ -160,7 +169,7 @@ fn policy_impact_rule_ids(
         .rules
         .iter()
         .filter(|rule| rule.kind == RuleKind::Forbidden)
-        .filter(|rule| matches_source(rule, source) && issue_kind_can_match(issue, rule))
+        .filter(|rule| source_can_match(&rule.from) && issue_kind_can_match(issue, rule))
         .filter(|rule| target_can_match(&rule.to))
         .map(|rule| rule.id.clone())
         .collect::<Vec<_>>();
@@ -169,7 +178,7 @@ fn policy_impact_rule_ids(
         .rules
         .iter()
         .filter(|rule| rule.kind == RuleKind::Allowed)
-        .filter(|rule| matches_source(rule, source) && issue_kind_can_match(issue, rule))
+        .filter(|rule| source_can_match(&rule.from) && issue_kind_can_match(issue, rule))
         .collect::<Vec<_>>();
     if !allowed.is_empty() {
         let allowed_targets = allowed
@@ -193,12 +202,7 @@ fn policy_impact_rule_ids(
             .iter()
             .filter(|rule| rule.kind == RuleKind::Circular)
             .filter(|rule| issue_kind_can_match(issue, rule))
-            .filter(|rule| {
-                rule.modules
-                    .iter()
-                    .any(|pattern| matches_pattern(pattern, source))
-                    && target_can_match(&rule.modules)
-            })
+            .filter(|rule| source_can_match(&rule.modules) && target_can_match(&rule.modules))
             .map(|rule| rule.id.clone()),
     );
     ids

@@ -14,6 +14,28 @@ pub fn matches_pattern(pattern: &str, value: &str) -> bool {
     match_segments(&pattern_segments, &value_segments)
 }
 
+pub fn matches_pattern_or_descendant(pattern: &str, value: &str) -> bool {
+    let pattern_segments: Vec<&str> = pattern.split("::").collect();
+    let value_segments: Vec<&str> = value.split("::").collect();
+    match_prefix_segments(&pattern_segments, &value_segments)
+}
+
+fn match_prefix_segments(pattern: &[&str], value: &[&str]) -> bool {
+    if value.is_empty() {
+        return true;
+    }
+    if pattern.is_empty() {
+        return false;
+    }
+    if pattern[0] == "**" {
+        (0..=value.len()).any(|index| match_prefix_segments(&pattern[1..], &value[index..]))
+    } else if pattern[0] == "*" || pattern[0] == value[0] {
+        match_prefix_segments(&pattern[1..], &value[1..])
+    } else {
+        false
+    }
+}
+
 fn match_segments(pattern: &[&str], value: &[&str]) -> bool {
     if pattern.is_empty() {
         return value.is_empty();

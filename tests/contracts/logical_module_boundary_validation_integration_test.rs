@@ -205,6 +205,22 @@ fn runtime_item_macro_fixture(name: &str, definitions: &str) -> TempFixture {
     fixture
 }
 
+fn macro_expansion_attribution_fixture(label: &str, component_dependencies: &str) -> TempFixture {
+    let fixture = TempFixture::new(label);
+    fixture.write(
+        "src/main.rs",
+        "mod provider;\nmacro_rules! pull { () => { fn pulled() -> crate::provider::Thing { crate::provider::Thing } }; }\npull!();\nfn main() {}\n",
+    );
+    fixture.write("src/provider.rs", "pub struct Thing;\n");
+    let content = resolved_implementation_attribution(&fixture).replacen(
+        "component_dependencies: []",
+        &format!("  - observed_file_path: src/provider.rs\n    canonical_scope: fixture\n    component_id: provider\n    element_id: provider\ncomponent_dependencies: {component_dependencies}"),
+        1,
+    );
+    fixture.write("resolved-implementation-attribution.sdd.yml", &content);
+    fixture
+}
+
 fn run_resolved_attribution_check(fixture: &TempFixture, extra_args: &[&str]) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_a3-rust-cruiser"));
     command

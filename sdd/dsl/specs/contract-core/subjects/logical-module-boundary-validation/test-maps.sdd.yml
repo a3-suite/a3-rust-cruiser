@@ -277,6 +277,13 @@ test_maps:
         guarantees:
           - unresolved-implementation-attribution-is-indeterminate
   - contract_id: contract.logical-module-boundary.boundary-policy-input
+    case_id: resolved-attribution-path-module-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
+        symbol: should_public_resolved_attribution_path_module_is_indeterminate
+        guarantees:
+          - unresolved-implementation-attribution-is-indeterminate
+  - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: resolved-attribution-forbidden-edge-is-non-conformant
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
@@ -789,6 +796,83 @@ test_maps:
           - report-ordering-canonical
           - report-decision-supported
           - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
+    case_id: path-module-descendant-policy-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_path_module_declaration_is_indeterminate_for_descendant_policy
+        guarantees:
+          - indeterminate-decision
+          - analysis-issue-code-supported
+          - path-module-source-module-present
+          - analysis-issue-has-possible-policy-impact
+          - possible-policy-impact-rule-ids-present
+          - analysis-issues-present
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
+    case_id: unparsable-module-descendant-policy-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_unparsable_module_is_indeterminate_for_descendant_policy
+        guarantees:
+          - indeterminate-decision
+          - analysis-issue-code-supported
+          - analysis-issue-has-possible-policy-impact
+          - possible-policy-impact-rule-ids-present
+          - analysis-issues-present
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
+    case_id: resolved-attribution-macro-expansion-is-indeterminate
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_resolved_attribution_macro_expansion_is_indeterminate_for_forbidden_component
+        guarantees:
+          - indeterminate-decision
+          - analysis-issue-code-supported
+          - analysis-issue-has-possible-policy-impact
+          - possible-policy-impact-rule-ids-present
+          - analysis-issues-present
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+  - contract_id: contract.logical-module-boundary.validation-report
+    case_id: resolved-attribution-macro-expansion-without-policy-impact
+    tests:
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: should_resolved_attribution_macro_expansion_has_no_policy_impact_for_allowed_component
+        guarantees:
+          - conformant-decision
+          - analysis-issue-code-supported
+          - analysis-issues-present
+          - analysis-issue-reason-present
+          - analysis-issue-affected-scope-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+          - dependency-neutral-has-no-policy-impact
+          - unresolved-dependency-observation
   - contract_id: contract.logical-module-boundary.validation-report
     case_id: path-module-unsupported-syntax-is-indeterminate
     tests:

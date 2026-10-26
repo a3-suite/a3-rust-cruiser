@@ -134,6 +134,34 @@ fn should_public_resolved_attribution_is_indeterminate_when_unresolved() {
 }
 
 #[test]
+fn should_public_resolved_attribution_path_module_is_indeterminate() {
+    // Arrange
+    let fixture = TempFixture::new("resolved-attribution-public-path-module");
+    fixture.write(
+        "src/main.rs",
+        "#[path = \"restricted.rs\"]\nmod restricted;\nmod provider;\nfn main() {}\n",
+    );
+    fixture.write("src/restricted.rs", "use crate::provider::Thing;\n");
+    fixture.write("src/provider.rs", "pub struct Thing;\n");
+    let content = resolved_implementation_attribution(&fixture).replacen(
+        "component_dependencies: []",
+        "  - observed_file_path: src/restricted.rs\n    canonical_scope: fixture\n    component_id: application\n    element_id: restricted\n  - observed_file_path: src/provider.rs\n    canonical_scope: fixture\n    component_id: provider\n    element_id: provider\ncomponent_dependencies: []",
+        1,
+    );
+    fixture.write("resolved-implementation-attribution.sdd.yml", &content);
+
+    // Act
+    let report = completed_json(&run_resolved_attribution_check(&fixture, &[]), 2);
+
+    // Assert
+    assert_eq!(report["decision"], "indeterminate");
+    assert_eq!(
+        report["normalized_sdd_coverage"]["unresolved_modules"][0]["module_id"],
+        "crate::restricted"
+    );
+}
+
+#[test]
 fn should_public_resolved_attribution_forbidden_scope_edge_is_non_conformant() {
     // Arrange
     let fixture = TempFixture::new("resolved-attribution-public-forbidden");

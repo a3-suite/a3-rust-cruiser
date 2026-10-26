@@ -258,14 +258,17 @@ impl Observer {
             Ok(ast) => ast,
             Err(error) => {
                 let evidence = self.evidence(path, error.span().start());
-                self.issues.push(AnalysisIssue::analysis_context_unresolved(
-                    "analysis.unsupported-syntax",
-                    format!("unable to parse {}: {error}", path.display()),
-                    id,
-                    Some(id.to_owned()),
-                    Some(evidence),
-                    all_dependency_kinds(),
-                ));
+                self.issues.push(
+                    AnalysisIssue::analysis_context_unresolved(
+                        "analysis.unsupported-syntax",
+                        format!("unable to parse {}: {error}", path.display()),
+                        id,
+                        Some(id.to_owned()),
+                        Some(evidence),
+                        all_dependency_kinds(),
+                    )
+                    .with_descendant_modules(),
+                );
                 return Ok(());
             }
         };
@@ -344,14 +347,17 @@ impl Observer {
             if cfg_decision != CfgDecision::Unknown
                 && has_path_attribute(&module.attrs, &self.cfg_context)
             {
-                self.issues.push(AnalysisIssue::analysis_context_unresolved(
-                    "analysis.unsupported-syntax",
-                    "#[path] module declarations are not supported in the MVP",
-                    child_id.clone(),
-                    Some(child_id.clone()),
-                    Some(evidence),
-                    all_dependency_kinds(),
-                ));
+                self.issues.push(
+                    AnalysisIssue::analysis_context_unresolved(
+                        "analysis.unsupported-syntax",
+                        "#[path] module declarations are not supported in the MVP",
+                        child_id.clone(),
+                        Some(child_id.clone()),
+                        Some(evidence),
+                        all_dependency_kinds(),
+                    )
+                    .with_descendant_modules(),
+                );
                 continue;
             }
             if let Some((_, inline_items)) = module.content {

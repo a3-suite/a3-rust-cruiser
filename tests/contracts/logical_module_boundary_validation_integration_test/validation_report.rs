@@ -1778,6 +1778,102 @@ fn should_path_module_declaration_is_indeterminate_for_child_policy() {
 }
 
 #[test]
+fn should_path_module_declaration_is_indeterminate_for_descendant_policy() {
+    // Arrange
+    let fixture = TempFixture::new("path-module-descendant-policy");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-inner-to-forbidden\n    kind: forbidden\n    severity: error\n    from: [crate::restricted::inner]\n    to: [crate::forbidden]\n",
+    );
+    fixture.write(
+        "src/main.rs",
+        "#[path = \"restricted.rs\"]\nmod restricted;\nmod forbidden;\nfn main() {}\n",
+    );
+    fixture.write("src/restricted.rs", "mod inner;\n");
+    fixture.write("src/forbidden.rs", "pub struct Thing;\n");
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-syntax");
+    let issue = &report["analysis_issues"][0];
+    assert_eq!(issue["observation"]["source_module"], "crate::restricted");
+    assert_eq!(issue["policy_impact"]["outcome"], "possible");
+    assert_eq!(
+        issue["policy_impact"]["rule_ids"],
+        serde_json::json!(["forbid-inner-to-forbidden"])
+    );
+}
+
+#[test]
+fn should_unparsable_module_is_indeterminate_for_descendant_policy() {
+    // Arrange
+    let fixture = TempFixture::new("unparsable-module-descendant-policy");
+    fixture.write(
+        "policy.yaml",
+        "rules:\n  - id: forbid-inner-to-forbidden\n    kind: forbidden\n    severity: error\n    from: [crate::broken::inner]\n    to: [crate::forbidden]\n",
+    );
+    fixture.write("src/main.rs", "mod broken;\nmod forbidden;\nfn main() {}\n");
+    fixture.write("src/broken.rs", "mod inner;\nfn broken( {\n");
+    fixture.write("src/forbidden.rs", "pub struct Thing;\n");
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-syntax");
+    let issue = &report["analysis_issues"][0];
+    assert_eq!(issue["observation"]["source_module"], "crate::broken");
+    assert_eq!(issue["policy_impact"]["outcome"], "possible");
+    assert_eq!(
+        issue["policy_impact"]["rule_ids"],
+        serde_json::json!(["forbid-inner-to-forbidden"])
+    );
+}
+
+#[test]
+fn should_resolved_attribution_macro_expansion_is_indeterminate_for_forbidden_component() {
+    // Arrange
+    let fixture = macro_expansion_attribution_fixture("resolved-attribution-macro-forbidden", "[]");
+
+    // Act
+    let report = completed_json(&run_resolved_attribution_check(&fixture, &[]), 2);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+    let issue = &report["analysis_issues"][0];
+    assert_eq!(issue["code"], "analysis.unsupported-macro-expansion");
+    assert_eq!(issue["policy_impact"]["outcome"], "possible");
+    assert_ne!(issue["policy_impact"]["rule_ids"], serde_json::json!([]));
+    assert_eq!(report["decision"], "indeterminate");
+}
+
+#[test]
+fn should_resolved_attribution_macro_expansion_has_no_policy_impact_for_allowed_component() {
+    // Arrange
+    let fixture = macro_expansion_attribution_fixture(
+        "resolved-attribution-macro-allowed",
+        "\n  - canonical_scope: fixture\n    from_component_id: application\n    to_component_id: provider",
+    );
+
+    // Act
+    let report = completed_json(&run_resolved_attribution_check(&fixture, &[]), 0);
+
+    // Assert
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+    let issue = &report["analysis_issues"][0];
+    assert_eq!(issue["code"], "analysis.unsupported-macro-expansion");
+    assert_eq!(
+        issue["observation"]["outcome"],
+        "unresolved-dependency-candidate"
+    );
+    assert_eq!(issue["policy_impact"]["outcome"], "none");
+    assert_eq!(issue["policy_impact"]["rule_ids"], serde_json::json!([]));
+    assert_eq!(report["decision"], "conformant");
+}
+
+#[test]
 fn should_active_cfg_attr_path_module_is_indeterminate_for_child_policy() {
     // Arrange
     let fixture = TempFixture::new("cfg-attr-path-module-child-policy");
