@@ -58,7 +58,6 @@
 - JSONレポートの`schema_version`が`3`であることを確認する。
 - `normalized_sdd_coverage`の`covered_modules`、`unresolved_modules`、`source_provenance`を確認する。
 - CLIの解析コンテキスト、coverage、Rust module IDを入力ファイルへ追加しない。
-- 観測されたsource fileの帰属がない場合、または同一moduleのsource file群が異なるowner tupleへ解決される場合は、違反なしへ読み替えず`indeterminate`として扱う。
 
 ## 判定と完了
 

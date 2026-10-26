@@ -48,5 +48,5 @@ description: a3-rust-cruiser でコミット前に staged snapshot の変更を�
 ### a3-rust-cruiser をコミットする前
 
 - git スキルの基本コミットゲートを適用する。
-- `bash {skill-root}/scripts/run-commit-gate.sh` を実行する。
+- `{skill-root}/scripts/run-commit-gate.sh` を実行する。
 - 終了コード `0` の場合だけコミット可能とする。`1` は検証不合格、`2` は判定不能として停止する。
