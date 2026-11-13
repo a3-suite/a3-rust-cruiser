@@ -5,7 +5,7 @@ test_maps:
     case_id: typed-dependencies-and-declarations
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_typed_dependencies_and_declarations_are_reported
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_typed_dependencies_and_declarations_are_reported
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -16,27 +16,27 @@ test_maps:
           - dependency-target-scope-supported
           - excluded-scopes-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_aliases_and_multiple_super_segments_are_resolved
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_aliases_and_multiple_super_segments_are_resolved
         guarantees:
           - dependency-edges-present
           - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_supported_compilation_targets_select_their_entry_files
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_supported_compilation_targets_select_their_entry_files
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_conventional_compilation_target_paths_are_supported
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_conventional_compilation_target_paths_are_supported
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_required_feature_activates_the_selected_target
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_required_feature_activates_the_selected_target
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_inline_nested_and_declared_external_dependencies_are_observed
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_inline_nested_and_declared_external_dependencies_are_observed
         guarantees:
           - logical-modules-present
           - module-declarations-separated
@@ -44,39 +44,39 @@ test_maps:
           - dependency-kind-supported
           - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_leading_colon_selects_the_external_crate_namespace
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_leading_colon_selects_the_external_crate_namespace
         guarantees:
           - dependency-edges-present
           - dependency-kind-supported
           - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_declared_item_kinds_support_complete_path_resolution
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_declared_item_kinds_support_complete_path_resolution
         guarantees:
           - dependency-edges-present
           - dependency-kind-supported
           - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_dev_dependency_is_available_to_test_target
-        guarantees:
-          - analysis-context-present
-          - dependency-edges-present
-          - dependency-kind-supported
-          - dependency-target-scope-supported
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_exact_target_dependency_is_active_for_the_selected_triple
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_dev_dependency_is_available_to_test_target
         guarantees:
           - analysis-context-present
           - dependency-edges-present
           - dependency-kind-supported
           - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_handle_public_reexport_cycle_deterministically
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_exact_target_dependency_is_active_for_the_selected_triple
+        guarantees:
+          - analysis-context-present
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_handle_public_reexport_cycle_deterministically
         guarantees:
           - dependency-edges-present
           - dependency-kind-supported
           - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_default_features_expand_optional_dependencies_for_test_targets
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_default_features_expand_optional_dependencies_for_test_targets
         guarantees:
           - dependency-edges-present
           - dependency-kind-supported
@@ -85,7 +85,7 @@ test_maps:
     case_id: source-union-source-authored-dependencies
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_source_union_observes_source_authored_dependencies_without_expansion_issues
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_source_union_observes_source_authored_dependencies_without_expansion_issues
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -97,7 +97,7 @@ test_maps:
           - dependency-target-scope-supported
           - excluded-scopes-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_source_union_unions_cfg_gated_alias_candidates
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_source_union_unions_cfg_gated_alias_candidates
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -106,7 +106,7 @@ test_maps:
           - dependency-kind-supported
           - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_source_union_includes_conditional_external_dependencies
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_source_union_includes_conditional_external_dependencies
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -115,37 +115,28 @@ test_maps:
           - dependency-kind-supported
           - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_source_union_preserves_conditional_dependency_kind_boundaries
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_source_union_preserves_conditional_dependency_kind_boundaries
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
           - source-union-profile-selected
           - dependency-edges-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_source_union_does_not_expand_exact_runtime_item_macro
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_source_union_does_not_expand_exact_runtime_item_macro
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
           - source-union-profile-selected
           - dependency-edges-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_source_union_does_not_observe_serde_function_path_dependency
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_source_union_does_not_observe_serde_function_path_dependency
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
           - source-union-profile-selected
           - dependency-edges-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_glob_import_and_reexport_chain_resolve_in_both_profiles
-        guarantees:
-          - analysis-context-present
-          - analysis-profile-supported
-          - source-union-profile-selected
-          - dependency-edges-present
-          - dependency-kind-supported
-          - dependency-target-scope-supported
-      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_crate_visible_glob_reexport_resolves_in_both_profiles
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_glob_import_and_reexport_chain_resolve_in_both_profiles
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -154,7 +145,7 @@ test_maps:
           - dependency-kind-supported
           - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_crate_visible_super_glob_reexport_resolves_in_both_profiles
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_crate_visible_glob_reexport_resolves_in_both_profiles
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -163,13 +154,22 @@ test_maps:
           - dependency-kind-supported
           - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_glob_import_keeps_unresolved_names_indeterminate_in_source_union
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_crate_visible_super_glob_reexport_resolves_in_both_profiles
+        guarantees:
+          - analysis-context-present
+          - analysis-profile-supported
+          - source-union-profile-selected
+          - dependency-edges-present
+          - dependency-kind-supported
+          - dependency-target-scope-supported
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_glob_import_keeps_unresolved_names_indeterminate_in_source_union
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
           - source-union-profile-selected
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_glob_reexport_does_not_resolve_private_items
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_glob_reexport_does_not_resolve_private_items
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -177,7 +177,7 @@ test_maps:
     case_id: exact-runtime-item-macro-generated-dependencies
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_exact_policy_runtime_item_macro_observes_generated_dependencies
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_exact_policy_runtime_item_macro_observes_generated_dependencies
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -185,7 +185,7 @@ test_maps:
           - dependency-kind-supported
           - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_multi_arm_runtime_item_macro_observes_generated_dependencies
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_multi_arm_runtime_item_macro_observes_generated_dependencies
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -193,7 +193,7 @@ test_maps:
           - dependency-kind-supported
           - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_expansion_follow_rustc_rule_and_reexport_selection
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_expansion_follow_rustc_rule_and_reexport_selection
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -202,7 +202,7 @@ test_maps:
     case_id: module-local-pattern-item-macro-generated-dependencies
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_module_local_pattern_item_macro_observes_generated_dependencies
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_module_local_pattern_item_macro_observes_generated_dependencies
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -213,7 +213,7 @@ test_maps:
     case_id: thread-local-declaration-dependencies
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_thread_local_declarations_observe_type_and_initializer_dependencies
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_thread_local_declarations_observe_type_and_initializer_dependencies
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -221,7 +221,7 @@ test_maps:
           - dependency-kind-supported
           - dependency-target-scope-supported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_qualified_std_thread_local_observes_declaration_dependencies
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_qualified_std_thread_local_observes_declaration_dependencies
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -230,7 +230,7 @@ test_maps:
     case_id: serde-function-path-generated-dependencies
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/dependency_graph.rs
-        symbol: should_serde_function_path_observes_explicit_internal_dependency
+        symbol: logical_module_boundary_validation_integration_test::dependency_graph::should_serde_function_path_observes_explicit_internal_dependency
         guarantees:
           - analysis-context-present
           - analysis-profile-supported
@@ -241,21 +241,21 @@ test_maps:
     case_id: documented-policy-shape-is-accepted
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_documented_boundary_policy_shape_is_accepted
+        symbol: logical_module_boundary_validation_integration_test::boundary_policy_input::should_documented_boundary_policy_shape_is_accepted
         guarantees:
           - valid-policy-source-accepted
   - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: omitted-optional-policy-collections-default-empty
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_omitted_boundary_policy_collections_default_to_empty
+        symbol: logical_module_boundary_validation_integration_test::boundary_policy_input::should_omitted_boundary_policy_collections_default_to_empty
         guarantees:
           - valid-policy-source-accepted
   - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: unknown-policy-field-is-rejected
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_unknown_boundary_policy_field_is_rejected
+        symbol: logical_module_boundary_validation_integration_test::boundary_policy_input::should_unknown_boundary_policy_field_is_rejected
         guarantees:
           - invalid-policy-source-exits-with-three
           - invalid-boundary-policy-input-keeps-stdout-empty
@@ -264,7 +264,7 @@ test_maps:
     case_id: unsupported-policy-enum-is-rejected
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_unsupported_boundary_policy_enum_is_rejected
+        symbol: logical_module_boundary_validation_integration_test::boundary_policy_input::should_unsupported_boundary_policy_enum_is_rejected
         guarantees:
           - invalid-policy-source-exits-with-three
           - invalid-boundary-policy-input-keeps-stdout-empty
@@ -273,7 +273,7 @@ test_maps:
     case_id: invalid-policy-rules-are-rejected
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_invalid_boundary_policy_rules_are_rejected
+        symbol: logical_module_boundary_validation_integration_test::boundary_policy_input::should_invalid_boundary_policy_rules_are_rejected
         guarantees:
           - invalid-policy-source-exits-with-three
           - invalid-boundary-policy-input-keeps-stdout-empty
@@ -282,12 +282,12 @@ test_maps:
     case_id: resolved-implementation-attribution-is-consumed-directly
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_public_resolved_implementation_attribution_is_accepted
+        symbol: logical_module_boundary_validation_integration_test::boundary_policy_input::should_public_resolved_implementation_attribution_is_accepted
         guarantees:
           - valid-policy-source-accepted
           - resolved-attribution-coverage-is-reported
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_public_resolved_attribution_accept_multiple_scopes_and_artifacts
+        symbol: logical_module_boundary_validation_integration_test::boundary_policy_input::should_public_resolved_attribution_accept_multiple_scopes_and_artifacts
         guarantees:
           - valid-policy-source-accepted
           - resolved-attribution-coverage-is-reported
@@ -295,12 +295,12 @@ test_maps:
     case_id: invalid-resolved-implementation-attribution-is-rejected
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_invalid_resolved_attribution_is_rejected_before_analysis
+        symbol: logical_module_boundary_validation_integration_test::boundary_policy_input::should_invalid_resolved_attribution_is_rejected_before_analysis
         guarantees:
           - invalid-policy-source-exits-with-three
           - invalid-resolved-implementation-attribution-input-reports-its-diagnostic-before-observation
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_malformed_resolved_attribution_report_its_path
+        symbol: logical_module_boundary_validation_integration_test::boundary_policy_input::should_malformed_resolved_attribution_report_its_path
         guarantees:
           - invalid-policy-source-exits-with-three
           - invalid-resolved-implementation-attribution-input-reports-its-diagnostic-before-observation
@@ -308,35 +308,35 @@ test_maps:
     case_id: resolved-attribution-and-other-policy-sources-are-rejected
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_resolved_attribution_is_exclusive_with_other_policy_sources
+        symbol: logical_module_boundary_validation_integration_test::boundary_policy_input::should_resolved_attribution_is_exclusive_with_other_policy_sources
         guarantees:
           - invalid-policy-source-exits-with-three
   - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: unresolved-implementation-attribution-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_public_resolved_attribution_is_indeterminate_when_unresolved
+        symbol: logical_module_boundary_validation_integration_test::boundary_policy_input::should_public_resolved_attribution_is_indeterminate_when_unresolved
         guarantees:
           - unresolved-implementation-attribution-is-indeterminate
   - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: resolved-attribution-path-module-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_public_resolved_attribution_path_module_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::boundary_policy_input::should_public_resolved_attribution_path_module_is_indeterminate
         guarantees:
           - unresolved-implementation-attribution-is-indeterminate
   - contract_id: contract.logical-module-boundary.boundary-policy-input
     case_id: resolved-attribution-forbidden-edge-is-non-conformant
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/boundary_policy_input.rs
-        symbol: should_public_resolved_attribution_forbidden_scope_edge_is_non_conformant
+        symbol: logical_module_boundary_validation_integration_test::boundary_policy_input::should_public_resolved_attribution_forbidden_scope_edge_is_non_conformant
         guarantees:
           - forbidden-resolved-attribution-edge-is-non-conformant
   - contract_id: contract.logical-module-boundary.policy-evaluation
     case_id: forbidden-overrides-matching-allowed-rule
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/policy_evaluation.rs
-        symbol: should_forbidden_rule_overrides_matching_allowed_rule
+        symbol: logical_module_boundary_validation_integration_test::policy_evaluation::should_forbidden_rule_overrides_matching_allowed_rule
         guarantees:
           - violations-present
           - violation-kind-supported
@@ -356,7 +356,7 @@ test_maps:
     case_id: applicable-allowed-rules-use-target-union
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/policy_evaluation.rs
-        symbol: should_applicable_allowed_rules_use_target_union
+        symbol: logical_module_boundary_validation_integration_test::policy_evaluation::should_applicable_allowed_rules_use_target_union
         guarantees:
           - violations-present
           - allowed-targets-unioned
@@ -367,7 +367,7 @@ test_maps:
     case_id: unmatched-applicable-allowed-rules-produce-violation
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/policy_evaluation.rs
-        symbol: should_unmatched_applicable_allowed_rules_produce_violation
+        symbol: logical_module_boundary_validation_integration_test::policy_evaluation::should_unmatched_applicable_allowed_rules_produce_violation
         guarantees:
           - violations-present
           - violation-kind-supported
@@ -387,7 +387,7 @@ test_maps:
     case_id: circular-rule-is-independent-from-allowed-rules
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/policy_evaluation.rs
-        symbol: should_circular_rule_is_independent_from_allowed_rules
+        symbol: logical_module_boundary_validation_integration_test::policy_evaluation::should_circular_rule_is_independent_from_allowed_rules
         guarantees:
           - violations-present
           - violation-kind-supported
@@ -409,45 +409,45 @@ test_maps:
     case_id: complete-without-violation
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_complete_graph_without_violations_is_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_complete_graph_without_violations_is_conformant
         guarantees:
           - conformant-decision
   - contract_id: contract.logical-module-boundary.validation-report
     case_id: complete-with-violation
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_standard_macro_arguments_are_observed_recursively
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_standard_macro_arguments_are_observed_recursively
         guarantees:
           - non-conformant-decision
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_complete_graph_with_violations_is_non_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_complete_graph_with_violations_is_non_conformant
         guarantees:
           - non-conformant-decision
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_safe_local_macro_observes_internal_paths_in_arguments
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_safe_local_macro_observes_internal_paths_in_arguments
         guarantees:
           - non-conformant-decision
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_serde_function_path_observes_aliased_internal_dependency
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_serde_function_path_observes_aliased_internal_dependency
         guarantees:
           - non-conformant-decision
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_exact_require_shape_macro_observes_internal_path_argument
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_exact_require_shape_macro_observes_internal_path_argument
         guarantees:
           - non-conformant-decision
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_internal_module_named_like_a_prelude_type_is_observed
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_internal_module_named_like_a_prelude_type_is_observed
         guarantees:
           - non-conformant-decision
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_nested_json_and_matches_guards_observe_internal_paths
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_nested_json_and_matches_guards_observe_internal_paths
         guarantees:
           - non-conformant-decision
   - contract_id: contract.logical-module-boundary.validation-report
     case_id: incomplete-with-observed-violation
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_confirmed_violations_are_non_conformant_even_with_possible_issues
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_confirmed_violations_are_non_conformant_even_with_possible_issues
         guarantees:
           - non-conformant-decision
           - analysis-issue-has-possible-policy-impact
@@ -456,7 +456,7 @@ test_maps:
     case_id: unresolved-candidate-without-policy-impact
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unresolved_candidate_outside_the_policy_is_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unresolved_candidate_outside_the_policy_is_conformant
         guarantees:
           - conformant-decision
           - analysis-observation-outcome-supported
@@ -475,7 +475,7 @@ test_maps:
     case_id: unresolved-candidate-allowed-union-matches
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unresolved_candidate_with_allowed_target_union_is_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unresolved_candidate_with_allowed_target_union_is_conformant
         guarantees:
           - conformant-decision
           - unresolved-dependency-observation
@@ -494,7 +494,7 @@ test_maps:
     case_id: unresolved-candidate-allowed-union-misses
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unresolved_candidate_outside_allowed_target_union_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unresolved_candidate_outside_allowed_target_union_is_indeterminate
         guarantees:
           - indeterminate-decision
           - unresolved-dependency-observation
@@ -514,7 +514,7 @@ test_maps:
     case_id: unresolved-candidate-with-empty-targets
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unresolved_candidate_without_targets_is_indeterminate_for_allowed_rule
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unresolved_candidate_without_targets_is_indeterminate_for_allowed_rule
         guarantees:
           - indeterminate-decision
           - unresolved-dependency-observation
@@ -534,12 +534,12 @@ test_maps:
     case_id: dependency-neutral-without-policy-impact
     tests:
       - path: src/boundary_evaluation/evaluation.rs
-        symbol: should_keep_dependency_neutral_issues_conformant
+        symbol: boundary_evaluation::evaluation::tests::should_keep_dependency_neutral_issues_conformant
         guarantees:
           - conformant-decision
           - dependency-neutral-has-no-policy-impact
       - path: src/command_interface/report.rs
-        symbol: should_project_a_dependency_neutral_issue_into_a_json_report
+        symbol: command_interface::report::tests::should_project_a_dependency_neutral_issue_into_a_json_report
         guarantees:
           - analysis-issues-present
           - analysis-issue-code-supported
@@ -556,7 +556,7 @@ test_maps:
     case_id: possible-policy-impact-without-violation-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unresolved_reference_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unresolved_reference_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issue-has-possible-policy-impact
@@ -575,7 +575,7 @@ test_maps:
     case_id: known-compilation-context-is-resolved
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_thread_local_and_module_local_pattern_item_macro_are_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_thread_local_and_module_local_pattern_item_macro_are_conformant
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -584,7 +584,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_cfg_selected_dependency_uses_the_rustc_target_context
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_cfg_selected_dependency_uses_the_rustc_target_context
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -593,7 +593,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_selected_optional_dependency_uses_the_cargo_feature_context
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_selected_optional_dependency_uses_the_cargo_feature_context
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -602,7 +602,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_inactive_cfg_items_are_excluded_before_dependency_observation
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_inactive_cfg_items_are_excluded_before_dependency_observation
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -611,7 +611,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_block_scoped_use_is_resolved_within_its_lexical_scope
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_block_scoped_use_is_resolved_within_its_lexical_scope
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -620,7 +620,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_local_binding_shadowing_does_not_create_a_module_dependency
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_local_binding_shadowing_does_not_create_a_module_dependency
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -629,7 +629,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_dependency_neutral_standard_macro_is_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_dependency_neutral_standard_macro_is_conformant
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -638,7 +638,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_dependency_neutral_external_macro_with_proven_identity_is_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_dependency_neutral_external_macro_with_proven_identity_is_conformant
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -647,7 +647,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_absolute_external_macro_import_ignore_local_item_shadow
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_absolute_external_macro_import_ignore_local_item_shadow
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -656,7 +656,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_absolute_external_macro_root_ignore_lexical_aliases
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_absolute_external_macro_root_ignore_lexical_aliases
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -665,7 +665,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_dependency_neutral_builtin_derive_is_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_dependency_neutral_builtin_derive_is_conformant
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -674,7 +674,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_external_derive_macros_with_proven_crate_identity_are_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_external_derive_macros_with_proven_crate_identity_are_conformant
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -683,7 +683,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_safe_local_single_arm_macro_is_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_safe_local_single_arm_macro_is_conformant
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -692,7 +692,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_serde_function_paths_to_same_module_helpers_are_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_serde_function_paths_to_same_module_helpers_are_conformant
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -701,7 +701,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_lexical_pattern_bindings_are_not_reported_as_unresolved
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_lexical_pattern_bindings_are_not_reported_as_unresolved
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -710,7 +710,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_package_crate_alias_is_resolved_for_library_targets
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_package_crate_alias_is_resolved_for_library_targets
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -719,7 +719,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_known_dependency_observing_macros_and_safe_serde_attributes_are_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_known_dependency_observing_macros_and_safe_serde_attributes_are_conformant
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -728,7 +728,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_serde_prelude_function_path_is_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_serde_prelude_function_path_is_conformant
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -737,7 +737,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_safe_local_macro_allows_known_nested_macro
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_safe_local_macro_allows_known_nested_macro
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -746,7 +746,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_exact_require_contract_value_macro_is_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_exact_require_contract_value_macro_is_conformant
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -755,7 +755,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_exact_require_shape_macro_is_conformant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_exact_require_shape_macro_is_conformant
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -764,7 +764,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_cfg_expression_macro_is_dependency_neutral
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_cfg_expression_macro_is_dependency_neutral
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -773,7 +773,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_generic_type_parameters_are_dependency_neutral
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_generic_type_parameters_are_dependency_neutral
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -782,7 +782,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_generic_associated_paths_are_dependency_neutral
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_generic_associated_paths_are_dependency_neutral
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -791,7 +791,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_renamed_extern_crate_is_resolved_as_external
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_renamed_extern_crate_is_resolved_as_external
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -800,7 +800,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_inactive_cfg_macro_statements_are_excluded_before_macro_observation
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_inactive_cfg_macro_statements_are_excluded_before_macro_observation
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -809,7 +809,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_inactive_cfg_fields_are_excluded_before_name_observation
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_inactive_cfg_fields_are_excluded_before_name_observation
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -818,7 +818,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_safe_local_macro_allows_cfg_expression
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_safe_local_macro_allows_cfg_expression
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -827,7 +827,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_safe_local_macro_ignores_token_neutral_nested_arguments
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_safe_local_macro_ignores_token_neutral_nested_arguments
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -839,7 +839,7 @@ test_maps:
     case_id: inactive-cfg-attr-path-module-is-ignored
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_inactive_cfg_attr_path_module_is_ignored
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_inactive_cfg_attr_path_module_is_ignored
         guarantees:
           - conformant-decision
           - analysis-issues-present
@@ -851,7 +851,7 @@ test_maps:
     case_id: path-module-descendant-policy-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_path_module_declaration_is_indeterminate_for_descendant_policy
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_path_module_declaration_is_indeterminate_for_descendant_policy
         guarantees:
           - indeterminate-decision
           - analysis-issue-code-supported
@@ -871,7 +871,7 @@ test_maps:
     case_id: unparsable-module-descendant-policy-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unparsable_module_is_indeterminate_for_descendant_policy
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unparsable_module_is_indeterminate_for_descendant_policy
         guarantees:
           - indeterminate-decision
           - analysis-issue-code-supported
@@ -890,7 +890,7 @@ test_maps:
     case_id: resolved-attribution-macro-expansion-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_resolved_attribution_macro_expansion_is_indeterminate_for_forbidden_component
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_resolved_attribution_macro_expansion_is_indeterminate_for_forbidden_component
         guarantees:
           - indeterminate-decision
           - analysis-issue-code-supported
@@ -909,7 +909,7 @@ test_maps:
     case_id: resolved-attribution-macro-expansion-without-policy-impact
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_resolved_attribution_macro_expansion_has_no_policy_impact_for_allowed_component
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_resolved_attribution_macro_expansion_has_no_policy_impact_for_allowed_component
         guarantees:
           - conformant-decision
           - analysis-issue-code-supported
@@ -928,7 +928,7 @@ test_maps:
     case_id: path-module-unsupported-syntax-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_path_module_declaration_is_indeterminate_for_child_policy
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_path_module_declaration_is_indeterminate_for_child_policy
         guarantees:
           - indeterminate-decision
           - analysis-issue-code-supported
@@ -945,7 +945,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_active_cfg_attr_path_module_is_indeterminate_for_child_policy
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_active_cfg_attr_path_module_is_indeterminate_for_child_policy
         guarantees:
           - indeterminate-decision
           - analysis-issue-code-supported
@@ -959,7 +959,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_source_union_treats_cfg_attr_path_module_as_policy_relevant
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_source_union_treats_cfg_attr_path_module_as_policy_relevant
         guarantees:
           - indeterminate-decision
           - analysis-issue-code-supported
@@ -973,7 +973,7 @@ test_maps:
     case_id: json-report
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_json_report_projects_common_validation_result
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_json_report_projects_common_validation_result
         guarantees:
           - json-schema-version-present
           - analysis-issues-present
@@ -990,7 +990,7 @@ test_maps:
     case_id: resolved-attribution-json-report
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_public_resolved_attribution_report_schema_three_and_coverage
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_public_resolved_attribution_report_schema_three_and_coverage
         guarantees:
           - resolved-attribution-json-schema-version-is-three
           - report-serialization-supported
@@ -1002,7 +1002,7 @@ test_maps:
     case_id: text-report
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_text_report_projects_common_validation_result
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_text_report_projects_common_validation_result
         guarantees:
           - analysis-issues-present
           - analysis-issue-code-supported
@@ -1015,7 +1015,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_text_report_projects_circular_cycle_path
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_text_report_projects_circular_cycle_path
         guarantees:
           - report-serialization-supported
           - report-ordering-canonical
@@ -1025,14 +1025,14 @@ test_maps:
     case_id: unresolved-reference-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_custom_thread_local_names_are_not_registered
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_custom_thread_local_names_are_not_registered
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
           - analysis-issue-code-supported
           - analysis-issue-reason-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unresolved_reference_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unresolved_reference_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1051,7 +1051,7 @@ test_maps:
     case_id: source-union-unresolved-reference-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_source_union_keeps_unresolved_internal_references_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_source_union_keeps_unresolved_internal_references_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1069,7 +1069,7 @@ test_maps:
     case_id: repeated-json-report
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_repeated_json_report_is_byte_stable
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_repeated_json_report_is_byte_stable
         guarantees:
           - json-schema-version-present
           - analysis-issues-present
@@ -1084,7 +1084,7 @@ test_maps:
     case_id: unsupported-macro-expansion-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unsupported_macro_expansion_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unsupported_macro_expansion_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1099,7 +1099,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unsupported_derive_macro_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unsupported_derive_macro_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1114,7 +1114,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_shadowed_dependency_neutral_external_macro_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_shadowed_dependency_neutral_external_macro_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1129,7 +1129,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_absolute_unknown_external_macro_root_not_resolve_through_lexical_alias
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_absolute_unknown_external_macro_root_not_resolve_through_lexical_alias
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1144,7 +1144,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_local_item_shadowing_external_macro_crate_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_local_item_shadowing_external_macro_crate_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1159,7 +1159,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_ambiguous_dependency_neutral_external_macro_import_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_ambiguous_dependency_neutral_external_macro_import_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1174,7 +1174,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_altered_runtime_item_macro_definition_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_altered_runtime_item_macro_definition_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1189,7 +1189,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_invalid_runtime_item_macro_arguments_are_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_invalid_runtime_item_macro_arguments_are_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1204,7 +1204,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unsupported_pattern_item_macro_and_thread_local_shapes_are_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unsupported_pattern_item_macro_and_thread_local_shapes_are_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1219,7 +1219,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unsupported_local_macro_shapes_are_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unsupported_local_macro_shapes_are_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1234,7 +1234,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_ambiguous_runtime_macro_import_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_ambiguous_runtime_macro_import_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1249,7 +1249,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unknown_external_derive_macro_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unknown_external_derive_macro_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1264,7 +1264,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unknown_external_single_segment_derive_alias_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unknown_external_single_segment_derive_alias_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1279,7 +1279,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_mixed_external_derive_alias_candidates_are_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_mixed_external_derive_alias_candidates_are_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1294,7 +1294,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_local_macro_with_internal_path_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_local_macro_with_internal_path_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1309,7 +1309,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_invalid_serde_function_path_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_invalid_serde_function_path_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1322,7 +1322,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unsupported_serde_function_path_shape_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unsupported_serde_function_path_shape_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1335,7 +1335,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_inner_local_macro_shadowing_preserves_fail_closed_behavior
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_inner_local_macro_shadowing_preserves_fail_closed_behavior
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1348,7 +1348,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_exact_require_macro_with_shadowed_err_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_exact_require_macro_with_shadowed_err_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1361,7 +1361,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_exact_require_macro_with_shadowed_format_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_exact_require_macro_with_shadowed_format_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1374,7 +1374,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_exact_require_macro_with_block_shadowing_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_exact_require_macro_with_block_shadowing_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1387,7 +1387,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_exact_require_macro_with_block_item_shadowing_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_exact_require_macro_with_block_item_shadowing_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1400,7 +1400,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_require_shape_macro_with_unknown_method_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_require_shape_macro_with_unknown_method_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1413,7 +1413,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_shadowed_nested_macro_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_shadowed_nested_macro_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1426,7 +1426,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_multi_arm_local_macro_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_multi_arm_local_macro_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1439,7 +1439,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_cfg_guarded_local_macro_is_not_safe
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_cfg_guarded_local_macro_is_not_safe
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1452,7 +1452,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unknown_cfg_guarded_local_macro_is_not_safe
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unknown_cfg_guarded_local_macro_is_not_safe
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1465,7 +1465,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_safe_local_macro_at_item_position_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_safe_local_macro_at_item_position_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1478,7 +1478,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_shadowed_builtin_macro_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_shadowed_builtin_macro_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1494,7 +1494,7 @@ test_maps:
     case_id: unsupported-name-resolution-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unsupported_name_resolution_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unsupported_name_resolution_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1509,7 +1509,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unresolved_single_segment_type_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unresolved_single_segment_type_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1524,7 +1524,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unsupported_expression_name_resolution_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unsupported_expression_name_resolution_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1539,7 +1539,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_dev_dependency_is_unavailable_to_binary_target
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_dev_dependency_is_unavailable_to_binary_target
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1554,7 +1554,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_serde_function_path_with_unknown_alias_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_serde_function_path_with_unknown_alias_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1569,7 +1569,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_undeclared_package_name_is_not_treated_as_a_library_alias
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_undeclared_package_name_is_not_treated_as_a_library_alias
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1582,7 +1582,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_package_name_is_not_external_without_a_library_target
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_package_name_is_not_external_without_a_library_target
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1595,7 +1595,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_serde_function_path_with_shadowed_prelude_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_serde_function_path_with_shadowed_prelude_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1608,7 +1608,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_serde_function_path_without_implicit_prelude_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_serde_function_path_without_implicit_prelude_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1621,7 +1621,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_serde_function_path_with_ambiguous_glob_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_serde_function_path_with_ambiguous_glob_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1634,7 +1634,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_no_implicit_prelude_keeps_prelude_names_unresolved
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_no_implicit_prelude_keeps_prelude_names_unresolved
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1650,7 +1650,7 @@ test_maps:
     case_id: unsupported-syntax-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unsupported_syntax_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unsupported_syntax_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1668,7 +1668,7 @@ test_maps:
     case_id: unsupported-analysis-context-is-indeterminate
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_unsupported_analysis_context_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_unsupported_analysis_context_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1683,7 +1683,7 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
-        symbol: should_missing_target_required_feature_is_indeterminate
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_missing_target_required_feature_is_indeterminate
         guarantees:
           - indeterminate-decision
           - analysis-issues-present
@@ -1701,7 +1701,7 @@ test_maps:
     case_id: root-help
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_root_help_exits_with_zero
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_root_help_exits_with_zero
         guarantees:
           - exit-code-zero
           - cli-information-written-to-stdout
@@ -1710,7 +1710,7 @@ test_maps:
     case_id: check-help
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_check_help_exits_with_zero
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_check_help_exits_with_zero
         guarantees:
           - exit-code-zero
           - cli-information-written-to-stdout
@@ -1719,7 +1719,7 @@ test_maps:
     case_id: version
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_version_exits_with_zero
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_version_exits_with_zero
         guarantees:
           - exit-code-zero
           - cli-information-written-to-stdout
@@ -1728,7 +1728,7 @@ test_maps:
     case_id: conformant-exit
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_conformant_result_exits_with_zero
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_conformant_result_exits_with_zero
         guarantees:
           - exit-code-zero
           - completed-result-written-to-stdout
@@ -1737,7 +1737,7 @@ test_maps:
     case_id: non-conformant-exit
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_non_conformant_result_exits_with_one
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_non_conformant_result_exits_with_one
         guarantees:
           - non-conformant-exit-code
           - completed-result-written-to-stdout
@@ -1746,7 +1746,7 @@ test_maps:
     case_id: indeterminate-exit
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_indeterminate_result_exits_with_two
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_indeterminate_result_exits_with_two
         guarantees:
           - indeterminate-exit-code
           - completed-result-written-to-stdout
@@ -1755,73 +1755,73 @@ test_maps:
     case_id: execution-failure-exit
     tests:
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_execution_failure_exits_with_three
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_execution_failure_exits_with_three
         guarantees:
           - execution-failure-exit-code
           - execution-failure-keeps-stdout-empty
           - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_stdout_write_failure_exits_with_three
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_stdout_write_failure_exits_with_three
         guarantees:
           - execution-failure-exit-code
           - execution-failure-keeps-stdout-empty
           - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_invalid_cli_options_are_rejected
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_invalid_cli_options_are_rejected
         guarantees:
           - execution-failure-exit-code
           - execution-failure-keeps-stdout-empty
           - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_disabled_auto_discovery_rejects_hidden_target
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_disabled_auto_discovery_rejects_hidden_target
         guarantees:
           - execution-failure-exit-code
           - execution-failure-keeps-stdout-empty
           - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_missing_target_source_is_rejected
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_missing_target_source_is_rejected
         guarantees:
           - execution-failure-exit-code
           - execution-failure-keeps-stdout-empty
           - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_invalid_manifest_and_target_requests_fail_with_diagnostics
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_invalid_manifest_and_target_requests_fail_with_diagnostics
         guarantees:
           - execution-failure-exit-code
           - execution-failure-keeps-stdout-empty
           - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_manifest_target_and_dependency_types_are_rejected
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_manifest_target_and_dependency_types_are_rejected
         guarantees:
           - execution-failure-exit-code
           - execution-failure-keeps-stdout-empty
           - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_malformed_manifest_shapes_fail_before_analysis
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_malformed_manifest_shapes_fail_before_analysis
         guarantees:
           - execution-failure-exit-code
           - execution-failure-keeps-stdout-empty
           - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_missing_required_analysis_context_is_rejected
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_missing_required_analysis_context_is_rejected
         guarantees:
           - execution-failure-exit-code
           - execution-failure-keeps-stdout-empty
           - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_missing_boundary_policy_source_is_rejected
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_missing_boundary_policy_source_is_rejected
         guarantees:
           - execution-failure-exit-code
           - execution-failure-keeps-stdout-empty
           - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_missing_module_file_report_candidates_and_declaration_location
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_missing_module_file_report_candidates_and_declaration_location
         guarantees:
           - execution-failure-exit-code
           - execution-failure-keeps-stdout-empty
           - execution-failure-writes-stderr-diagnostic
       - path: tests/contracts/logical_module_boundary_validation_integration_test/cli_outcome.rs
-        symbol: should_project_root_is_required_for_check
+        symbol: logical_module_boundary_validation_integration_test::cli_outcome::should_project_root_is_required_for_check
         guarantees:
           - execution-failure-exit-code
           - execution-failure-keeps-stdout-empty
