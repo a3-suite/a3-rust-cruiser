@@ -175,7 +175,7 @@ fn resolve_path_inner(
     }
     if absolute_external {
         let first = &path[0];
-        return if super::builtin_names::known_external_crate(first)
+        return if super::super::rust_syntax::known_external_crate(first)
             || resolver.external_crates.contains(first)
         {
             vec![(first.clone(), TargetScope::ExternalCrate)]
@@ -257,7 +257,7 @@ fn resolve_path_inner(
             {
                 return resolved;
             } else {
-                let is_external_crate = super::builtin_names::known_external_crate(first)
+                let is_external_crate = super::super::rust_syntax::known_external_crate(first)
                     || resolver.external_crates.contains(first)
                     || context
                         .source_variant

@@ -1370,6 +1370,19 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_require_shape_macro_without_local_definition_is_indeterminate
+        guarantees:
+          - indeterminate-decision
+          - analysis-issues-present
+          - analysis-issue-code-supported
+          - possible-policy-impact-rule-ids-present
+          - analysis-observation-outcome-supported
+          - analysis-policy-impact-outcome-supported
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: logical_module_boundary_validation_integration_test::validation_report::should_exact_require_macro_with_shadowed_format_is_indeterminate
         guarantees:
           - indeterminate-decision

@@ -538,11 +538,7 @@ fn collect_required_feature_issue(
             context.compilation_target.clone(),
             None,
             None,
-            vec![
-                crate::boundary_validation::DependencyKind::Import,
-                crate::boundary_validation::DependencyKind::ReExport,
-                crate::boundary_validation::DependencyKind::PathReference,
-            ],
+            crate::boundary_validation::DependencyKind::ALL.to_vec(),
         ));
     }
     Ok(())

@@ -30,8 +30,6 @@ pub(super) fn is_dependency_observing_macro(path: &[String]) -> bool {
         &["serde_json", "json"][..],
         &["inventory", "submit"][..],
         &["inventory", "collect"][..],
-        &["require_contract_value"][..],
-        &["require_shape"][..],
     ]
     .iter()
     .any(|expected| macro_path_is(path, expected))

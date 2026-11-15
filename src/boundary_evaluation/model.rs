@@ -59,6 +59,8 @@ pub enum DependencyKind {
 }
 
 impl DependencyKind {
+    pub const ALL: [Self; 3] = [Self::Import, Self::ReExport, Self::PathReference];
+
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Import => "import",

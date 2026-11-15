@@ -993,6 +993,23 @@ fn should_exact_require_shape_macro_is_conformant() {
 }
 
 #[test]
+fn should_require_shape_macro_without_local_definition_is_indeterminate() {
+    // Arrange
+    let fixture = policy_sensitive_fixture("require-shape-without-local-definition");
+    fixture.write(
+        "src/main.rs",
+        "use std::path::Path;\nfn validate(path: &Path) -> Result<(), String> { require_shape!(path, 1, 1, \"value\"); Ok(()) }\nfn main() { let _ = validate(Path::new(\"value\")); }\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 2);
+
+    // Assert
+    assert_eq!(report["decision"], "indeterminate");
+    assert_issue(&report, "analysis.unsupported-macro-expansion");
+}
+
+#[test]
 fn should_exact_require_shape_macro_observes_internal_path_argument() {
     // Arrange
     let fixture = TempFixture::new("exact-require-shape-macro-path");

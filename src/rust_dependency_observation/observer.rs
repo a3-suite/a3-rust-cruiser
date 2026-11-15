@@ -5,7 +5,6 @@ use std::{
 
 use syn::File;
 
-mod builtin_names;
 mod dependency_collection;
 mod macro_expansion;
 mod module_discovery;

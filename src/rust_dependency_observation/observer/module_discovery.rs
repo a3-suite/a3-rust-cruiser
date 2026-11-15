@@ -15,8 +15,10 @@ use super::super::{
         use_aliases,
     },
 };
-use super::{ModuleRecord, ModuleVariant, Observer, dependency_collection::all_dependency_kinds};
-use crate::boundary_validation::{AnalysisIssue, CruiserError, ModuleDeclaration, Result};
+use super::{ModuleRecord, ModuleVariant, Observer};
+use crate::boundary_validation::{
+    AnalysisIssue, CruiserError, DependencyKind, ModuleDeclaration, Result,
+};
 
 impl Observer {
     pub(super) fn discover_module(&mut self, id: &str, path: &Path) -> Result<()> {
@@ -40,7 +42,7 @@ impl Observer {
                         id,
                         Some(id.to_owned()),
                         Some(evidence),
-                        all_dependency_kinds(),
+                        DependencyKind::ALL.to_vec(),
                     )
                     .with_descendant_modules(),
                 );
@@ -96,7 +98,7 @@ impl Observer {
                         parent_id,
                         Some(parent_id.to_owned()),
                         Some(self.evidence(parent_path, item.span().start())),
-                        all_dependency_kinds(),
+                        DependencyKind::ALL.to_vec(),
                     ));
                 }
                 continue;
@@ -110,7 +112,7 @@ impl Observer {
                     child_id.clone(),
                     Some(child_id.clone()),
                     Some(evidence.clone()),
-                    all_dependency_kinds(),
+                    DependencyKind::ALL.to_vec(),
                 ));
             }
             self.declarations.push(ModuleDeclaration {
@@ -129,7 +131,7 @@ impl Observer {
                         child_id.clone(),
                         Some(child_id.clone()),
                         Some(evidence),
-                        all_dependency_kinds(),
+                        DependencyKind::ALL.to_vec(),
                     )
                     .with_descendant_modules(),
                 );

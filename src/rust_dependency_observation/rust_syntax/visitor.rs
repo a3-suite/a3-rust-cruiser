@@ -8,6 +8,11 @@ use syn::{Attribute, Item, ItemMod, ItemUse, Stmt, Token, punctuated::Punctuated
 
 use super::super::cfg_context::{CfgContext, CfgDecision};
 use super::{
+    known_names::{
+        is_builtin_attribute_name, is_builtin_derive_name, is_known_external_derive_crate,
+        is_serde_neutral_flag, is_serde_neutral_literal_key, is_serde_path_valued_key,
+        known_external_crate,
+    },
     macro_safety::{MacroDefinitionScope, local_macro_safety},
     macro_syntax::{
         is_dependency_neutral_expression_macro, is_dependency_neutral_token_macro,
@@ -35,50 +40,6 @@ pub(crate) struct ScopedUse {
     pub(crate) item: ItemUse,
     pub(crate) aliases: BTreeMap<String, Vec<UseAlias>>,
     pub(crate) glob_imports: Vec<UseAlias>,
-}
-
-fn known_builtin_attribute(path: &syn::Path) -> bool {
-    path.get_ident().is_some_and(|name| {
-        matches!(
-            name.to_string().as_str(),
-            "allow"
-                | "automatically_derived"
-                | "cold"
-                | "deprecated"
-                | "default"
-                | "deny"
-                | "doc"
-                | "expect"
-                | "export_name"
-                | "forbid"
-                | "global_allocator"
-                | "ignore"
-                | "inline"
-                | "link"
-                | "link_name"
-                | "link_section"
-                | "macro_export"
-                | "macro_use"
-                | "must_use"
-                | "no_main"
-                | "no_implicit_prelude"
-                | "no_mangle"
-                | "no_std"
-                | "non_exhaustive"
-                | "panic_handler"
-                | "path"
-                | "proc_macro"
-                | "proc_macro_attribute"
-                | "proc_macro_derive"
-                | "repr"
-                | "should_panic"
-                | "target_feature"
-                | "test"
-                | "track_caller"
-                | "used"
-                | "warn"
-        )
-    })
 }
 
 pub(crate) struct PathVisitor<'a> {
@@ -531,7 +492,11 @@ impl<'ast> Visit<'ast> for PathVisitor<'_> {
                 }
             }
             return;
-        } else if !known_builtin_attribute(attribute.path()) {
+        } else if !attribute
+            .path()
+            .get_ident()
+            .is_some_and(|name| is_builtin_attribute_name(&name.to_string()))
+        {
             self.macro_spans.push(attribute.span().start());
         }
         syn::visit::visit_attribute(self, attribute);
@@ -603,47 +568,20 @@ fn dependency_neutral_attribute_paths(
     for meta in metas {
         match meta {
             syn::Meta::Path(path)
-                if path.get_ident().is_some_and(|name| {
-                    matches!(
-                        name.to_string().as_str(),
-                        "alias"
-                            | "content"
-                            | "default"
-                            | "deny_unknown_fields"
-                            | "flatten"
-                            | "other"
-                            | "rename_all"
-                            | "skip"
-                            | "skip_deserializing"
-                            | "skip_serializing"
-                            | "transparent"
-                            | "untagged"
-                    )
-                }) => {}
+                if path
+                    .get_ident()
+                    .is_some_and(|name| is_serde_neutral_flag(&name.to_string())) => {}
             syn::Meta::NameValue(value)
-                if value.path.get_ident().is_some_and(|name| {
-                    matches!(
-                        name.to_string().as_str(),
-                        "alias"
-                            | "content"
-                            | "expecting"
-                            | "rename"
-                            | "rename_all"
-                            | "rename_all_fields"
-                            | "tag"
-                    )
-                }) && matches!(&value.value, syn::Expr::Lit(_)) => {}
+                if value
+                    .path
+                    .get_ident()
+                    .is_some_and(|name| is_serde_neutral_literal_key(&name.to_string()))
+                    && matches!(&value.value, syn::Expr::Lit(_)) => {}
             syn::Meta::NameValue(value)
-                if value.path.get_ident().is_some_and(|name| {
-                    matches!(
-                        name.to_string().as_str(),
-                        "default"
-                            | "deserialize_with"
-                            | "serialize_with"
-                            | "skip_serializing_if"
-                            | "with"
-                    )
-                }) =>
+                if value
+                    .path
+                    .get_ident()
+                    .is_some_and(|name| is_serde_path_valued_key(&name.to_string())) =>
             {
                 let syn::Expr::Lit(expression) = value.value else {
                     return None;
@@ -688,18 +626,7 @@ fn known_builtin_derive(
             }
             path.get_ident().is_some_and(|name| {
                 !aliases.contains_key(&name.to_string())
-                    && matches!(
-                        name.to_string().as_str(),
-                        "Clone"
-                            | "Copy"
-                            | "Debug"
-                            | "Default"
-                            | "Eq"
-                            | "Hash"
-                            | "Ord"
-                            | "PartialEq"
-                            | "PartialOrd"
-                    )
+                    && is_builtin_derive_name(&name.to_string())
             })
         })
     })
@@ -743,7 +670,7 @@ fn known_external_derive_path(
     if !matches!(last.as_str(), "Deserialize" | "Serialize") {
         return false;
     }
-    if external_crates.contains(first) && KNOWN_EXTERNAL_DERIVE_CRATES.contains(&first.as_str()) {
+    if external_crates.contains(first) && is_known_external_derive_crate(first) {
         return true;
     }
     let Some(candidates) = aliases.get(first) else {
@@ -771,13 +698,7 @@ fn known_external_derive_alias(
     let Some(root) = alias.path.first() else {
         return false;
     };
-    if alias.absolute_external
-        && !external_crates.contains(root)
-        && !matches!(
-            root.as_str(),
-            "alloc" | "core" | "proc_macro" | "std" | "test"
-        )
-    {
+    if alias.absolute_external && !external_crates.contains(root) && !known_external_crate(root) {
         return false;
     }
     let mut expanded = alias.path.clone();
@@ -799,8 +720,6 @@ fn known_external_derive_alias(
     }
     known_external_derive_path(&expanded_path, aliases, external_crates, alias_depth + 1)
 }
-
-const KNOWN_EXTERNAL_DERIVE_CRATES: &[&str] = &["serde"];
 
 /// Declarations parsed from macro tokens do not live for the visited `'ast`
 /// borrow, so they are visited through a lifetime-independent receiver.

@@ -9,12 +9,12 @@ use super::super::{
     cfg_context::CfgDecision,
     rust_syntax::{
         ObservedPath, PathVisitor, ScopedUse, declared_macro_bindings, flatten_use_tree,
-        is_crate_visible, local_macro_safety_bindings, path_to_string, syn_path_segments,
+        is_crate_visible, known_external_crate, known_language_name, known_prelude_name,
+        local_macro_safety_bindings, path_to_string, syn_path_segments,
     },
 };
 use super::{
     ModuleVariant, Observer,
-    builtin_names::{known_external_crate, known_language_name, known_prelude_name},
     path_resolution::{PathResolver, ResolutionScope},
 };
 use crate::boundary_validation::{
@@ -219,7 +219,7 @@ impl Observer {
                 source_id.to_owned(),
                 self.evidence(path, macro_span),
                 Vec::new(),
-                all_dependency_kinds(),
+                DependencyKind::ALL.to_vec(),
             ));
         }
         for cfg_span in cfg_spans {
@@ -229,7 +229,7 @@ impl Observer {
                 format!("{source_id}:{}", cfg_span.line),
                 Some(source_id.to_owned()),
                 Some(self.evidence(path, cfg_span)),
-                all_dependency_kinds(),
+                DependencyKind::ALL.to_vec(),
             ));
         }
     }
@@ -542,14 +542,6 @@ impl Observer {
         }
         (dependencies, issues)
     }
-}
-
-pub(super) fn all_dependency_kinds() -> Vec<DependencyKind> {
-    vec![
-        DependencyKind::Import,
-        DependencyKind::ReExport,
-        DependencyKind::PathReference,
-    ]
 }
 
 fn candidate_id(
