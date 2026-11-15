@@ -42,11 +42,13 @@ fn known_builtin_attribute(path: &syn::Path) -> bool {
         matches!(
             name.to_string().as_str(),
             "allow"
+                | "automatically_derived"
                 | "cold"
                 | "deprecated"
                 | "default"
                 | "deny"
                 | "doc"
+                | "expect"
                 | "export_name"
                 | "forbid"
                 | "global_allocator"
@@ -70,7 +72,10 @@ fn known_builtin_attribute(path: &syn::Path) -> bool {
                 | "proc_macro_derive"
                 | "repr"
                 | "should_panic"
+                | "target_feature"
                 | "test"
+                | "track_caller"
+                | "used"
                 | "warn"
         )
     })
@@ -606,10 +611,12 @@ fn dependency_neutral_attribute_paths(
                             | "default"
                             | "deny_unknown_fields"
                             | "flatten"
+                            | "other"
                             | "rename_all"
                             | "skip"
                             | "skip_deserializing"
                             | "skip_serializing"
+                            | "transparent"
                             | "untagged"
                     )
                 }) => {}
@@ -617,7 +624,13 @@ fn dependency_neutral_attribute_paths(
                 if value.path.get_ident().is_some_and(|name| {
                     matches!(
                         name.to_string().as_str(),
-                        "alias" | "content" | "rename" | "rename_all"
+                        "alias"
+                            | "content"
+                            | "expecting"
+                            | "rename"
+                            | "rename_all"
+                            | "rename_all_fields"
+                            | "tag"
                     )
                 }) && matches!(&value.value, syn::Expr::Lit(_)) => {}
             syn::Meta::NameValue(value)

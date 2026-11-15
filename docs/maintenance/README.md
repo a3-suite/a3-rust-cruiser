@@ -17,7 +17,7 @@
 
 - 開発前提と固定 toolchain: `Cargo.toml`、`rust-toolchain.toml`
 - 品質ゲート（format / lint / test / security / structure）: `.github/workflows/quality-gate.yml`（標準 bundle `rust-cargo-quality` を選択）、配布同一性 `.ci/ci-assets.lock.json`
-- lint 設定: `a3-lint.yaml`
-- SDD 検証: `sdd/`（`a3-sdd sdd check`）
+- lint 設定: `a3-lint.yaml`（実行前に、`rust` スキルを含むスキル置き場を `A3_SKILLS_ROOT` に設定する）
+- SDD 検証: `sdd/`（`a3-sdd sdd check`。実行前に、SDD owner skill の置き場を `A3_SDD_OWNER_SKILL_DISCOVERY_ROOT` に設定する。参照箇所は `sdd/dsl/core/sdd-owner-skill-discovery.sdd.yml`）
 - 契約対象回帰の実行定義: `tests/contract-subject-regression.yml`
 - コミット前ゲートとローカル導入: `.agents/skills/commit-gate/SKILL.md`、`.agents/skills/local-install/SKILL.md`

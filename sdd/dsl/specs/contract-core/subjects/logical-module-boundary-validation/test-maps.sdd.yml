@@ -728,6 +728,15 @@ test_maps:
           - report-decision-supported
           - report-violations-present
       - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
+        symbol: logical_module_boundary_validation_integration_test::validation_report::should_dependency_neutral_builtin_and_serde_attributes_are_conformant
+        guarantees:
+          - conformant-decision
+          - analysis-issues-present
+          - report-serialization-supported
+          - report-ordering-canonical
+          - report-decision-supported
+          - report-violations-present
+      - path: tests/contracts/logical_module_boundary_validation_integration_test/validation_report.rs
         symbol: logical_module_boundary_validation_integration_test::validation_report::should_serde_prelude_function_path_is_conformant
         guarantees:
           - conformant-decision

@@ -416,6 +416,7 @@ cases:
           - std-thread-local-declaration
           - module-local-pattern-item-macro
           - known-serde-function-path-attribute
+          - dependency-neutral-builtin-and-serde-attribute
   - contract_id: contract.logical-module-boundary.validation-report
     id: inactive-cfg-attr-path-module-is-ignored
     partition: resolved-analysis-context

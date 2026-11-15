@@ -453,6 +453,25 @@ fn should_known_dependency_observing_macros_and_safe_serde_attributes_are_confor
 }
 
 #[test]
+fn should_dependency_neutral_builtin_and_serde_attributes_are_conformant() {
+    // Arrange
+    let fixture = TempFixture::new("neutral-builtin-and-serde-attributes");
+    fixture
+        .write_manifest("[dependencies]\nserde = { version = \"1\", features = [\"derive\"] }\n");
+    fixture.write(
+        "src/main.rs",
+        "use serde::Deserialize;\n#[derive(Deserialize)]\n#[serde(tag = \"kind\", expecting = \"a kind\", rename_all_fields = \"camelCase\")]\nenum Kind { A { value: usize }, #[serde(other)] Unknown }\n#[derive(Deserialize)]\n#[serde(transparent)]\nstruct Wrapper(usize);\n#[automatically_derived]\nimpl Wrapper {}\n#[used]\nstatic USED: usize = 0;\n#[target_feature(enable = \"avx2\")]\nunsafe fn fast() {}\n#[track_caller]\n#[expect(clippy::too_many_lines, reason = \"fixture\")]\nfn main() {}\n",
+    );
+
+    // Act
+    let report = completed_json(&run_check(&fixture, "json"), 0);
+
+    // Assert
+    assert_eq!(report["decision"], "conformant");
+    assert_eq!(report["analysis_issues"], serde_json::json!([]));
+}
+
+#[test]
 fn should_nested_json_and_matches_guards_observe_internal_paths() {
     // Arrange
     let fixture = TempFixture::new("nested-json-and-matches-paths");
